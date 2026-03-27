@@ -1,0 +1,43 @@
+{
+  "name": "server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "cross-env NODE_ENV=development PORT=9091 npx tsx watch --env-file=../.env ./src/index.ts",
+    "start": "cross-env NODE_ENV=production PORT=9091 node dist/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.95.3",
+    "axios": "^1.13.6",
+    "bcryptjs": "^3.0.3",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.5",
+    "dayjs": "^1.11.19",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.1",
+    "drizzle-zod": "^0.8.3",
+    "express": "^4.22.1",
+    "iconv-lite": "^0.7.2",
+    "multer": "^2.0.2",
+    "openai": "^4.0.0",
+    "opencc-js": "^1.0.5",
+    "pg": "^8.16.3",
+    "postgres": "^3.4.8",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/iconv-lite": "^0.0.1",
+    "@types/multer": "^2.0.0",
+    "@types/pg": "^8.16.0",
+    "cross-env": "^7.0.3",
+    "domhandler": "^6.0.1",
+    "drizzle-kit": "^0.31.8",
+    "esbuild": "0.27.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3"
+  }
+}
