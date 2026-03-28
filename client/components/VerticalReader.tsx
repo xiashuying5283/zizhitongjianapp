@@ -55,7 +55,6 @@ interface VerticalReaderProps {
   onLoadMore?: () => void;
   onVisibleParagraphChange?: (paragraphId: number, visibleIndex: number, totalLoaded: number) => void;
   onScrollToResult?: (targetId: number, success: boolean) => void;
-  onSelectionAction?: (action: 'copy' | 'highlight' | 'annotate', text: string, paragraphId: number) => void;
   readerWebViewRef?: React.MutableRefObject<WebView | null>;
 }
 
@@ -175,12 +174,12 @@ function generateHTML(props: VerticalReaderProps): string {
     // 左列：年号 + 干支 + 公元 + 分隔线
     yearsHTML += `<div class="year-info-col">`;
     yearsHTML += `<span class="year-title">${escapeHTML(year.year_mark)}</span>`;
-    if (year.gan_zhi) {
-      yearsHTML += `<span class="year-ganzhi">${escapeHTML(year.gan_zhi)}</span>`;
-    }
+    var subInfo = '';
+    if (year.gan_zhi) subInfo += escapeHTML(year.gan_zhi);
     const bcStr = formatBcYear(year.bc_year);
-    if (bcStr) {
-      yearsHTML += `<span class="year-bc">${bcStr}</span>`;
+    if (bcStr) subInfo += (subInfo ? '、' : '') + bcStr;
+    if (subInfo) {
+      yearsHTML += `<span class="year-sub">（${subInfo}）</span>`;
     }
     yearsHTML += `<span class="year-sep"></span>`;
     yearsHTML += `</div>`;
@@ -192,7 +191,7 @@ function generateHTML(props: VerticalReaderProps): string {
       if (isTranslationOnly) {
         const trans = getDisplayTranslation(paragraph);
         if (trans) {
-          yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="translation-vertical">${hl(trans)}</div></div>`;
+          yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="translation-vertical">\u3000\u3000${hl(trans)}</div></div>`;
         } else {
           yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="translation-vertical empty">（暫無譯文）</div></div>`;
         }
@@ -213,7 +212,7 @@ function generateHTML(props: VerticalReaderProps): string {
           const trans = getDisplayTranslation(paragraph);
           if (trans) {
             yearsHTML += `<div class="translation-sep"></div>`;
-            yearsHTML += `<div class="translation-horizontal">${hl(trans)}</div>`;
+            yearsHTML += `<div class="translation-horizontal">\u3000\u3000${hl(trans)}</div>`;
           }
         }
         yearsHTML += `</div>`;
@@ -225,7 +224,7 @@ function generateHTML(props: VerticalReaderProps): string {
           const trans = getDisplayTranslation(paragraph);
           if (trans) {
             yearsHTML += `<div class="translation-sep"></div>`;
-            yearsHTML += `<div class="translation-horizontal">${hl(trans)}</div>`;
+            yearsHTML += `<div class="translation-horizontal">\u3000\u3000${hl(trans)}</div>`;
           }
         }
         yearsHTML += `</div>`;
@@ -259,7 +258,6 @@ function generateHTML(props: VerticalReaderProps): string {
     padding: 0;
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
   }
   html, body {
     width: 100%;
@@ -268,6 +266,8 @@ function generateHTML(props: VerticalReaderProps): string {
     color: ${textColor};
     font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Serif CJK SC', serif;
     -webkit-text-size-adjust: none;
+    -webkit-user-select: text;
+    user-select: text;
     overflow-x: auto;
     overflow-y: hidden;
     writing-mode: vertical-rl;
@@ -345,19 +345,13 @@ function generateHTML(props: VerticalReaderProps): string {
     color: ${textColor};
     letter-spacing: 0.15em;
   }
-  .year-ganzhi {
+  .year-sub {
     writing-mode: vertical-rl;
+    display: inline-block;
     font-size: ${Math.round(fontSize * 0.7)}px;
     color: ${textMuted};
     letter-spacing: 0.1em;
-    margin-top: 8px;年号
-  }
-  .year-bc {
-    writing-mode: vertical-rl;
-    font-size: ${Math.round(fontSize * 0.7)}px;
-    color: ${textMuted};
-    margin-top: 12px;
-    letter-spacing: 0.1em;
+    margin-top: 8px;
   }
   .year-sep {
     writing-mode: vertical-rl;
@@ -375,7 +369,8 @@ function generateHTML(props: VerticalReaderProps): string {
 
   .paragraph {
     writing-mode: vertical-rl;
-    margin-bottom: 16px;
+    margin-left: 20px;
+    margin-bottom: 20px;
   }
   .paragraph-highlighted {
     background-color: rgba(59, 130, 246, 0.08);
@@ -402,23 +397,23 @@ function generateHTML(props: VerticalReaderProps): string {
 
   .translation-sep {
     writing-mode: vertical-rl;
-    height: 1px;
-    background: ${textColor}15;
-    margin: 8px 4px;
     width: 1px;
+    background: ${textColor}15;
+    margin: 4px 8px;
     min-height: 20px;
   }
 
   .translation-horizontal {
-    writing-mode: horizontal-tb;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
     font-size: ${Math.round(fontSize * 0.78)}px;
-    line-height: 1.8;
+    line-height: 2.2;
+    letter-spacing: 0.15em;
     color: ${translationColor};
     padding: 8px 10px;
-    border-left: 2px solid ${annotationColor}33;
+    border-right: 2px solid ${annotationColor}33;
     margin: 8px 4px;
     opacity: 0.85;
-    text-align: justify;
   }
 
   .translation-vertical {
@@ -457,13 +452,7 @@ function generateHTML(props: VerticalReaderProps): string {
   ${metaHTML}
   ${yearsHTML}
 </div>
-<div id="selection-menu" style="display:none;position:fixed;z-index:9999;flex-direction:row;gap:2px;padding:4px;border-radius:8px;background:rgba(0,0,0,0.82);box-shadow:0 2px 12px rgba(0,0,0,0.3);">
-  <button onclick="__selMenuAction('copy')" style="padding:6px 12px;border:none;border-radius:6px;background:rgba(255,255,255,0.15);color:#fff;font-size:13px;cursor:pointer;">复制</button>
-  <button onclick="__selMenuAction('highlight')" style="padding:6px 12px;border:none;border-radius:6px;background:rgba(255,255,255,0.15);color:#fff;font-size:13px;cursor:pointer;">高亮</button>
-  <button onclick="__selMenuAction('annotate')" style="padding:6px 12px;border:none;border-radius:6px;background:rgba(255,255,255,0.15);color:#fff;font-size:13px;cursor:pointer;">批注</button>
-</div>
 <script>
-  document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
   // === 滚动追踪 - 检测当前可见段落（竖排模式下用水平滚动位置） ===
   var lastTrackedParagraphId = 0;
   var lastTrackTime = 0;
@@ -585,77 +574,6 @@ function generateHTML(props: VerticalReaderProps): string {
     setTimeout(trackVisibleParagraph, 1000);
   });
 
-  // === 自定义选择菜单（复制、高亮、批注） ===
-  var selMenu = document.getElementById('selection-menu');
-  var selMenuTimeout = null;
-
-  function getSelectedInfo() {
-    var sel = window.getSelection();
-    if (!sel || sel.isCollapsed || sel.toString().trim().length === 0) return null;
-    var range = sel.getRangeAt(0);
-    var node = range.startContainer;
-    var paragraphEl = null;
-    while (node && node !== document) {
-      if (node.nodeType === 1 && node.getAttribute && node.getAttribute('data-paragraph-id')) {
-        paragraphEl = node;
-        break;
-      }
-      node = node.parentNode;
-    }
-    var rect = range.getBoundingClientRect();
-    return {
-      text: sel.toString().trim(),
-      paragraphId: paragraphEl ? parseInt(paragraphEl.getAttribute('data-paragraph-id')) : 0,
-      x: rect.left + rect.width / 2,
-      y: rect.top - 8
-    };
-  }
-
-  function showSelMenu(info) {
-    selMenu.style.display = 'flex';
-    var mw = selMenu.offsetWidth;
-    var mh = selMenu.offsetHeight;
-    var left = info.x - mw / 2;
-    var top = info.y - mh;
-    if (left < 4) left = 4;
-    if (left + mw > window.innerWidth - 4) left = window.innerWidth - mw - 4;
-    if (top < 4) top = info.y + 20;
-    selMenu.style.left = left + 'px';
-    selMenu.style.top = top + 'px';
-  }
-
-  function hideSelMenu() {
-    selMenu.style.display = 'none';
-  }
-
-  document.addEventListener('selectionchange', function() {
-    if (selMenuTimeout) clearTimeout(selMenuTimeout);
-    selMenuTimeout = setTimeout(function() {
-      var info = getSelectedInfo();
-      if (info) showSelMenu(info);
-      else hideSelMenu();
-    }, 200);
-  });
-
-  document.addEventListener('touchend', function() {
-    setTimeout(function() {
-      var info = getSelectedInfo();
-      if (info) showSelMenu(info);
-    }, 300);
-  });
-
-  window.__selMenuAction = function(action) {
-    var info = getSelectedInfo();
-    if (!info) return;
-    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-      type: 'selectionAction',
-      action: action,
-      text: info.text,
-      paragraphId: info.paragraphId
-    }));
-    window.getSelection().removeAllRanges();
-    hideSelMenu();
-  };
 </script>
 </body>
 </html>`;
@@ -704,14 +622,11 @@ export function VerticalReader(props: VerticalReaderProps) {
         case 'scrollToResult':
           rest.onScrollToResult?.(data.targetId, data.success);
           break;
-        case 'selectionAction':
-          rest.onSelectionAction?.(data.action, data.text, data.paragraphId);
-          break;
       }
     } catch (e) {
       // ignore
     }
-  }, [rest.onTap, rest.onLoadMore, rest.onVisibleParagraphChange]);
+  }, [rest.onTap, rest.onLoadMore, rest.onVisibleParagraphChange, rest.onScrollToResult]);
 
   return (
     <WebView

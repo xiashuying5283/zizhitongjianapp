@@ -55,7 +55,6 @@ interface HorizontalReaderProps {
   onLoadMore?: () => void;
   onVisibleParagraphChange?: (paragraphId: number, visibleIndex: number, totalLoaded: number) => void;
   onScrollToResult?: (targetId: number, success: boolean) => void;
-  onSelectionAction?: (action: 'copy' | 'highlight' | 'annotate', text: string, paragraphId: number) => void;
   readerWebViewRef?: React.MutableRefObject<WebView | null>;
 }
 
@@ -165,9 +164,9 @@ function generateHTML(props: HorizontalReaderProps): string {
       if (isTranslationOnly) {
         const trans = getDisplayTranslation(paragraph);
         if (trans) {
-          yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="translation-text">　　${hl(trans)}</div></div>`;
+          yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="translation-text">${hl(trans)}</div></div>`;
         } else {
-          yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="translation-text empty">　　（暂无译文）</div></div>`;
+          yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="translation-text empty">（暂无译文）</div></div>`;
         }
       } else if (showNotes) {
         const content = getDisplayContent(paragraph);
@@ -180,23 +179,23 @@ function generateHTML(props: HorizontalReaderProps): string {
             chars += `<span class="note">${hl(part.content)}</span>`;
           }
         }
-        yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="original-text">　　${chars}</div>`;
+        yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="original-text">${chars}</div>`;
 
         if (showTrans) {
           const trans = getDisplayTranslation(paragraph);
           if (trans) {
-            yearsHTML += `<div class="translation-text">　　${hl(trans)}</div>`;
+            yearsHTML += `<div class="translation-text">${hl(trans)}</div>`;
           }
         }
         yearsHTML += `</div>`;
       } else {
         const content = getDisplayContent(paragraph);
-        yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="original-text">　　${hl(content)}</div>`;
+        yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="original-text">${hl(content)}</div>`;
 
         if (showTrans) {
           const trans = getDisplayTranslation(paragraph);
           if (trans) {
-            yearsHTML += `<div class="translation-text">　　${hl(trans)}</div>`;
+            yearsHTML += `<div class="translation-text">${hl(trans)}</div>`;
           }
         }
         yearsHTML += `</div>`;
@@ -229,7 +228,6 @@ function generateHTML(props: HorizontalReaderProps): string {
     padding: 0;
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
   }
   html, body {
     width: 100%;
@@ -238,6 +236,8 @@ function generateHTML(props: HorizontalReaderProps): string {
     color: ${textColor};
     font-family: 'Noto Serif CJK SC','PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', , serif;
     -webkit-text-size-adjust: none;
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   .container {
@@ -327,7 +327,7 @@ function generateHTML(props: HorizontalReaderProps): string {
   }
 
   .paragraph {
-    margin-bottom: 12px;
+    margin-bottom: 20px;
   }
   .paragraph-hl {
     background: rgba(251, 191, 36, 0.1);
@@ -339,6 +339,7 @@ function generateHTML(props: HorizontalReaderProps): string {
     font-size: ${fontSize}px;
     line-height: 1.9;
     text-align: justify;
+    text-indent: 2em;
     letter-spacing: 0.06em;
     word-break: break-all;
   }
@@ -353,6 +354,7 @@ function generateHTML(props: HorizontalReaderProps): string {
     line-height: ${isTranslationOnly ? 1.9 : 1.7};
     color: ${translationColor};
     text-align: justify;
+    text-indent: 2em;
     margin-top: 8px;
     padding-left: 12px;
     border-left: 2px solid ${annotationColor}40;
@@ -360,6 +362,7 @@ function generateHTML(props: HorizontalReaderProps): string {
   }
   .translation-text.empty {
     color: ${textMuted};
+    text-indent: 0;
     opacity: 0.5;
   }
 
@@ -384,13 +387,7 @@ function generateHTML(props: HorizontalReaderProps): string {
   ${metaHTML}
   ${yearsHTML}
 </div>
-<div id="selection-menu" style="display:none;position:fixed;z-index:9999;flex-direction:row;gap:2px;padding:4px;border-radius:8px;background:rgba(0,0,0,0.82);box-shadow:0 2px 12px rgba(0,0,0,0.3);">
-  <button onclick="__selMenuAction('copy')" style="padding:6px 12px;border:none;border-radius:6px;background:rgba(255,255,255,0.15);color:#fff;font-size:13px;cursor:pointer;">复制</button>
-  <button onclick="__selMenuAction('highlight')" style="padding:6px 12px;border:none;border-radius:6px;background:rgba(255,255,255,0.15);color:#fff;font-size:13px;cursor:pointer;">高亮</button>
-  <button onclick="__selMenuAction('annotate')" style="padding:6px 12px;border:none;border-radius:6px;background:rgba(255,255,255,0.15);color:#fff;font-size:13px;cursor:pointer;">批注</button>
-</div>
 <script>
-  document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
   // === 滚动追踪 - 检测当前可见段落 ===
   var lastTrackedParagraphId = 0;
   var lastTrackTime = 0;
@@ -508,80 +505,6 @@ function generateHTML(props: HorizontalReaderProps): string {
     setTimeout(trackVisibleParagraph, 1000);
   });
 
-  // === 自定义选择菜单（复制、高亮、批注） ===
-  var selMenu = document.getElementById('selection-menu');
-  var selMenuTimeout = null;
-
-  function getSelectedInfo() {
-    var sel = window.getSelection();
-    if (!sel || sel.isCollapsed || sel.toString().trim().length === 0) return null;
-    var range = sel.getRangeAt(0);
-    var node = range.startContainer;
-    var paragraphEl = null;
-    while (node && node !== document) {
-      if (node.nodeType === 1 && node.getAttribute && node.getAttribute('data-paragraph-id')) {
-        paragraphEl = node;
-        break;
-      }
-      node = node.parentNode;
-    }
-    var rect = range.getBoundingClientRect();
-    return {
-      text: sel.toString().trim(),
-      paragraphId: paragraphEl ? parseInt(paragraphEl.getAttribute('data-paragraph-id')) : 0,
-      x: rect.left + rect.width / 2,
-      y: rect.top - 8
-    };
-  }
-
-  function showSelMenu(info) {
-    selMenu.style.display = 'flex';
-    var mw = selMenu.offsetWidth;
-    var mh = selMenu.offsetHeight;
-    var left = info.x - mw / 2;
-    var top = info.y - mh;
-    if (left < 4) left = 4;
-    if (left + mw > window.innerWidth - 4) left = window.innerWidth - mw - 4;
-    if (top < 4) top = info.y + 20;
-    selMenu.style.left = left + 'px';
-    selMenu.style.top = top + 'px';
-  }
-
-  function hideSelMenu() {
-    selMenu.style.display = 'none';
-  }
-
-  document.addEventListener('selectionchange', function() {
-    if (selMenuTimeout) clearTimeout(selMenuTimeout);
-    selMenuTimeout = setTimeout(function() {
-      var info = getSelectedInfo();
-      if (info) {
-        showSelMenu(info);
-      } else {
-        hideSelMenu();
-      }
-    }, 200);
-  });
-
-  document.addEventListener('touchend', function() {
-    setTimeout(function() {
-      var info = getSelectedInfo();
-      if (info) showSelMenu(info);
-    }, 300);
-  });
-
-  window.__selMenuAction = function(action) {
-    var info = getSelectedInfo();
-    if (!info) return;
-    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-      type: 'selectionAction',
-      action: action,
-      text: info.text,
-      paragraphId: info.paragraphId
-    }));
-    window.getSelection().removeAllRanges();
-    hideSelMenu();
-  };
 </script>
 </body>
 </html>`;
@@ -617,12 +540,9 @@ export function HorizontalReader(props: HorizontalReaderProps) {
         case 'scrollToResult':
           rest.onScrollToResult?.(data.targetId, data.success);
           break;
-        case 'selectionAction':
-          rest.onSelectionAction?.(data.action, data.text, data.paragraphId);
-          break;
       }
     } catch (e) {}
-  }, [rest.onTap, rest.onLoadMore, rest.onVisibleParagraphChange]);
+  }, [rest.onTap, rest.onLoadMore, rest.onVisibleParagraphChange, rest.onScrollToResult]);
 
   return (
     <WebView

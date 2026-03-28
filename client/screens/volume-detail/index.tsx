@@ -6,8 +6,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useScriptText } from '@/hooks/useScriptText';
 import { Screen } from '@/components/Screen';
-import { ParagraphWithAnnotation } from '@/components/ParagraphWithAnnotation';
-import { VerticalTextReader } from '@/components/VerticalTextReader';
 import { VerticalReader } from '@/components/VerticalReader';
 import { HorizontalReader } from '@/components/HorizontalReader';
 import { ThemedText } from '@/components/ThemedText';
@@ -17,9 +15,7 @@ import { createAudioPlayer, AudioPlayer, AudioStatus } from 'expo-audio';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
 import { updateReadingProgress, getReadingRecords } from '@/utils/readingProgress';
-import { scrollToSection } from './scrollHelper';
 import { getDeviceId } from '@/utils/deviceId';
-import { copyToClipboard } from '@/utils/share';
 import {
   loadReadingSettings,
   getCachedSettings,
@@ -163,22 +159,13 @@ export default function VolumeDetailScreen() {
     scrollToParagraphId?: number;  // 从首页传递的段落ID，用于直接恢复位置
   }>();
   const volumeNumber = id ? parseInt(id) : null;  // 当前卷号
-  const scrollViewRef = useRef<ScrollView>(null);
-  const scrollContentRef = useRef<View>(null);
-  const yearSectionRefs = useRef<Map<number, View | React.Component>>(new Map());
-  const yearLayoutsRef = useRef<Map<number, number>>(new Map());  // 记录年份组的布局位置 (y 坐标)
   const currentScrollYRef = useRef(0);  // 记录当前滚动位置
-  const paragraphRefs = useRef<Map<number, View>>(new Map());
-  const paragraphLayoutsRef = useRef<Map<number, { y: number; height: number }>>(new Map());  // 段落布局位置
   const htmlWebViewRef = useRef<any>(null);  // HTML 读者的 WebView 引用
   const scrollToTargetRef = useRef(0);  // 当前滚动目标段落 ID（用于判断重试是否过期）
   const scrollToSucceededRef = useRef(false);  // 当前滚动是否已成功
-  const textLayoutRef = useRef<TextLayout>(textLayout);  // 避免 stale closure
+  const textLayoutRef = useRef<TextLayout>('horizontal');  // 避免 stale closure
   const visibleParagraphIndexRef = useRef(0);  // HTML 模式下当前可见段落的索引
   const loadedParagraphsCountRef = useRef(0);  // HTML 模式下已加载的段落总数（用于进度计算）
-  const touchStartY = useRef(0);
-  const touchStartX = useRef(0);
-  const touchStartTime = useRef(0);
   const lastTitleTapTime = useRef(0);  // 用于双击标题检测
 
   // 工具栏和面板状态
@@ -218,9 +205,13 @@ export default function VolumeDetailScreen() {
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>(cachedSettings.backgroundTheme);
   const [viewMode, setViewMode] = useState<ViewMode>(cachedSettings.viewMode);
   const [textLayout, setTextLayout] = useState<TextLayout>(cachedSettings.textLayout);
-  textLayoutRef.current = textLayout;  // 同步 ref
   const [ttsVoice, setTtsVoice] = useState(cachedSettings.ttsVoice);
   const [ttsSpeed, setTtsSpeed] = useState(cachedSettings.ttsSpeed);
+
+  // 同步 textLayoutRef
+  useEffect(() => {
+    textLayoutRef.current = textLayout;
+  }, [textLayout]);
 
   const [volumeData, setVolumeData] = useState<VolumeData | null>(null);
   const [volumeMeta, setVolumeMeta] = useState<VolumeMeta | null>(null);
@@ -256,13 +247,8 @@ export default function VolumeDetailScreen() {
   // 文字排版方向切换
   const handleSetTextLayout = useCallback(async (layout: TextLayout) => {
     setTextLayout(layout);
-    // 竖排模式下不支持译文，自动切回纯原文
-    if (layout === 'vertical' && viewMode.includes('translation')) {
-      setViewMode('original');
-      await saveViewModeToStorage('original');
-    }
     await saveTextLayoutToStorage(layout);
-  }, [viewMode]);
+  }, []);
 
   // TTS音色切换
   const handleSetTtsVoice = useCallback(async (voice: string) => {
@@ -285,28 +271,20 @@ export default function VolumeDetailScreen() {
     
     // 计算当前可见的第一个年份作为书签位置
     if (volumeData?.years && volumeData.years.length > 0) {
-      // 查找当前滚动位置对应的年份
-      let foundYear = null;
-      const scrollY = currentScrollYRef.current;
+      // WebView 模式：使用可见段落索引来估算年份
+      const visibleIndex = visibleParagraphIndexRef.current;
+      let totalParagraphs = 0;
       
-      // 遍历年份布局，找到第一个可见的
-      for (let i = 0; i < volumeData.years.length; i++) {
-        const layoutY = yearLayoutsRef.current.get(i);
-        if (layoutY !== undefined && layoutY >= scrollY - 100) {  // 允许一点误差
-          foundYear = volumeData.years[i];
+      for (const year of volumeData.years) {
+        totalParagraphs += year.paragraphs.length;
+        if (visibleIndex < totalParagraphs) {
+          setCurrentVisibleYear({
+            yearMark: year.year_mark,
+            emperor: year.emperor,
+          });
           break;
         }
       }
-      
-      // 如果没找到，使用第一个年份
-      if (!foundYear) {
-        foundYear = volumeData.years[0];
-      }
-      
-      setCurrentVisibleYear({
-        yearMark: foundYear.year_mark,
-        emperor: foundYear.emperor,
-      });
     }
     
     setBookmarkModalVisible(true);
@@ -562,47 +540,13 @@ export default function VolumeDetailScreen() {
 
   // 滚动到指定条目
   const scrollToParagraph = useCallback((yearIndex: number, paragraphIndex: number) => {
-    // HTML 模式：通过 WebView JS 滚动
-    if (isHtmlMode()) {
-      const segments = ttsSegmentsRef.current;
-      const segment = segments.find(s => s.yearIndex === yearIndex && s.paragraphIndex === paragraphIndex);
-      if (segment) {
-        injectScroll(`window.__scrollToParagraph && window.__scrollToParagraph(${segment.id});`);
-      } else {
-        injectScroll(`window.__scrollToYear && window.__scrollToYear(${yearIndex});`);
-      }
-      return;
-    }
-    // 从segment中获取paragraphId
+    // 通过 WebView JS 滚动
     const segments = ttsSegmentsRef.current;
     const segment = segments.find(s => s.yearIndex === yearIndex && s.paragraphIndex === paragraphIndex);
-    
-    if (!segment || !scrollViewRef.current || !scrollContentRef.current) return;
-    
-    const paragraphRef = paragraphRefs.current.get(segment.id); // segment.id 就是 paragraph.id
-    
-    if (paragraphRef) {
-      scrollToSection({
-        sectionRef: paragraphRef,
-        scrollViewRef,
-        scrollContentRef,
-        onSuccess: () => {
-          // 滚动成功
-        },
-        onError: () => {
-          // 滚动失败，回退到年份区域
-          const y = yearLayoutsRef.current.get(yearIndex);
-          if (y !== undefined && scrollViewRef.current) {
-            scrollViewRef.current.scrollTo({ y, animated: true });
-          }
-        },
-      });
+    if (segment) {
+      injectScroll(`window.__scrollToParagraph && window.__scrollToParagraph(${segment.id});`);
     } else {
-      // 如果找不到段落引用，回退到年份区域
-      const y = yearLayoutsRef.current.get(yearIndex);
-      if (y !== undefined && scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ y, animated: true });
-      }
+      injectScroll(`window.__scrollToYear && window.__scrollToYear(${yearIndex});`);
     }
   }, []);
 
@@ -1016,7 +960,6 @@ export default function VolumeDetailScreen() {
         loadedParagraphsRef.current = 0;
         currentVisibleParagraphIdRef.current = 0;  // 重置段落ID
         hasRestoredPositionRef.current = false;    // 重置恢复标志
-        paragraphLayoutsRef.current.clear();       // 清空段落布局
         setVolumeData(null);
         setHasMore(false);
       }
@@ -1075,94 +1018,38 @@ export default function VolumeDetailScreen() {
 
   // 滚动到指定年份段落
   const scrollToYear = useCallback((yearIndex: number) => {
-    // HTML 模式：通过 WebView JS 滚动
-    if (isHtmlMode()) {
-      setShowToolbar(false);
-      setActiveTab(null);
-      setTimeout(() => {
-        injectScroll(`window.__scrollToYear && window.__scrollToYear(${yearIndex});`);
-      }, 350);
-      return;
-    }
-    const sectionRef = yearSectionRefs.current.get(yearIndex);
-    if (sectionRef && scrollViewRef.current && scrollContentRef.current) {
-      scrollToSection({
-        sectionRef,
-        scrollViewRef,
-        scrollContentRef,
-        onSuccess: () => {
-          setShowToolbar(false);
-          setActiveTab(null);
-        },
-        onError: () => {
-          setShowToolbar(false);
-          setActiveTab(null);
-        },
-      });
-    } else {
-      setShowToolbar(false);
-      setActiveTab(null);
-    }
+    // 通过 WebView JS 滚动
+    setShowToolbar(false);
+    setActiveTab(null);
+    setTimeout(() => {
+      injectScroll(`window.__scrollToYear && window.__scrollToYear(${yearIndex});`);
+    }, 350);
   }, []);
 
   // 滚动到高亮段落（从搜索结果跳转）
   const scrollToHighlightParagraph = useCallback((paragraphId: number, retryCount = 0) => {
-    // HTML 模式：通过 WebView JS 滚动
-    if (isHtmlMode()) {
-      // 首次调用时重置状态
-      if (retryCount === 0) {
-        scrollToTargetRef.current = paragraphId;
-        scrollToSucceededRef.current = false;
-      }
-      // 目标已变更 或 已成功 → 停止重试
-      if (scrollToSucceededRef.current || scrollToTargetRef.current !== paragraphId) return;
-
-      if (htmlWebViewRef.current) {
-        injectScroll(`window.__scrollToParagraph && window.__scrollToParagraph(${paragraphId});`);
-      }
-
-      // 未成功才重试
-      if (retryCount < 15) {
-        if (retryCount === 0 && hasMore && !loadingMore && currentVolumeRef.current) {
-          fetchVolumeData(currentVolumeRef.current, true, true);
-        }
-        setTimeout(() => scrollToHighlightParagraph(paragraphId, retryCount + 1), 500);
-      } else {
-        setShowToolbar(false);
-        setActiveTab(null);
-      }
-      return;
+    // 首次调用时重置状态
+    if (retryCount === 0) {
+      scrollToTargetRef.current = paragraphId;
+      scrollToSucceededRef.current = false;
     }
-    const paragraphRef = paragraphRefs.current.get(paragraphId);
-    
-    if (!paragraphRef || !scrollViewRef.current || !scrollContentRef.current) {
-      if (retryCount < 20) {
-        // 如果段落未加载，尝试加载更多数据
-        if (hasMore && !loadingMore && currentVolumeRef.current) {
-          fetchVolumeData(currentVolumeRef.current, true, true);
-        }
-        setTimeout(() => {
-          scrollToHighlightParagraph(paragraphId, retryCount + 1);
-        }, 500);
-      } else {
-        console.warn('scrollToHighlightParagraph: max retries reached');
-      }
-      return;
+    // 目标已变更 或 已成功 → 停止重试
+    if (scrollToSucceededRef.current || scrollToTargetRef.current !== paragraphId) return;
+
+    if (htmlWebViewRef.current) {
+      injectScroll(`window.__scrollToParagraph && window.__scrollToParagraph(${paragraphId});`);
     }
 
-    scrollToSection({
-      sectionRef: paragraphRef,
-      scrollViewRef,
-      scrollContentRef,
-      onSuccess: () => {
-        setShowToolbar(false);
-        setActiveTab(null);
-      },
-      onError: () => {
-        setShowToolbar(false);
-        setActiveTab(null);
-      },
-    });
+    // 未成功才重试
+    if (retryCount < 15) {
+      if (retryCount === 0 && hasMore && !loadingMore && currentVolumeRef.current) {
+        fetchVolumeData(currentVolumeRef.current, true, true);
+      }
+      setTimeout(() => scrollToHighlightParagraph(paragraphId, retryCount + 1), 500);
+    } else {
+      setShowToolbar(false);
+      setActiveTab(null);
+    }
   }, [hasMore, loadingMore, fetchVolumeData]);
 
   // 处理从搜索结果跳转到高亮段落
@@ -1203,19 +1090,10 @@ export default function VolumeDetailScreen() {
         // 用服务端返回的卷总段落数计算百分比，不受字体大小/排版方向/已加载数量影响
         const totalInVolume = totalParagraphsRef.current || 1;
 
-        if (textLayoutRef.current === 'vertical' || textLayoutRef.current === 'horizontal') {
-          // HTML 模式：visibleIndex 是在已加载段落中的序号，近似为全局段落序号
-          const idx = visibleParagraphIndexRef.current;
-          const readPercent = Math.min(100, Math.round(((idx + 1) / totalInVolume) * 100));
-          updateReadingProgress({ volumeNumber: currentVolume, paraId: paragraphId, readPercent, contentType });
-        } else if (paragraphLayoutsRef.current.size > 0) {
-          // 原生模式：用已渲染段落序号估算在全局的位置
-          const sortedParagraphs = Array.from(paragraphLayoutsRef.current.keys())
-            .sort((a, b) => a - b);
-          const paragraphIndex = sortedParagraphs.indexOf(paragraphId);
-          const readPercent = Math.min(100, Math.round(((paragraphIndex + 1) / totalInVolume) * 100));
-          updateReadingProgress({ volumeNumber: currentVolume, paraId: paragraphId, readPercent, contentType });
-        }
+        // HTML 模式：visibleIndex 是在已加载段落中的序号，近似为全局段落序号
+        const idx = visibleParagraphIndexRef.current;
+        const readPercent = Math.min(100, Math.round(((idx + 1) / totalInVolume) * 100));
+        updateReadingProgress({ volumeNumber: currentVolume, paraId: paragraphId, readPercent, contentType });
       };
     }, [viewMode])
   );
@@ -1322,20 +1200,6 @@ export default function VolumeDetailScreen() {
     }
   }, [activeTab]);
 
-  const handleSelectionAction = useCallback(async (action: 'copy' | 'highlight' | 'annotate', text: string, paragraphId: number) => {
-    switch (action) {
-      case 'copy':
-        await copyToClipboard(text);
-        break;
-      case 'highlight':
-        // TODO: 持久化高亮
-        break;
-      case 'annotate':
-        // TODO: 打开批注输入
-        break;
-    }
-  }, []);
-
   // 导航到上一卷
   const goToPreviousVolume = useCallback(() => {
     const currentVolume = currentVolumeRef.current;
@@ -1362,12 +1226,8 @@ export default function VolumeDetailScreen() {
 
   // 滚动到页面顶部
   const scrollToTop = useCallback(() => {
-    if (isHtmlMode()) {
-      injectScroll(`window.__scrollToTop && window.__scrollToTop();`);
-      return;
-    }
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-  }, [isHtmlMode, injectScroll]);
+    injectScroll(`window.__scrollToTop && window.__scrollToTop();`);
+  }, [injectScroll]);
 
   // 双击标题处理
   const handleTitleDoubleTap = useCallback(() => {
@@ -1383,45 +1243,6 @@ export default function VolumeDetailScreen() {
       lastTitleTapTime.current = now;
     }
   }, [scrollToTop]);
-
-  // 触摸开始
-  const handleTouchStart = useCallback((e: any) => {
-    touchStartX.current = e.nativeEvent.locationX;
-    touchStartY.current = e.nativeEvent.locationY;
-    touchStartTime.current = Date.now();
-  }, []);
-
-  // 触摸结束 - 判断是否为点击或滑动
-  const handleTouchEnd = useCallback((e: any) => {
-    const endX = e.nativeEvent.locationX;
-    const endY = e.nativeEvent.locationY;
-    const endTime = Date.now();
-    
-    const dx = endX - touchStartX.current;
-    const dy = endY - touchStartY.current;
-    const dt = endTime - touchStartTime.current;
-    
-    // 滑动手势检测参数
-    const SWIPE_THRESHOLD = 80;  // 最小滑动距离（提高阈值减少误触）
-    const SWIPE_TIME_LIMIT = 500;  // 最大滑动时间（毫秒）
-    
-    // 检测水平滑动（要求水平距离明显大于垂直距离，避免与垂直滚动冲突）
-    if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > SWIPE_THRESHOLD && dt < SWIPE_TIME_LIMIT) {
-      if (dx > 0) {
-        // 右滑 -> 上一章节
-        goToPreviousVolume();
-      } else {
-        // 左滑 -> 下一章节
-        goToNextVolume();
-      }
-      return;
-    }
-    
-    // 如果移动距离小于10px，认为是点击
-    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
-      handleScreenTap();
-    }
-  }, [handleScreenTap, goToPreviousVolume, goToNextVolume]);
 
   // 工具栏按钮点击
   const handleTabPress = useCallback((tab: SettingsTab) => {
@@ -1585,18 +1406,14 @@ export default function VolumeDetailScreen() {
             { key: 'original+annotation+translation' as ViewMode, label: '全部', desc: '原文、注文、译文' },
             { key: 'translation' as ViewMode, label: '纯译文', desc: '仅显示白话译文' },
           ].map(mode => {
-            const hasTranslation = mode.key.includes('translation');
-            const isDisabled = textLayout === 'vertical' && hasTranslation;
             return (
             <TouchableOpacity
               key={mode.key}
               style={[
                 styles.viewModeItem,
                 viewMode === mode.key && { backgroundColor: theme.primary + '20' },
-                isDisabled && { opacity: 0.35 },
               ]}
-              onPress={() => !isDisabled && handleSetViewMode(mode.key)}
-              disabled={isDisabled}
+              onPress={() => handleSetViewMode(mode.key)}
             >
               <View style={styles.viewModeItemLeft}>
                 <Text style={[
@@ -1950,301 +1767,65 @@ export default function VolumeDetailScreen() {
       <View style={{ flex: 1 }}>
         {(textLayout === 'vertical' || textLayout === 'horizontal') && volumeData && hasYears ? (
           textLayout === 'vertical' ? (
-          <VerticalReader
-            volumeData={volumeData}
-            volumeMeta={volumeMeta}
-            viewMode={viewMode}
-            scriptMode={scriptMode}
-            fontSize={fontSize}
-            textColor={currentTheme.text}
-            bgColor={currentTheme.background}
-            annotationColor={theme.textAnnotation || theme.textSecondary}
-            translationColor={theme.textTranslation || theme.textSecondary}
-            accentColor={theme.accent}
-            textMuted={theme.textMuted}
-            highlightKeyword={keyword}
-            highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
-            onTap={handleScreenTap}
-            onLoadMore={handleLoadMore}
-            onSelectionAction={handleSelectionAction}
-            onVisibleParagraphChange={(pId, idx, totalLoaded) => {
-              currentVisibleParagraphIdRef.current = pId;
-              visibleParagraphIndexRef.current = idx;
-              loadedParagraphsCountRef.current = totalLoaded;
-            }}
-            onScrollToResult={(targetId, success) => {
-              if (targetId === scrollToTargetRef.current && success) {
-                scrollToSucceededRef.current = true;
-              }
-            }}
-            readerWebViewRef={htmlWebViewRef}
-          />
+            <VerticalReader
+              volumeData={volumeData}
+              volumeMeta={volumeMeta}
+              viewMode={viewMode}
+              scriptMode={scriptMode}
+              fontSize={fontSize}
+              textColor={currentTheme.text}
+              bgColor={currentTheme.background}
+              annotationColor={theme.textAnnotation || theme.textSecondary}
+              translationColor={theme.textTranslation || theme.textSecondary}
+              accentColor={theme.accent}
+              textMuted={theme.textMuted}
+              highlightKeyword={keyword}
+              highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
+              onTap={handleScreenTap}
+              onLoadMore={handleLoadMore}
+              onVisibleParagraphChange={(pId, idx, totalLoaded) => {
+                currentVisibleParagraphIdRef.current = pId;
+                visibleParagraphIndexRef.current = idx;
+                loadedParagraphsCountRef.current = totalLoaded;
+              }}
+              onScrollToResult={(targetId, success) => {
+                if (targetId === scrollToTargetRef.current && success) {
+                  scrollToSucceededRef.current = true;
+                }
+              }}
+              readerWebViewRef={htmlWebViewRef}
+            />
           ) : (
-          <HorizontalReader
-            volumeData={volumeData}
-            volumeMeta={volumeMeta}
-            viewMode={viewMode}
-            scriptMode={scriptMode}
-            fontSize={fontSize}
-            textColor={currentTheme.text}
-            bgColor={currentTheme.background}
-            annotationColor={theme.textAnnotation || theme.textSecondary}
-            translationColor={theme.textTranslation || theme.textSecondary}
-            accentColor={theme.accent}
-            textMuted={theme.textMuted}
-            highlightKeyword={keyword}
-            highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
-            onTap={handleScreenTap}
-            onLoadMore={handleLoadMore}
-            onSelectionAction={handleSelectionAction}
-            onVisibleParagraphChange={(pId, idx, totalLoaded) => {
-              currentVisibleParagraphIdRef.current = pId;
-              visibleParagraphIndexRef.current = idx;
-              loadedParagraphsCountRef.current = totalLoaded;
-            }}
-            onScrollToResult={(targetId, success) => {
-              if (targetId === scrollToTargetRef.current && success) {
-                scrollToSucceededRef.current = true;
-              }
-            }}
-            onSelectionAction={handleSelectionAction}
-            readerWebViewRef={htmlWebViewRef}
-          />
+            <HorizontalReader
+              volumeData={volumeData}
+              volumeMeta={volumeMeta}
+              viewMode={viewMode}
+              scriptMode={scriptMode}
+              fontSize={fontSize}
+              textColor={currentTheme.text}
+              bgColor={currentTheme.background}
+              annotationColor={theme.textAnnotation || theme.textSecondary}
+              translationColor={theme.textTranslation || theme.textSecondary}
+              accentColor={theme.accent}
+              textMuted={theme.textMuted}
+              highlightKeyword={keyword}
+              highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
+              onTap={handleScreenTap}
+              onLoadMore={handleLoadMore}
+              onVisibleParagraphChange={(pId, idx, totalLoaded) => {
+                currentVisibleParagraphIdRef.current = pId;
+                visibleParagraphIndexRef.current = idx;
+                loadedParagraphsCountRef.current = totalLoaded;
+              }}
+              onScrollToResult={(targetId, success) => {
+                if (targetId === scrollToTargetRef.current && success) {
+                  scrollToSucceededRef.current = true;
+                }
+              }}
+              readerWebViewRef={htmlWebViewRef}
+            />
           )
-        ) : (
-        <ScrollView 
-          ref={scrollViewRef} 
-          contentContainerStyle={styles.scrollContent}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onScrollBeginDrag={() => {
-            // 滚动开始时自动关闭工具栏和面板
-            if (showToolbar || activeTab) {
-              setShowToolbar(false);
-              setActiveTab(null);
-            }
-          }}
-          scrollEventThrottle={400}
-          onScroll={({ nativeEvent }) => {
-            // 记录当前滚动位置
-            currentScrollYRef.current = nativeEvent.contentOffset.y;
-            
-            // 计算屏幕中心位置对应的段落
-            const screenCenterY = nativeEvent.contentOffset.y + nativeEvent.layoutMeasurement.height / 2;
-            
-            // 遍历所有段落布局，找到中心位置所在的段落
-            if (paragraphLayoutsRef.current.size > 0) {
-              let centerParagraphId = 0;
-              
-              // 将段落布局按 y 坐标排序
-              const sortedParagraphs = Array.from(paragraphLayoutsRef.current.entries())
-                .sort((a, b) => a[1].y - b[1].y);
-              
-              for (const [pId, layout] of sortedParagraphs) {
-                const paragraphBottom = layout.y + layout.height;
-                if (screenCenterY >= layout.y && screenCenterY < paragraphBottom) {
-                  centerParagraphId = pId;
-                  break;
-                }
-                // 如果中心位置在当前段落之后，继续找
-                if (screenCenterY >= paragraphBottom) {
-                  centerParagraphId = pId;
-                }
-              }
-              
-              if (centerParagraphId > 0 && centerParagraphId !== currentVisibleParagraphIdRef.current) {
-                currentVisibleParagraphIdRef.current = centerParagraphId;
-              }
-            }
-            
-            // 滚动到 70% 时加载更多
-            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-            const scrollPercent = (contentOffset.y + layoutMeasurement.height) / contentSize.height;
-            if (scrollPercent > 0.7 && hasMore && !loadingMore) {
-              handleLoadMore();
-            }
-          }}
-        >
-          <View ref={scrollContentRef} style={styles.content}>
-              {/* 卷元数据 */}
-              {volumeMeta?.time_range && (
-                <ThemedText variant="caption" color={theme.textMuted} style={styles.metaText}>
-                  {volumeMeta.time_range}
-                </ThemedText>
-              )}
-              
-              {/* 卷首注 */}
-              {volumeMeta?.introduction && viewMode.includes('annotation') && (
-                <ThemedText variant="caption" color={theme.textAnnotation || theme.textSecondary} style={styles.introductionText}>
-                  {volumeMeta.introduction.replace(/^[〈《]|[》〉]$/g, '')}
-                </ThemedText>
-              )}
-              
-              {hasYears ? (
-                volumeData.years.map((year, yearIndex) => {
-                  // 使用 emperor + bc_year 作为稳定的 key，避免数据更新后 key 冲突
-                  const yearKey = `${year.emperor}-${year.bc_year || yearIndex}`;
-                  return (
-                    <View
-                      key={yearKey}
-                      ref={(ref) => {
-                        if (ref) {
-                          yearSectionRefs.current.set(yearIndex, ref);
-                          }
-                        }}
-                        style={styles.yearSection}
-                        onLayout={(event) => {
-                          // 记录每个年份组的布局位置
-                          const { y } = event.nativeEvent.layout;
-                          yearLayoutsRef.current.set(yearIndex, y);
-                        }}
-                      >
-                        <View style={[styles.yearHeader, { backgroundColor: backgroundTheme === 'dark' ? '#374151' : theme.backgroundTertiary }]}>
-                          <View style={styles.yearLabelContainer}>
-                            <FontAwesome6 name="calendar-day" size={14} color={theme.accent} />
-                            <ThemedText variant="h4" color={theme.accent} style={styles.yearLabel}>
-                              {year.year_display || year.year_mark}
-                            </ThemedText>
-                            {/* 干支显示 */}
-                            {year.gan_zhi && (
-                              <ThemedText variant="caption" color={theme.textMuted}>
-                                （{year.gan_zhi}）
-                              </ThemedText>
-                            )}
-                            {year.bc_year && (
-                              <ThemedText variant="caption" color={theme.textMuted} style={styles.yearBcText}>
-                                {year.bc_year < 0 ? `公元前${Math.abs(year.bc_year)}年` : `公元${year.bc_year}年`}
-                              </ThemedText>
-                            )}
-                          </View>
-                        </View>
-                        
-                        {/* 帝王注解（胡三省注） */}
-                        {year.emperor_note && viewMode.includes('annotation') && (
-                          <View style={[styles.emperorNoteInline, { backgroundColor: theme.backgroundTertiary }]}>
-                            <ThemedText variant="annotation" color={theme.textAnnotation || theme.textSecondary}>
-                              {year.emperor_note}
-                            </ThemedText>
-                          </View>
-                        )}
-
-                        <View style={styles.yearContent}>
-                          {year.paragraphs.map((paragraph, pIndex) => {
-                            // 根据脚本模式和显示模式选择内容
-                            // 繁体 + 注解模式：优先使用 with_notes_traditional
-                            // 繁体 + 无注解：使用 content_traditional
-                            // 简体 + 注解模式：优先使用 with_notes
-                            // 简体 + 无注解：使用 content
-                            const showAnnotation = viewMode.includes('annotation');
-                            
-                            let displayContent: string;
-                            if (scriptMode === 'traditional') {
-                              if (showAnnotation && paragraph.with_notes_traditional) {
-                                displayContent = paragraph.with_notes_traditional;
-                              } else {
-                                displayContent = paragraph.content_traditional || paragraph.content;
-                              }
-                            } else {
-                              if (showAnnotation && paragraph.with_notes) {
-                                displayContent = paragraph.with_notes;
-                              } else {
-                                displayContent = paragraph.content;
-                              }
-                            }
-                            
-                            const displayTranslation = scriptMode === 'traditional' && paragraph.translation_traditional
-                              ? paragraph.translation_traditional
-                              : paragraph.translation;
-
-                            // 检查是否是高亮段落（搜索高亮 或 TTS播放高亮）
-                            const isSearchHighlighted = highlightId ? parseInt(highlightId) === paragraph.id : false;
-                            const isTtsHighlighted = highlightedParagraphId === paragraph.id;
-
-                            return (
-                            <View 
-                              key={paragraph.id || pIndex} 
-                              ref={(ref) => {
-                                if (ref) {
-                                  paragraphRefs.current.set(paragraph.id, ref);
-                                }
-                              }}
-                              onLayout={(event) => {
-                                // 记录段落的布局位置
-                                const { y, height } = event.nativeEvent.layout;
-                                paragraphLayoutsRef.current.set(paragraph.id, { y, height });
-                              }}
-                              style={[
-                                { marginBottom: Spacing.md },
-                                isTtsHighlighted && { 
-                                  backgroundColor: theme.primary + '10',
-                                  borderRadius: BorderRadius.md,
-                                  marginHorizontal: -Spacing.sm,
-                                  paddingHorizontal: Spacing.sm,
-                                  paddingVertical: Spacing.xs,
-                                }
-                              ]}
-                            >
-                              {textLayout === 'vertical' ? (
-                                <VerticalTextReader
-                                  content={displayContent}
-                                  translation={displayTranslation || undefined}
-                                  viewMode={viewMode}
-                                  fontSize={fontSize}
-                                  textColor={currentTheme.text}
-                                  annotationColor={theme.textAnnotation || theme.textSecondary}
-                                  translationColor={theme.textTranslation || theme.textSecondary}
-                                  bgColor={currentTheme.background}
-                                  highlightKeyword={keyword}
-                                />
-                              ) : (
-                                <ParagraphWithAnnotation
-                                  volumeNumber={volumeData.volume_number}
-                                  paragraphId={paragraph.id}
-                                  content={displayContent}
-                                  translation={displayTranslation || undefined}
-                                  viewMode={viewMode}
-                                  fontSize={fontSize}
-                                  textColor={currentTheme.text}
-                                  highlightKeyword={keyword}
-                                  isHighlighted={isSearchHighlighted}
-                                />
-                              )}
-                            </View>
-                          );})}
-                        </View>
-                      </View>
-                    );
-                  })
-                ) : (
-                <View style={styles.centerContainer}>
-                  <FontAwesome6 name="book-open" size={32} color={currentTheme.text} />
-                  <ThemedText variant="body" color={currentTheme.text} style={{ marginTop: Spacing.md }}>
-                    暂无内容
-                  </ThemedText>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.footer}>
-              {loadingMore ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <ActivityIndicator size="small" color={currentTheme.text} />
-                  <ThemedText variant="caption" color={currentTheme.text} style={{ marginLeft: Spacing.sm }}>
-                    加载中...
-                  </ThemedText>
-                </View>
-              ) : hasMore ? (
-                <ThemedText variant="caption" color={currentTheme.text}>
-                  — 向下滚动加载更多 —
-                </ThemedText>
-              ) : (
-                <ThemedText variant="caption" color={currentTheme.text}>
-                  — 点击屏幕显示设置 —
-                </ThemedText>
-              )}
-            </View>
-          </ScrollView>
-        )}
+        ) : null}
       </View>
 
       {/* TTS 播放控制条 */}
@@ -2407,6 +1988,8 @@ export default function VolumeDetailScreen() {
           </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </Modal>
+
+
     </Screen>
   );
 }
