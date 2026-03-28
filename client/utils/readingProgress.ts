@@ -16,9 +16,12 @@ export interface RecentRead {
 
 export interface ReadingRecord {
   volumeNumber: number;
-  progress: number;
-  lastParagraphIndex: number;
-  lastReadAt: string;
+  volumeId: number;
+  paraId: number;
+  charIndex: number;
+  contentType: number;
+  readPercent: number;
+  updateTime: string;
   status: 'unread' | 'reading' | 'read';
   volumeInfo: {
     id: number;
@@ -49,18 +52,15 @@ async function getUserIdentity(): Promise<{ userId?: number; deviceId?: string }
 /**
  * 服务端文件：server/src/routes/reading-progress.ts
  * 接口：GET /api/v1/reading-progress/recent
- * Query 参数：userId?: number, deviceId?: string
+ * 需要登录用户，未登录返回 null
  */
 export async function getRecentRead(): Promise<RecentRead | null> {
   try {
-    const { userId, deviceId } = await getUserIdentity();
-    const params = new URLSearchParams();
-    if (userId) params.append('userId', String(userId));
-    if (deviceId) params.append('deviceId', deviceId);
+    const { userId } = await getUserIdentity();
+    if (!userId) return null;
 
-    const response = await fetch(
-      `${BASE_URL}/api/v1/reading-progress/recent?${params.toString()}`
-    );
+    const params = new URLSearchParams({ userId: String(userId) });
+    const response = await fetch(`${BASE_URL}/api/v1/reading-progress/recent?${params.toString()}`);
     const result = await response.json();
     return result.success ? result.data : null;
   } catch (error) {
@@ -72,18 +72,15 @@ export async function getRecentRead(): Promise<RecentRead | null> {
 /**
  * 服务端文件：server/src/routes/reading-progress.ts
  * 接口：GET /api/v1/reading-progress
- * Query 参数：userId?: number, deviceId?: string
+ * 需要登录用户，未登录返回空数组
  */
 export async function getReadingRecords(): Promise<ReadingRecord[]> {
   try {
-    const { userId, deviceId } = await getUserIdentity();
-    const params = new URLSearchParams();
-    if (userId) params.append('userId', String(userId));
-    if (deviceId) params.append('deviceId', deviceId);
+    const { userId } = await getUserIdentity();
+    if (!userId) return [];
 
-    const response = await fetch(
-      `${BASE_URL}/api/v1/reading-progress?${params.toString()}`
-    );
+    const params = new URLSearchParams({ userId: String(userId) });
+    const response = await fetch(`${BASE_URL}/api/v1/reading-progress?${params.toString()}`);
     const result = await response.json();
     return result.success ? result.data : [];
   } catch (error) {
@@ -95,25 +92,30 @@ export async function getReadingRecords(): Promise<ReadingRecord[]> {
 /**
  * 服务端文件：server/src/routes/reading-progress.ts
  * 接口：POST /api/v1/reading-progress
- * Body 参数：userId?: number, deviceId?: string, volumeNumber: number, progress?: number, lastParagraphIndex?: number
+ * Body: { userId, volumeNumber, paraId, charIndex, contentType, readPercent }
+ * 需要登录用户，未登录不保存
  */
-export async function updateReadingProgress(
-  volumeNumber: number,
-  progress: number,
-  lastParagraphIndex: number = 0
-): Promise<boolean> {
+export async function updateReadingProgress(params: {
+  volumeNumber: number;
+  paraId: number;
+  readPercent: number;
+  charIndex?: number;
+  contentType?: number;
+}): Promise<boolean> {
   try {
-    const { userId, deviceId } = await getUserIdentity();
+    const { userId } = await getUserIdentity();
+    if (!userId) return false;
 
     const response = await fetch(`${BASE_URL}/api/v1/reading-progress`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
-        deviceId,
-        volumeNumber,
-        progress,
-        lastParagraphIndex,
+        volumeNumber: params.volumeNumber,
+        paraId: params.paraId,
+        charIndex: params.charIndex ?? 0,
+        contentType: params.contentType ?? 0,
+        readPercent: params.readPercent,
       }),
     });
     const result = await response.json();
@@ -127,21 +129,21 @@ export async function updateReadingProgress(
 /**
  * 服务端文件：server/src/routes/reading-progress.ts
  * 接口：GET /api/v1/reading-progress/status
- * Query 参数：userId?: number, deviceId?: string, volumeNumbers: string
+ * 需要登录用户，未登录返回空对象
  */
 export async function getReadingStatus(
   volumeNumbers: number[]
 ): Promise<Record<number, ReadingStatus>> {
   try {
-    const { userId, deviceId } = await getUserIdentity();
-    const params = new URLSearchParams();
-    if (userId) params.append('userId', String(userId));
-    if (deviceId) params.append('deviceId', deviceId);
-    params.append('volumeNumbers', volumeNumbers.join(','));
+    const { userId } = await getUserIdentity();
+    if (!userId) return {};
 
-    const response = await fetch(
-      `${BASE_URL}/api/v1/reading-progress/status?${params.toString()}`
-    );
+    const params = new URLSearchParams({
+      userId: String(userId),
+      volumeNumbers: volumeNumbers.join(','),
+    });
+
+    const response = await fetch(`${BASE_URL}/api/v1/reading-progress/status?${params.toString()}`);
     const result = await response.json();
     return result.success ? result.data : {};
   } catch (error) {

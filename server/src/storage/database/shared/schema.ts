@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, foreignKey, integer, text, varchar, unique, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core"
+import { pgTable, serial, bigSerial, timestamp, foreignKey, integer, smallint, numeric, text, varchar, unique, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -64,6 +64,33 @@ export const readingProgress = pgTable("reading_progress", {
 			foreignColumns: [users.id],
 			name: "reading_progress_user_id_fkey"
 		}),
+]);
+
+export const userReadProgress = pgTable("user_read_progress", {
+	id: bigSerial("id", { mode: "number" }).primaryKey(),
+	userId: integer("user_id").notNull(),
+	volumeId: integer("volume_id").notNull(),
+	yearId: integer("year_id").notNull().default(0),
+	itemId: integer("item_id").notNull().default(0),
+	paraId: integer("para_id").notNull().default(0),
+	charIndex: integer("char_index").notNull().default(0),
+	contentType: smallint("content_type").notNull().default(0),
+	updateTime: timestamp("update_time", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+	readPercent: numeric("read_percent", { precision: 5, scale: 2 }).notNull().default("0.00"),
+}, (table) => [
+	unique("uk_urp_user_volume").on(table.userId, table.volumeId),
+	index("idx_urp_update_time").using("btree", table.updateTime),
+	index("idx_urp_para").using("btree", table.paraId),
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [users.id],
+		name: "fk_urp_user",
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.volumeId],
+		foreignColumns: [zizhitongjianVolumes.id],
+		name: "fk_urp_volume",
+	}).onDelete("cascade"),
 ]);
 
 export const users = pgTable("users", {

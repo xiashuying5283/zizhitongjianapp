@@ -234,6 +234,17 @@ export const createStyles = (theme: Theme): any => {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.borderLight,
     },
+    yearItemVertical: {
+      flexDirection: 'row',
+      justifyContent: 'flex-start',
+      alignItems: 'flex-start',
+      gap: Spacing.sm,
+    },
+    yearItemVerticalContent: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: Spacing.xs,
+    },
     // ==================== Font Size ====================
     fontSizeList: {
       flexDirection: 'row',

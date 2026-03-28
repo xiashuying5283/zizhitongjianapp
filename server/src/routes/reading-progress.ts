@@ -4,46 +4,40 @@ import { Pool } from 'pg';
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = Router();
 
+function formatYearRange(start: number | null, end: number | null): string {
+  if (!start || !end) return '';
+  const startStr = start < 0 ? `前${Math.abs(start)}` : `${start}`;
+  const endStr = end < 0 ? `前${Math.abs(end)}` : `${end}`;
+  return `${startStr}~${endStr}年`;
+}
+
 /**
  * GET /api/v1/reading-progress/recent
+ * 获取最近一条阅读记录
  */
 router.get('/recent', async (req, res) => {
   try {
-    const { userId, deviceId } = req.query;
+    const { userId } = req.query;
 
-    if (!userId && !deviceId) {
-      return res.status(400).json({ success: false, message: '缺少用户ID或设备ID' });
+    if (!userId) {
+      return res.json({ success: true, data: null });
     }
 
-    let result;
-    if (userId) {
-      result = await pool.query(
-        'SELECT * FROM reading_progress WHERE user_id = $1 ORDER BY last_read_at DESC LIMIT 1',
-        [parseInt(userId as string)]
-      );
-    } else {
-      result = await pool.query(
-        'SELECT * FROM reading_progress WHERE device_id = $1 ORDER BY last_read_at DESC LIMIT 1',
-        [deviceId]
-      );
-    }
+    const result = await pool.query(
+      `SELECT urp.id, urp.para_id, urp.read_percent, urp.update_time,
+              urp.char_index, urp.content_type,
+              zv.volume_number, zv.volume_name, zv.dynasty, zv.year_start, zv.year_end
+       FROM user_read_progress urp
+       JOIN zizhitongjian_volumes zv ON urp.volume_id = zv.id
+       WHERE urp.user_id = $1
+       ORDER BY urp.update_time DESC
+       LIMIT 1`,
+      [parseInt(userId as string)]
+    );
 
     const progress = result.rows[0];
     if (!progress) {
       return res.json({ success: true, data: null });
-    }
-
-    const volResult = await pool.query(
-      'SELECT * FROM zizhitongjian_volumes WHERE volume_number = $1',
-      [progress.volume_number]
-    );
-    const volume = volResult.rows[0];
-
-    function formatYearRange(start: number | null, end: number | null): string {
-      if (!start || !end) return '';
-      const startStr = start < 0 ? `前${Math.abs(start)}` : `${start}`;
-      const endStr = end < 0 ? `前${Math.abs(end)}` : `${end}`;
-      return `${startStr}~${endStr}年`;
     }
 
     res.json({
@@ -51,12 +45,12 @@ router.get('/recent', async (req, res) => {
       data: {
         id: progress.id,
         volume: progress.volume_number,
-        name: volume?.volume_name || '',
-        era: volume?.dynasty || '',
-        year: formatYearRange(volume?.year_start, volume?.year_end),
-        progress: progress.progress,
-        lastParagraphIndex: progress.last_paragraph_index,
-        lastReadAt: progress.last_read_at,
+        name: progress.volume_name || '',
+        era: progress.dynasty || '',
+        year: formatYearRange(progress.year_start, progress.year_end),
+        progress: Number(progress.read_percent),
+        lastParagraphIndex: progress.para_id,
+        lastReadAt: progress.update_time,
       },
     });
   } catch (error) {
@@ -71,66 +65,45 @@ router.get('/recent', async (req, res) => {
 
 /**
  * GET /api/v1/reading-progress
+ * 获取全部阅读记录（含卷信息）
  */
 router.get('/', async (req, res) => {
   try {
-    const { userId, deviceId } = req.query;
+    const { userId } = req.query;
 
-    if (!userId && !deviceId) {
-      return res.status(400).json({ success: false, message: '缺少用户ID或设备ID' });
+    if (!userId) {
+      return res.json({ success: true, data: [] });
     }
 
-    let result;
-    if (userId) {
-      result = await pool.query(
-        'SELECT * FROM reading_progress WHERE user_id = $1 ORDER BY last_read_at DESC',
-        [parseInt(userId as string)]
-      );
-    } else {
-      result = await pool.query(
-        'SELECT * FROM reading_progress WHERE device_id = $1 ORDER BY last_read_at DESC',
-        [deviceId]
-      );
-    }
+    const result = await pool.query(
+      `SELECT urp.*, zv.volume_number, zv.volume_name, zv.dynasty, zv.year_start, zv.year_end
+       FROM user_read_progress urp
+       JOIN zizhitongjian_volumes zv ON urp.volume_id = zv.id
+       WHERE urp.user_id = $1
+       ORDER BY urp.update_time DESC`,
+      [parseInt(userId as string)]
+    );
 
-    const progressList = result.rows;
-
-    // 获取所有卷信息
-    const volumeNumbers = progressList.map((p: any) => p.volume_number);
-    let volumeMap = new Map<number, any>();
-    if (volumeNumbers.length > 0) {
-      const volResult = await pool.query(
-        `SELECT * FROM zizhitongjian_volumes WHERE volume_number = ANY($1)`,
-        [volumeNumbers]
-      );
-      volumeMap = new Map(volResult.rows.map((v: any) => [v.volume_number, v]));
-    }
-
-    function formatYearRange(start: number | null, end: number | null): string {
-      if (!start || !end) return '';
-      const startStr = start < 0 ? `前${Math.abs(start)}` : `${start}`;
-      const endStr = end < 0 ? `前${Math.abs(end)}` : `${end}`;
-      return `${startStr}~${endStr}年`;
-    }
-
-    const records = progressList.map((p: any) => {
-      const volume = volumeMap.get(p.volume_number);
+    const records = result.rows.map((p: any) => {
       let status: 'unread' | 'reading' | 'read' = 'unread';
-      if (p.progress >= 100) status = 'read';
-      else if (p.progress > 0) status = 'reading';
+      if (p.read_percent >= 100) status = 'read';
+      else if (p.read_percent > 0) status = 'reading';
 
       return {
         volumeNumber: p.volume_number,
-        progress: p.progress,
-        lastParagraphIndex: p.last_paragraph_index,
-        lastReadAt: p.last_read_at,
+        volumeId: p.volume_id,
+        paraId: p.para_id,
+        charIndex: p.char_index,
+        contentType: p.content_type,
+        readPercent: Number(p.read_percent),
+        updateTime: p.update_time,
         status,
-        volumeInfo: volume ? {
-          id: volume.id,
-          name: volume.volume_name,
-          era: volume.dynasty,
-          year: formatYearRange(volume.year_start, volume.year_end),
-        } : null,
+        volumeInfo: {
+          id: p.volume_id,
+          name: p.volume_name,
+          era: p.dynasty,
+          year: formatYearRange(p.year_start, p.year_end),
+        },
       };
     });
 
@@ -147,61 +120,56 @@ router.get('/', async (req, res) => {
 
 /**
  * POST /api/v1/reading-progress
+ * 保存阅读进度（UPSERT：每用户每卷仅1条）
+ * Body: { userId, volumeNumber, paraId, charIndex, contentType, readPercent }
  */
 router.post('/', async (req, res) => {
   try {
-    const { userId, deviceId, volumeNumber, progress = 0, lastParagraphIndex = 0 } = req.body;
+    const { userId, volumeNumber, paraId = 0, charIndex = 0, contentType = 0, readPercent = 0 } = req.body;
 
-    if (!userId && !deviceId) {
-      return res.status(400).json({ success: false, message: '缺少用户ID或设备ID' });
+    if (!userId) {
+      return res.status(401).json({ success: false, message: '请先登录' });
     }
     if (!volumeNumber) {
       return res.status(400).json({ success: false, message: '缺少卷号' });
     }
 
-    // 查询是否存在
-    const progressVal = Math.min(100, Math.max(0, progress));
-    let result;
-    if (userId) {
-      result = await pool.query(
-        'SELECT id FROM reading_progress WHERE volume_number = $1 AND user_id = $2',
-        [volumeNumber, userId]
-      );
-    } else {
-      result = await pool.query(
-        'SELECT id FROM reading_progress WHERE volume_number = $1 AND device_id = $2',
-        [volumeNumber, deviceId]
-      );
-    }
+    const clampedPercent = Math.min(100, Math.max(0, readPercent));
 
-    let data;
-    if (result.rows.length > 0) {
-      // 更新
-      const updateResult = await pool.query(
-        `UPDATE reading_progress SET progress = $1, last_paragraph_index = $2, last_read_at = NOW(), updated_at = NOW()
-         WHERE id = $3 RETURNING id, volume_number, progress, last_paragraph_index, last_read_at`,
-        [progressVal, lastParagraphIndex, result.rows[0].id]
-      );
-      data = updateResult.rows[0];
-    } else {
-      // 插入
-      const insertResult = await pool.query(
-        `INSERT INTO reading_progress (volume_number, progress, last_paragraph_index, last_read_at, updated_at, user_id, device_id)
-         VALUES ($1, $2, $3, NOW(), NOW(), $4, $5)
-         RETURNING id, volume_number, progress, last_paragraph_index, last_read_at`,
-        [volumeNumber, progressVal, lastParagraphIndex, userId || null, deviceId || null]
-      );
-      data = insertResult.rows[0];
+    const result = await pool.query(
+      `WITH vol AS (
+        SELECT id FROM zizhitongjian_volumes WHERE volume_number = $1
+      )
+      INSERT INTO user_read_progress (user_id, volume_id, year_id, item_id, para_id, char_index, content_type, update_time, read_percent)
+      SELECT $2, vol.id, 0, 0, $3, $4, $5, NOW(), $6
+      FROM vol
+      ON CONFLICT (user_id, volume_id)
+      DO UPDATE SET
+        year_id = EXCLUDED.year_id,
+        item_id = EXCLUDED.item_id,
+        para_id = EXCLUDED.para_id,
+        char_index = EXCLUDED.char_index,
+        content_type = EXCLUDED.content_type,
+        update_time = NOW(),
+        read_percent = EXCLUDED.read_percent
+      RETURNING id, volume_id, para_id, char_index, content_type, read_percent, update_time`,
+      [volumeNumber, userId, paraId, charIndex, contentType, clampedPercent]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: '卷不存在' });
     }
 
     res.json({
       success: true,
       data: {
-        id: data.id,
-        volumeNumber: data.volume_number,
-        progress: data.progress,
-        lastParagraphIndex: data.last_paragraph_index,
-        lastReadAt: data.last_read_at,
+        id: result.rows[0].id,
+        volumeId: result.rows[0].volume_id,
+        paraId: result.rows[0].para_id,
+        charIndex: result.rows[0].char_index,
+        contentType: result.rows[0].content_type,
+        readPercent: Number(result.rows[0].read_percent),
+        updateTime: result.rows[0].update_time,
       },
     });
   } catch (error) {
@@ -216,13 +184,14 @@ router.post('/', async (req, res) => {
 
 /**
  * GET /api/v1/reading-progress/status
+ * 批量获取指定卷的阅读状态
  */
 router.get('/status', async (req, res) => {
   try {
-    const { userId, deviceId, volumeNumbers } = req.query;
+    const { userId, volumeNumbers } = req.query;
 
-    if (!userId && !deviceId) {
-      return res.status(400).json({ success: false, message: '缺少用户ID或设备ID' });
+    if (!userId) {
+      return res.json({ success: true, data: {} });
     }
     if (!volumeNumbers) {
       return res.status(400).json({ success: false, message: '缺少卷号列表' });
@@ -230,18 +199,13 @@ router.get('/status', async (req, res) => {
 
     const volumes = (volumeNumbers as string).split(',').map(Number).filter(n => !isNaN(n));
 
-    let result;
-    if (userId) {
-      result = await pool.query(
-        'SELECT volume_number, progress, last_read_at FROM reading_progress WHERE user_id = $1 AND volume_number = ANY($2)',
-        [parseInt(userId as string), volumes]
-      );
-    } else {
-      result = await pool.query(
-        'SELECT volume_number, progress, last_read_at FROM reading_progress WHERE device_id = $1 AND volume_number = ANY($2)',
-        [deviceId, volumes]
-      );
-    }
+    const result = await pool.query(
+      `SELECT zv.volume_number, urp.read_percent, urp.update_time
+       FROM user_read_progress urp
+       JOIN zizhitongjian_volumes zv ON urp.volume_id = zv.id
+       WHERE urp.user_id = $1 AND zv.volume_number = ANY($2)`,
+      [parseInt(userId as string), volumes]
+    );
 
     const statusMap: Record<number, { status: string; progress: number }> = {};
     volumes.forEach(v => {
@@ -250,9 +214,9 @@ router.get('/status', async (req, res) => {
 
     for (const p of result.rows) {
       let status = 'unread';
-      if (p.progress >= 100) status = 'read';
-      else if (p.progress > 0) status = 'reading';
-      statusMap[p.volume_number] = { status, progress: p.progress };
+      if (p.read_percent >= 100) status = 'read';
+      else if (p.read_percent > 0) status = 'reading';
+      statusMap[p.volume_number] = { status, progress: Number(p.read_percent) };
     }
 
     res.json({ success: true, data: statusMap });

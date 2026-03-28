@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { zizhitongjianVolumes, zizhitongjianParagraphs, users, readingProgress, zhtjVolumes, zhtjYearEntries, zhtjParagraphs, dynasties, emperors, volumes, yearEntries, huNotes } from "./schema";
+import { zizhitongjianVolumes, zizhitongjianParagraphs, users, readingProgress, userReadProgress, zhtjVolumes, zhtjYearEntries, zhtjParagraphs, dynasties, emperors, volumes, yearEntries, huNotes } from "./schema";
 
 export const zizhitongjianParagraphsRelations = relations(zizhitongjianParagraphs, ({one}) => ({
 	zizhitongjianVolume: one(zizhitongjianVolumes, {
@@ -19,8 +19,20 @@ export const readingProgressRelations = relations(readingProgress, ({one}) => ({
 	}),
 }));
 
+export const userReadProgressRelations = relations(userReadProgress, ({one}) => ({
+	user: one(users, {
+		fields: [userReadProgress.userId],
+		references: [users.id]
+	}),
+	volume: one(zizhitongjianVolumes, {
+		fields: [userReadProgress.volumeId],
+		references: [zizhitongjianVolumes.id]
+	}),
+}));
+
 export const usersRelations = relations(users, ({many}) => ({
 	readingProgresses: many(readingProgress),
+	userReadProgresses: many(userReadProgress),
 }));
 
 export const zhtjYearEntriesRelations = relations(zhtjYearEntries, ({one, many}) => ({
