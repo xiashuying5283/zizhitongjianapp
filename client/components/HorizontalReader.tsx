@@ -15,9 +15,11 @@ interface Paragraph {
 
 interface YearGroup {
   emperor: string;
+  emperor_title?: string | null;
   year_mark: string;
   year_display?: string;
   era_name?: string | null;
+  era_phase?: string | null;
   gan_zhi?: string | null;
   bc_year: number | null;
   emperor_note?: string | null;
@@ -43,6 +45,7 @@ interface HorizontalReaderProps {
   viewMode: 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
   scriptMode: 'simplified' | 'traditional';
   fontSize: number;
+  fontFamily: 'system' | 'serif' | 'kaiti' | 'lishu' | 'zhengkai';
   textColor: string;
   bgColor: string;
   annotationColor: string;
@@ -95,11 +98,31 @@ function parseContent(content: string): Array<{ type: 'text' | 'note'; content: 
 
 function generateHTML(props: HorizontalReaderProps): string {
   const {
-    volumeData, volumeMeta, viewMode, scriptMode, fontSize,
+    volumeData, volumeMeta, viewMode, scriptMode, fontSize, fontFamily,
     textColor, bgColor, annotationColor, translationColor,
     accentColor, textMuted,
     highlightKeyword: kw, highlightedParagraphId,
   } = props;
+
+  // 根据字体设置选择字体栈
+  const fontStack = fontFamily === 'kaiti'
+    ? "'Ma Shan Zheng', 'STKaiti', 'KaiTi', serif"
+    : fontFamily === 'serif'
+    ? "'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif"
+    : fontFamily === 'lishu'
+    ? "'ZCOOL XiaoWei', 'LiSu', 'STLiti', serif"
+    : fontFamily === 'zhengkai'
+    ? "'Zhi Mang Xing', 'STKaiti', 'KaiTi', 'KaiTi_GB2312', serif"
+    : "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif";
+
+  // CDN 字体加载
+  const fontImport = fontFamily === 'kaiti'
+    ? "@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap');\n"
+    : fontFamily === 'lishu'
+    ? "@import url('https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&display=swap');\n"
+    : fontFamily === 'zhengkai'
+    ? "@import url('https://fonts.googleapis.com/css2?family=Zhi+Mang+Xing&display=swap');\n"
+    : "";
 
   const showNotes = viewMode === 'original+annotation' || viewMode === 'original+annotation+translation';
   const showTrans = viewMode === 'original+translation' || viewMode === 'original+annotation+translation' || viewMode === 'translation';
@@ -137,25 +160,35 @@ function generateHTML(props: HorizontalReaderProps): string {
   let yearsHTML = '';
   for (let yi = 0; yi < volumeData.years.length; yi++) {
     const year = volumeData.years[yi];
+    // 构建年份区块的容器 div
     yearsHTML += `<div class="year-section" id="year-section-${yi}" data-year-index="${yi}">`;
 
-    // 年号 + 干支 + 公元
+    // 帝王信息卡片
+    if (year.emperor_title) {
+      yearsHTML += `<div class="emperor-note">`;
+      yearsHTML += `<div class="emperor-title-inline">${hl(year.emperor_title)}</div>`;
+      if (showAnnotation && year.era_phase) {
+        yearsHTML += `<div>${hl(year.era_phase)}</div>`;
+      }
+      yearsHTML += `</div>`;
+    }
+
+    // 年号卡片
+    yearsHTML += `<div class="year-card">`;
     yearsHTML += `<div class="year-header">`;
     yearsHTML += `<span class="year-title">${escapeHTML(year.year_display || year.year_mark)}</span>`;
-    if (year.gan_zhi) {
-      yearsHTML += ` <span class="year-ganzhi">（${escapeHTML(year.gan_zhi)}）</span>`;
-    }
     const bcStr = formatBcYear(year.bc_year);
-    if (bcStr) {
-      yearsHTML += ` <span class="year-bc">${bcStr}</span>`;
+    const parenContent = [year.gan_zhi, bcStr].filter(Boolean).join('、');
+    if (parenContent) {
+      yearsHTML += ` <span class="year-ganzhi">（${escapeHTML(parenContent)}）</span>`;
     }
     yearsHTML += `</div>`;
 
-    // 帝王注解（有则显示）
-    if (year.emperor_note) {
+    // 年号注解（有则显示，且需要开启注解模式）
+    if (showAnnotation && year.emperor_note) {
       yearsHTML += `<div class="emperor-note-wrapper"><span class="emperor-note-inline">${hl(year.emperor_note)}</span></div>`;
     }
-
+    yearsHTML += `</div>`;
     // 段落
     for (const paragraph of year.paragraphs) {
       const isHighlighted = highlightedParagraphId === paragraph.id;
@@ -223,6 +256,7 @@ function generateHTML(props: HorizontalReaderProps): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
+  ${fontImport}
   * {
     margin: 0;
     padding: 0;
@@ -234,7 +268,7 @@ function generateHTML(props: HorizontalReaderProps): string {
     min-height: 100vh;
     background-color: ${bgColor};
     color: ${textColor};
-    font-family: 'Noto Serif CJK SC','PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', , serif;
+    font-family: ${fontStack};
     -webkit-text-size-adjust: none;
     -webkit-user-select: text;
     user-select: text;
@@ -275,15 +309,40 @@ function generateHTML(props: HorizontalReaderProps): string {
   }
 
   .emperor-note-wrapper {
-    background: ${accentColor}0d;
-    border-radius: 6px;
     padding: 8px 12px;
-    margin-bottom: 8px;
   }
   .emperor-note-inline {
     font-size: ${Math.round(fontSize * 0.75)}px;
     color: ${annotationColor};
     line-height: 1.8;
+  }
+
+  .emperor-note {
+    font-size: ${Math.round(fontSize * 0.82)}px;
+    color: ${annotationColor};
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    line-height: 1.8;
+    background: ${accentColor}0d;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .emperor-title-inline {
+    font-size: ${fontSize * 1.1}px;
+    font-weight: 700;
+    color: ${textColor};
+    letter-spacing: 0.1em;
+  }
+  .emperor-note .emperor-title-inline:not(:last-child) {
+    margin-bottom: 6px;
+  }
+
+  .year-card {
+    margin-bottom: 12px;
+    background: ${accentColor}0d;
+    border-radius: 8px;
   }
 
   .year-header {
@@ -292,10 +351,6 @@ function generateHTML(props: HorizontalReaderProps): string {
     flex-wrap: nowrap;
     gap: 4px;
     padding: 8px 12px;
-    margin-bottom: 12px;
-    border-radius: 8px;
-    background: ${accentColor}0d;
-    overflow: hidden;
   }
   .year-title {
     font-size: ${fontSize * 1.05}px;
@@ -318,12 +373,11 @@ function generateHTML(props: HorizontalReaderProps): string {
   .emperor-note {
     font-size: ${Math.round(fontSize * 0.82)}px;
     color: ${annotationColor};
-    margin: 0 16px 12px;
+    margin: 0 0 12px;
     padding: 10px 14px;
     line-height: 1.8;
-    border-left: 3px solid ${accentColor}60;
-    background: ${accentColor}06;
-    border-radius: 0 6px 6px 0;
+    background: ${accentColor}0d;
+    border-radius: 8px;
   }
 
   .paragraph {
@@ -383,7 +437,6 @@ function generateHTML(props: HorizontalReaderProps): string {
 </head>
 <body>
 <div class="container">
-  <div class="volume-title">${escapeHTML(volumeTitle)}</div>
   ${metaHTML}
   ${yearsHTML}
 </div>
@@ -523,7 +576,7 @@ export function HorizontalReader(props: HorizontalReaderProps) {
 
   const html = useMemo(() => generateHTML(rest), [
     rest.volumeData, rest.volumeMeta, rest.viewMode, rest.scriptMode,
-    rest.fontSize, rest.textColor, rest.bgColor, rest.annotationColor,
+    rest.fontSize, rest.fontFamily, rest.textColor, rest.bgColor, rest.annotationColor,
     rest.translationColor, rest.accentColor, rest.textMuted,
     rest.highlightKeyword, rest.highlightedParagraphId,
   ]);

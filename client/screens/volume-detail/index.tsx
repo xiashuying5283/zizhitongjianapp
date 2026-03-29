@@ -60,9 +60,11 @@ interface TTSSegment {
 
 interface YearGroup {
   emperor: string;
+  emperor_title?: string | null;  // 帝王称号
   year_mark: string;
   year_display?: string;  // 格式化后的年份显示（含干支）
   era_name?: string | null;  // 年号
+  era_phase?: string | null;  // 年号阶段
   gan_zhi?: string | null;  // 干支
   bc_year: number | null;
   emperor_note?: string | null;  // 帝王注解（胡三省注）
@@ -89,7 +91,7 @@ interface CatalogYear {
   year_name: string;
   year_display: string;  // 格式化后的年份显示
   year_num: number;
-  bc_year: number;
+  bc_year: number | null;
 }
 
 interface CatalogEmperor {
@@ -122,9 +124,9 @@ const FONT_SIZES = [
 ];
 
 const BACKGROUND_THEMES: Record<BackgroundTheme, { background: string; text: string; name: string; color: string }> = {
-  light: { background: '#FFFFFF', text: '#1F2937', name: '亮色', color: '#FFFFFF' },
-  dark: { background: '#1F2937', text: '#F3F4F6', name: '暗色', color: '#1F2937' },
-  sepia: { background: '#F5F0E6', text: '#5C4B37', name: '护眼', color: '#F5F0E6' },
+  light: { background: '#FFFFFF', text: '#1E1E1E', name: '亮色', color: '#FFFFFF' },
+  dark: { background: '#121212', text: '#E8E8E8', name: '暗色', color: '#121212' },
+  sepia: { background: '#F5E6D3', text: '#4A3C31', name: '护眼', color: '#F5E6D3' },
 };
 
 // TTS音色选项
@@ -146,7 +148,7 @@ const TTS_SPEEDS = [
 
 export default function VolumeDetailScreen() {
   const { theme } = useTheme();
-  const { scriptMode, setScriptMode } = useSettings();
+  const { scriptMode, setScriptMode, fontFamily, setFontFamily } = useSettings();
   const { t } = useScriptText();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
@@ -224,8 +226,7 @@ export default function VolumeDetailScreen() {
   const initializedRef = useRef(false);
   const currentVolumeRef = useRef<number | null>(null);
   const loadedParagraphsRef = useRef(0);
-  const pendingJumpRef = useRef<{ yearName: string; emperorName: string } | null>(null);
-
+  const pendingJumpRef = useRef<{ bcYear: number | null; yearName?: string; emperorName?: string } | null>(null);
   // 字体大小切换
   const handleSetFontSize = useCallback(async (size: number) => {
     setFontSize(size);
@@ -764,6 +765,15 @@ export default function VolumeDetailScreen() {
 
   const currentTheme = BACKGROUND_THEMES[backgroundTheme];
 
+  // 根据阅读主题确定注解颜色
+  const getAnnotationColor = () => {
+    if (backgroundTheme === 'sepia') {
+      return '#8B5A3C'; // 护眼模式 - 棕红古注色
+    }
+    return theme.textAnnotation || theme.textSecondary;
+  };
+  const annotationColorForReader = getAnnotationColor();
+
   // 用 ref 存储 volumeData 用于合并，避免 useCallback 依赖导致无限循环
   const volumeDataRef = useRef<VolumeData | null>(null);
   
@@ -774,25 +784,26 @@ export default function VolumeDetailScreen() {
 
   // 合并年份组数据
   const mergeYearGroups = useCallback((existing: YearGroup[], newGroups: YearGroup[]): YearGroup[] => {
-    const yearMap = new Map<string, YearGroup>();
+    const yearMap = new Map<number, YearGroup>();
     
     // 先添加已有的
     for (const year of existing) {
-      const key = `${year.emperor}-${year.year_mark}`;
-      yearMap.set(key, year);
+      if (year.bc_year !== null) {
+        yearMap.set(year.bc_year, year);
+      }
     }
-    
-    // 合并新的
+
     for (const year of newGroups) {
-      const key = `${year.emperor}-${year.year_mark}`;
-      if (yearMap.has(key)) {
-        // 合并段落数组
-        const existingYear = yearMap.get(key)!;
-        const existingIds = new Set(existingYear.paragraphs.map(p => p.id));
-        const newParagraphs = year.paragraphs.filter(p => !existingIds.has(p.id));
-        existingYear.paragraphs = [...existingYear.paragraphs, ...newParagraphs];
-      } else {
-        yearMap.set(key, year);
+      if (year.bc_year !== null) {
+        if (yearMap.has(year.bc_year)) {
+          // 合并段落数组
+          const existingYear = yearMap.get(year.bc_year)!;
+          const existingIds = new Set(existingYear.paragraphs.map(p => p.id));
+          const newParagraphs = year.paragraphs.filter(p => !existingIds.has(p.id));
+          existingYear.paragraphs = [...existingYear.paragraphs, ...newParagraphs];
+        } else {
+          yearMap.set(year.bc_year, year);
+        }
       }
     }
     
@@ -1136,16 +1147,17 @@ export default function VolumeDetailScreen() {
   }, [volumeData, loading, highlightId, scrollToHighlightParagraph, scrollToParagraphId]);
 
   // 从目录跳转
-  const handleCatalogItemClick = useCallback((yearName: string, emperorName: string) => {
-    const yearIndex = volumeData?.years.findIndex(
-      y => y.year_mark === yearName && y.emperor === emperorName
-    );
-    if (yearIndex !== undefined && yearIndex >= 0) {
-      // 目标已加载，直接滚动
+  const handleCatalogItemClick = useCallback((yearName: string, emperorName: string, bcYear: number | null) => {
+    // 先用 bc_year 匹配
+    let yearIndex = volumeData?.years.findIndex(y => y.bc_year === bcYear) ?? -1;
+    if (yearIndex < 0) {
+      // 备用匹配：用年份名和帝王名匹配
+      yearIndex = volumeData?.years.findIndex(y => y.year_mark === yearName && y.emperor === emperorName) ?? -1;
+    }
+    if (yearIndex >= 0) {
       scrollToYear(yearIndex);
     } else if (hasMore && currentVolumeRef.current && !loadingMore) {
-      // 目标未加载，设置待跳转目标并触发加载
-      pendingJumpRef.current = { yearName, emperorName };
+      pendingJumpRef.current = { bcYear, yearName, emperorName };
       fetchVolumeData(currentVolumeRef.current, true, true);
     }
   }, [volumeData?.years, scrollToYear, hasMore, loadingMore, fetchVolumeData]);
@@ -1154,18 +1166,16 @@ export default function VolumeDetailScreen() {
   useEffect(() => {
     if (!pendingJumpRef.current || !volumeData?.years) return;
 
-    const { yearName, emperorName } = pendingJumpRef.current;
-    const yearIndex = volumeData.years.findIndex(
-      y => y.year_mark === yearName && y.emperor === emperorName
-    );
+    const { bcYear, yearName, emperorName } = pendingJumpRef.current;
+    let yearIndex = volumeData.years.findIndex(y => y.bc_year === bcYear);
+    if (yearIndex < 0 && yearName && emperorName) {
+      yearIndex = volumeData.years.findIndex(y => y.year_mark === yearName && y.emperor === emperorName);
+    }
 
     if (yearIndex >= 0) {
-      // 目标已加载，执行跳转
       pendingJumpRef.current = null;
-      // 延迟一帧确保 ref 已更新
       setTimeout(() => scrollToYear(yearIndex), 100);
     } else if (hasMore && !loadingMore && currentVolumeRef.current) {
-      // 目标仍未加载，继续加载
       fetchVolumeData(currentVolumeRef.current, true, true);
     }
   }, [volumeData, hasMore, loadingMore, scrollToYear, fetchVolumeData]);
@@ -1186,7 +1196,7 @@ export default function VolumeDetailScreen() {
       setTimeout(() => scrollToYear(yearIndex), 100);
     } else if (hasMore && !loadingMore && currentVolumeRef.current) {
       // 目标未加载，设置待跳转目标并触发加载
-      pendingJumpRef.current = { yearName: yearMark, emperorName: emperor };
+      pendingJumpRef.current = { bcYear: null, yearName: yearMark, emperorName: emperor };
       fetchVolumeData(currentVolumeRef.current, true, true);
     }
   }, [yearMark, emperor, volumeData?.years, hasMore, loadingMore, scrollToYear, fetchVolumeData]);
@@ -1291,7 +1301,7 @@ export default function VolumeDetailScreen() {
                   <TouchableOpacity
                     key={yearItemKey}
                     style={styles.yearItem}
-                    onPress={() => handleCatalogItemClick(year.year_name, group.emperor.name)}
+                    onPress={() => handleCatalogItemClick(year.year_name, group.emperor.name, year.bc_year)}
                   >
                     <ThemedText variant="small" color={currentTheme.text}>
                       {year.year_display || year.year_name}
@@ -1311,15 +1321,27 @@ export default function VolumeDetailScreen() {
   };
 
   // 渲染字体设置面板
+  const FONT_FAMILY_OPTIONS = [
+    { label: '系统默认', value: 'system' as const, desc: '苹方/思源黑体' },
+    { label: '宋体', value: 'serif' as const, desc: '传统印刷风格' },
+    { label: '楷体', value: 'kaiti' as const, desc: '古典书法韵味' },
+    { label: '隶书', value: 'lishu' as const, desc: '典雅庄重风格' },
+    { label: '正楷', value: 'zhengkai' as const, desc: '规范楷书风格' },
+  ];
+
   const renderFontPanel = () => (
     <View style={[styles.panel, { backgroundColor: currentTheme.background }]}>
       <View style={styles.panelHeader}>
-        <ThemedText variant="h4" color={currentTheme.text}>字体大小</ThemedText>
+        <ThemedText variant="h4" color={currentTheme.text}>字体设置</ThemedText>
         <TouchableOpacity onPress={() => setActiveTab(null)}>
           <FontAwesome6 name="xmark" size={18} color={currentTheme.text} />
         </TouchableOpacity>
       </View>
-      <View style={styles.panelContent}>
+      <ScrollView style={styles.panelContent} contentContainerStyle={styles.panelScrollContent} showsVerticalScrollIndicator={false}>
+        {/* 字体大小 */}
+        <ThemedText variant="smallMedium" color={theme.textMuted} style={{ marginBottom: 8 }}>
+          字体大小
+        </ThemedText>
         <View style={styles.fontSizeList}>
           {FONT_SIZES.map((size, index) => (
             <TouchableOpacity
@@ -1346,7 +1368,38 @@ export default function VolumeDetailScreen() {
             </TouchableOpacity>
           ))}
         </View>
-      </View>
+
+        {/* 字体风格 */}
+        <ThemedText variant="smallMedium" color={theme.textMuted} style={{ marginTop: 16, marginBottom: 8 }}>
+          字体风格
+        </ThemedText>
+        <View style={styles.fontFamilyList}>
+          {FONT_FAMILY_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.fontFamilyItem,
+                { borderColor: fontFamily === option.value ? theme.primary : theme.border },
+                fontFamily === option.value && { backgroundColor: theme.primary + '10' },
+              ]}
+              onPress={() => setFontFamily(option.value)}
+            >
+              <ThemedText
+                variant="body"
+                color={fontFamily === option.value ? theme.primary : currentTheme.text}
+              >
+                {option.label}
+              </ThemedText>
+              <ThemedText
+                variant="caption"
+                color={theme.textMuted}
+              >
+                {option.desc}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 
@@ -1733,7 +1786,7 @@ export default function VolumeDetailScreen() {
           activeOpacity={0.7}
         >
           <ThemedText variant="h4" color={currentTheme.text}>
-            {volumeMeta?.volume_name || catalogData?.volume.title || `第${volumeData.volume_number}卷`}
+            第{volumeData.volume_number}卷 · {volumeMeta?.volume_name}
           </ThemedText>
         </TouchableOpacity>
         <TouchableOpacity 
@@ -1773,9 +1826,10 @@ export default function VolumeDetailScreen() {
               viewMode={viewMode}
               scriptMode={scriptMode}
               fontSize={fontSize}
+              fontFamily={fontFamily}
               textColor={currentTheme.text}
               bgColor={currentTheme.background}
-              annotationColor={theme.textAnnotation || theme.textSecondary}
+              annotationColor={annotationColorForReader}
               translationColor={theme.textTranslation || theme.textSecondary}
               accentColor={theme.accent}
               textMuted={theme.textMuted}
@@ -1802,9 +1856,10 @@ export default function VolumeDetailScreen() {
               viewMode={viewMode}
               scriptMode={scriptMode}
               fontSize={fontSize}
+              fontFamily={fontFamily}
               textColor={currentTheme.text}
               bgColor={currentTheme.background}
-              annotationColor={theme.textAnnotation || theme.textSecondary}
+              annotationColor={annotationColorForReader}
               translationColor={theme.textTranslation || theme.textSecondary}
               accentColor={theme.accent}
               textMuted={theme.textMuted}

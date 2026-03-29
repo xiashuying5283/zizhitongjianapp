@@ -22,7 +22,7 @@ export const Colors = {
     borderLight: "#F0EEE8", // 浅色边框
     // === 阅读区专用 ===
     textOriginal: "#1A1A1A", // 原文 - 纯黑粗体
-    textAnnotation: "#B44A4A", // 胡三省注 - 浅红（古注色）
+    textAnnotation: "#A84448", // 胡三省注 - 浅红（古注色）
     textTranslation: "#444444", // 译文 - 中灰
     backgroundAnnotation: "#F5F3EF", // 注文背景
     backgroundTranslation: "#FAF8F4", // 译文背景
@@ -54,7 +54,7 @@ export const Colors = {
     borderLight: "#1E1E1E", // 浅色边框
     // === 阅读区专用 ===
     textOriginal: "#FAFAF9", // 原文 - 纸张白
-    textAnnotation: "#D48888", // 胡三省注 - 浅红（古注色）
+    textAnnotation: "#D67878", // 胡三省注 - 浅红（古注色）
     textTranslation: "#999999", // 译文 - 浅灰
     backgroundAnnotation: "#1A1A1A", // 注文背景
     backgroundTranslation: "#161616", // 译文背景

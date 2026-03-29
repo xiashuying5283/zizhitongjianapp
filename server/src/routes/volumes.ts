@@ -554,8 +554,9 @@ router.get('/:id/catalog', async (req, res) => {
 
     let emperorOrder = 0;
     for (const p of paragraphs) {
-      // 使用 bc_year 作为唯一标识，避免同一年号下的相同年份标记被去重
-      const key = `${p.emperor}_${p.bc_year}`;
+      // 使用 emperor + year_mark + bc_year 作为唯一标识
+      // 这样可以区分同一帝王下不同年号的相同年份标记
+      const key = `${p.emperor}|${p.year_mark}|${p.bc_year}`;
       if (yearSet.has(key)) continue;
       yearSet.add(key);
 
@@ -568,14 +569,13 @@ router.get('/:id/catalog', async (req, res) => {
 
       // 解析年份数字（如"二十三年" -> 23）
       const yearNum = parseChineseYear(p.year_mark);
-      const bcYear = p.bc_year || 0;
 
       emperorMap.get(p.emperor)!.years.push({
         id: p.id,
         year_name: p.year_mark,
         year_num: yearNum || 0,
         year_display: `${p.emperor} ${p.year_mark}`,  // 默认值，后面会覆盖
-        bc_year: bcYear,
+        bc_year: p.bc_year,  // 保持原值，可能是 null
       });
     }
 

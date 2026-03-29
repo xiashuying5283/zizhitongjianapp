@@ -15,9 +15,11 @@ interface Paragraph {
 
 interface YearGroup {
   emperor: string;
+  emperor_title?: string | null;
   year_mark: string;
   year_display?: string;
   era_name?: string | null;
+  era_phase?: string | null;
   gan_zhi?: string | null;
   bc_year: number | null;
   emperor_note?: string | null;
@@ -43,6 +45,7 @@ interface VerticalReaderProps {
   viewMode: 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
   scriptMode: 'simplified' | 'traditional';
   fontSize: number;
+  fontFamily: 'system' | 'serif' | 'kaiti' | 'lishu' | 'zhengkai';
   textColor: string;
   bgColor: string;
   annotationColor: string;
@@ -106,6 +109,7 @@ function generateHTML(props: VerticalReaderProps): string {
     viewMode,
     scriptMode,
     fontSize,
+    fontFamily,
     textColor,
     bgColor,
     annotationColor,
@@ -116,12 +120,32 @@ function generateHTML(props: VerticalReaderProps): string {
     highlightedParagraphId,
   } = props;
 
+  // 根据字体设置选择字体栈
+  const fontStack = fontFamily === 'kaiti'
+    ? "'Ma Shan Zheng', 'STKaiti', 'KaiTi', serif"
+    : fontFamily === 'serif'
+    ? "'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif"
+    : fontFamily === 'lishu'
+    ? "'ZCOOL XiaoWei', 'LiSu', 'STLiti', serif"
+    : fontFamily === 'zhengkai'
+    ? "'Zhi Mang Xing', 'STKaiti', 'KaiTi', 'KaiTi_GB2312', serif"
+    : "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif";
+
+  // CDN 字体加载
+  const fontImport = fontFamily === 'kaiti'
+    ? "@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap');\n"
+    : fontFamily === 'lishu'
+    ? "@import url('https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&display=swap');\n"
+    : fontFamily === 'zhengkai'
+    ? "@import url('https://fonts.googleapis.com/css2?family=Zhi+Mang+Xing&display=swap');\n"
+    : "";
+
+  const hl = (text: string) => highlightKeyword(text, kw);
+
   const showNotes = viewMode === 'original+annotation' || viewMode === 'original+annotation+translation';
   const showTrans = viewMode === 'original+translation' || viewMode === 'original+annotation+translation' || viewMode === 'translation';
   const isTranslationOnly = viewMode === 'translation';
   const showAnnotation = viewMode.includes('annotation');
-
-  const hl = (text: string) => highlightKeyword(text, kw);
 
   const rubyFontSize = Math.round(fontSize * 0.45);
 
@@ -253,6 +277,7 @@ function generateHTML(props: VerticalReaderProps): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
+  ${fontImport}
   * {
     margin: 0;
     padding: 0;
@@ -264,7 +289,7 @@ function generateHTML(props: VerticalReaderProps): string {
     min-height: 100vh;
     background-color: ${bgColor};
     color: ${textColor};
-    font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Serif CJK SC', serif;
+    font-family: ${fontStack};
     -webkit-text-size-adjust: none;
     -webkit-user-select: text;
     user-select: text;
@@ -289,8 +314,8 @@ function generateHTML(props: VerticalReaderProps): string {
   .volume-title {
     display: inline-block;
     writing-mode: vertical-rl;
-    font-size: ${fontSize * 1.2}px;
-    font-weight: 600;
+    font-size: ${fontSize * 1.3}px;
+    font-weight: 700;
     letter-spacing: 0.2em;
     border-right: 2px solid ${accentColor};
     color: ${textColor};
@@ -318,6 +343,8 @@ function generateHTML(props: VerticalReaderProps): string {
   .year-section {
     writing-mode: vertical-rl;
     margin-left: 24px;
+    scroll-margin-left: 0;
+    scroll-margin-right: 0;
   }
 
   .year-emperor-col {
@@ -328,9 +355,9 @@ function generateHTML(props: VerticalReaderProps): string {
     margin-right: 8px;
   }
   .year-emperor {
-    font-size: ${fontSize * 1.1}px;
-    font-weight: 600;
-    color: ${accentColor};
+    font-size: ${fontSize * 1.05}px;
+    font-weight: 400;
+    color: ${textColor};
     letter-spacing: 0.18em;
   }
 
@@ -340,9 +367,9 @@ function generateHTML(props: VerticalReaderProps): string {
   }
   .year-title {
     writing-mode: vertical-rl;
-    font-size: ${fontSize}px;
-    font-weight: 600;
-    color: ${textColor};
+    font-size: ${Math.round(fontSize * 0.9)}px;
+    font-weight: 400;
+    color: ${textMuted};
     letter-spacing: 0.15em;
   }
   .year-sub {
@@ -541,7 +568,8 @@ function generateHTML(props: VerticalReaderProps): string {
     var el = document.getElementById('year-section-' + yearIndex);
     if (el) {
       requestAnimationFrame(function() {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // 竖排模式：水平滚动，使用 scrollIntoView 并指定 inline: 'start'
+        el.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
       });
     }
   };
@@ -550,9 +578,8 @@ function generateHTML(props: VerticalReaderProps): string {
     var el = document.getElementById('paragraph-' + paragraphId);
     if (el) {
       requestAnimationFrame(function() {
-        var container = document.documentElement;
-        var scrollLeft = el.offsetLeft - window.innerWidth / 2 + el.offsetWidth / 2;
-        window.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+        // 竖排模式：水平居中显示
+        el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
       });
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'scrollToResult', targetId: paragraphId, success: true }));
@@ -565,7 +592,8 @@ function generateHTML(props: VerticalReaderProps): string {
   };
 
   window.__scrollToTop = function() {
-    window.scrollTo(0, 0);
+    // 竖排模式：滚动到页面开头
+    window.scrollTo({ left: 0, behavior: 'smooth' });
   };
 
   // 初始化
@@ -596,6 +624,7 @@ export function VerticalReader(props: VerticalReaderProps) {
     rest.viewMode,
     rest.scriptMode,
     rest.fontSize,
+    rest.fontFamily,
     rest.textColor,
     rest.bgColor,
     rest.annotationColor,

@@ -182,7 +182,7 @@ export const createStyles = (theme: Theme): any => {
       bottom: 0,
       left: 0,
       right: 0,
-      maxHeight: '60%',
+      maxHeight: '55%',
       borderTopLeftRadius: BorderRadius.xl,
       borderTopRightRadius: BorderRadius.xl,
       shadowColor: '#000',
@@ -190,6 +190,9 @@ export const createStyles = (theme: Theme): any => {
       shadowOpacity: 0.15,
       shadowRadius: 12,
       elevation: 20,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: 0,
+      borderColor: theme.border,
     },
     panelHeader: {
       flexDirection: 'row',
@@ -203,7 +206,10 @@ export const createStyles = (theme: Theme): any => {
     panelContent: {
       paddingHorizontal: Spacing["2xl"],
       paddingVertical: Spacing.lg,
-      maxHeight: 450,
+      maxHeight: 350,
+    },
+    panelScrollContent: {
+      paddingBottom: Spacing["3xl"],
     },
     // ==================== Catalog ====================
     emperorGroup: {
@@ -263,6 +269,19 @@ export const createStyles = (theme: Theme): any => {
     },
     fontSizeName: {
       fontSize: 12,
+    },
+    fontFamilyList: {
+      gap: Spacing.sm,
+    },
+    fontFamilyItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: Spacing.md,
+      paddingHorizontal: Spacing.lg,
+      borderRadius: BorderRadius.md,
+      borderWidth: 1,
+      backgroundColor: theme.backgroundTertiary,
     },
     // ==================== Background ====================
     backgroundList: {

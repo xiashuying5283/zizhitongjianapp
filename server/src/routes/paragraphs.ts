@@ -147,14 +147,13 @@ router.get('/volume/:volumeNumber', async (req, res) => {
     const result = await pool.query(query, params);
     const paragraphs = result.rows;
 
-    // 按年份分组
-    const yearGroups = new Map<string, typeof paragraphs>();
-    for (const p of paragraphs) {
-      const key = `${p.emperor || ''}-${p.year_mark || ''}`;
-      if (!yearGroups.has(key)) {
-        yearGroups.set(key, []);
+    // 按年份分组（使用 bc_year 作为唯一key，因为 year_mark 可能重复）
+    const yearGroups = new Map<number, typeof paragraphs>();
+    for (const p of paragraphs || []) {
+      if (!yearGroups.has(p.bc_year)) {
+        yearGroups.set(p.bc_year, []);
       }
-      yearGroups.get(key)!.push(p);
+      yearGroups.get(p.bc_year)!.push(p);
     }
 
     // 格式化年份显示
@@ -166,9 +165,11 @@ router.get('/volume/:volumeNumber', async (req, res) => {
 
         return {
           emperor: first.emperor,
+          emperor_title: eraInfo.emperorTitle,
           year_mark: first.year_mark,
           year_display: yearDisplay,
           era_name: eraInfo.eraName,
+          era_phase: eraInfo.eraPhase,
           gan_zhi: eraInfo.ganZhi,
           bc_year: first.bc_year,
           emperor_note: eraInfo.note,
