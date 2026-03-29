@@ -18,6 +18,7 @@ import bookmarksRoutes from "./routes/bookmarks";
 import notesRoutes from "./routes/notes";
 import readingStatsRoutes from "./routes/reading-stats";
 import ttsRoutes from "./routes/tts";
+import encyclopediaRoutes from "./routes/encyclopedia";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +57,7 @@ app.use('/api/v1/bookmarks', bookmarksRoutes);
 app.use('/api/v1/notes', notesRoutes);
 app.use('/api/v1/reading-stats', readingStatsRoutes);
 app.use('/api/v1/tts', ttsRoutes);
+app.use('/api/v1/encyclopedia', encyclopediaRoutes);
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
