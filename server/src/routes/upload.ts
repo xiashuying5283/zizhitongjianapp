@@ -69,4 +69,49 @@ router.post('/avatar', upload.single('file'), async (req, res) => {
   }
 });
 
+/**
+ * POST /api/v1/upload/image
+ * 通用图片上传（用于帖子、评论）
+ */
+router.post('/image', upload.single('file'), async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ success: false, message: '未上传文件' });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: '缺少用户ID' });
+    }
+
+    // 验证文件类型
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype || '')) {
+      return res.status(400).json({
+        success: false,
+        message: '不支持的文件类型，仅支持 jpg/png/gif/webp',
+      });
+    }
+
+    // 生成文件名
+    const ext = file.originalname.split('.').pop() || 'jpg';
+    const fileName = `community/${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+    // 本地文件存储
+    const localPath = path.join(UPLOAD_DIR, fileName);
+    const dir = path.dirname(localPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(localPath, file.buffer);
+
+    res.json({ success: true, data: { url: `/uploads/${fileName}` } });
+  } catch (error) {
+    console.error('Upload image error:', error);
+    res.status(500).json({ success: false, message: '上传失败' });
+  }
+});
+
 export default router;

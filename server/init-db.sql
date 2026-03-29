@@ -167,10 +167,12 @@ CREATE TABLE IF NOT EXISTS posts (
   user_id INTEGER REFERENCES users(id),
   title TEXT NOT NULL,
   content TEXT NOT NULL,
+  category VARCHAR(20) DEFAULT 'discussion',
+  is_pinned BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  likes INTEGER DEFAULT 0,
-  comments_count INTEGER DEFAULT 0
+  like_count INTEGER DEFAULT 0,
+  comment_count INTEGER DEFAULT 0
 );
 
 -- 帖子点赞表
@@ -188,8 +190,9 @@ CREATE TABLE IF NOT EXISTS comments (
   post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
   user_id INTEGER REFERENCES users(id),
   content TEXT NOT NULL,
+  parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  likes INTEGER DEFAULT 0
+  like_count INTEGER DEFAULT 0
 );
 
 -- 评论点赞表
@@ -306,3 +309,20 @@ CREATE TABLE IF NOT EXISTS era_years (
   display_name VARCHAR(100),
   note TEXT
 );
+
+-- 通知表
+CREATE TABLE IF NOT EXISTS notifications (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type VARCHAR(20) NOT NULL, -- 'post_comment', 'comment_reply'
+  from_user_id INTEGER REFERENCES users(id),
+  post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+  comment_id INTEGER REFERENCES comments(id) ON DELETE CASCADE,
+  content TEXT,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 通知索引
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications USING btree (user_id, is_read) WHERE is_read = FALSE;

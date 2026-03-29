@@ -23,7 +23,7 @@ function attachUser(rows: any[], userMap: Map<number, any>) {
  */
 router.get('/', async (req, res) => {
   try {
-    const { category, page = 1, limit = 20 } = req.query;
+    const { category, page = 1, limit = 20, userId } = req.query;
     const pageNum = Math.max(1, parseInt(page as string) || 1);
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string) || 20));
     const offset = (pageNum - 1) * limitNum;
@@ -35,6 +35,11 @@ router.get('/', async (req, res) => {
     if (category && VALID_CATEGORIES.includes(category as string)) {
       conditions.push(`p.category = $${paramIndex++}`);
       params.push(category);
+    }
+
+    if (userId) {
+      conditions.push(`p.user_id = $${paramIndex++}`);
+      params.push(parseInt(userId as string));
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

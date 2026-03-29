@@ -122,7 +122,7 @@ export default function EncyclopediaScreen() {
         {/* Header */}
         <ThemedView level="root" style={styles.header}>
           <ThemedText variant="h2" color={theme.textPrimary}>
-            资治通鉴百科
+            通鉴百科
           </ThemedText>
           <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
             探索历史的智慧

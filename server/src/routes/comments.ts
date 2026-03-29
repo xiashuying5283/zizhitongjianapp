@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { Pool } from 'pg';
+import { createNotification } from './notifications';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = Router();
@@ -102,18 +103,21 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: '参数错误' });
     }
 
-    // 检查帖子是否存在
-    const postResult = await pool.query('SELECT id FROM posts WHERE id = $1', [postId]);
+    // 检查帖子是否存在，同时获取帖子作者
+    const postResult = await pool.query('SELECT id, user_id FROM posts WHERE id = $1', [postId]);
     if (postResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: '帖子不存在' });
     }
+    const postAuthorId = postResult.rows[0].user_id;
 
-    // 如果有父评论，检查是否存在
+    // 如果有父评论，检查是否存在并获取父评论作者
+    let parentCommentAuthorId: number | null = null;
     if (parentId) {
-      const parentResult = await pool.query('SELECT id FROM comments WHERE id = $1', [parentId]);
+      const parentResult = await pool.query('SELECT id, user_id FROM comments WHERE id = $1', [parentId]);
       if (parentResult.rows.length === 0) {
         return res.status(404).json({ success: false, message: '回复的评论不存在' });
       }
+      parentCommentAuthorId = parentResult.rows[0].user_id;
     }
 
     // 创建评论
@@ -146,6 +150,29 @@ router.post('/', async (req, res) => {
       [postId]
     );
 
+    // 创建通知
+    if (parentId && parentCommentAuthorId) {
+      // 回复评论：通知被回复的评论作者
+      await createNotification({
+        userId: parentCommentAuthorId,
+        type: 'comment_reply',
+        fromUserId: userId,
+        postId: postId,
+        commentId: commentRow.id,
+        content: content.trim().substring(0, 100),
+      });
+    } else if (postAuthorId && postAuthorId !== userId) {
+      // 评论帖子：通知帖子作者
+      await createNotification({
+        userId: postAuthorId,
+        type: 'post_comment',
+        fromUserId: userId,
+        postId: postId,
+        commentId: commentRow.id,
+        content: content.trim().substring(0, 100),
+      });
+    }
+
     res.json({ success: true, data: comment });
   } catch (error) {
     console.error('创建评论失败:', error);
@@ -155,6 +182,7 @@ router.post('/', async (req, res) => {
 
 /**
  * DELETE /api/v1/comments/:id
+ * 评论作者或帖子作者都可以删除评论
  */
 router.delete('/:id', async (req, res) => {
   try {
@@ -165,16 +193,20 @@ router.delete('/:id', async (req, res) => {
       return res.status(401).json({ success: false, message: '请先登录' });
     }
 
-    // 检查评论是否存在且属于当前用户
+    // 检查评论是否存在
     const existResult = await pool.query(
-      'SELECT user_id, post_id FROM comments WHERE id = $1',
+      'SELECT c.user_id, c.post_id, p.user_id as post_user_id FROM comments c JOIN posts p ON c.post_id = p.id WHERE c.id = $1',
       [parseInt(id)]
     );
 
     if (existResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: '评论不存在' });
     }
-    if (existResult.rows[0].user_id !== userId) {
+
+    const { user_id: commentUserId, post_id: postId, post_user_id: postUserId } = existResult.rows[0];
+
+    // 评论作者或帖子作者可以删除
+    if (commentUserId !== userId && postUserId !== userId) {
       return res.status(403).json({ success: false, message: '无权删除此评论' });
     }
 
@@ -184,7 +216,7 @@ router.delete('/:id', async (req, res) => {
     // 更新帖子评论数
     await pool.query(
       'UPDATE posts SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = $1',
-      [existResult.rows[0].post_id]
+      [postId]
     );
 
     res.json({ success: true, message: '删除成功' });

@@ -68,6 +68,7 @@ export default function RootLayout() {
               <Stack.Screen name="bookmarks" options={{ title: "" }} />
               <Stack.Screen name="notes" options={{ title: "" }} />
               <Stack.Screen name="reading-stats" options={{ title: "" }} />
+              <Stack.Screen name="notifications" options={{ title: "" }} />
             </Stack>
             <Toast />
           </GestureHandlerRootView>
