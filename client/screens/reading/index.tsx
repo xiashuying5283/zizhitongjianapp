@@ -447,6 +447,9 @@ export default function ReadingScreen() {
           <ThemedText variant="caption" color={theme.textMuted} style={{ marginTop: Spacing.xs }}>
             司马光 · 编年体通史
           </ThemedText>
+          <ThemedText variant="caption" color={theme.textMuted} style={{ marginTop: Spacing.xs }}>
+            胡三省 · 音注
+          </ThemedText>
         </ThemedView>
 
         {/* Recent Reading */}

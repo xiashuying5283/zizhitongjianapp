@@ -13,6 +13,7 @@ interface Paragraph {
   translation: string | null;
   translation_traditional?: string | null;
   is_chenguangyue: boolean;
+  global_index?: number;  // 全局索引，用于计算阅读进度
 }
 
 interface YearGroup {

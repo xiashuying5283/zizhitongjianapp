@@ -84,6 +84,7 @@ export default function ContactScreen() {
 
   const teamMembers = [
     { name: '司马光', role: '原著作者', desc: '北宋政治家、史学家' },
+    { name: '胡三省', role: '音注', desc: '宋元之际史学家' },
     { name: '开发团队', role: '应用开发', desc: '致力于推广传统文化' },
   ];
 

@@ -194,7 +194,7 @@ router.get('/volume/:volumeNumber', async (req, res) => {
           emperor_note: eraInfo.note,
           paragraphs: paras.map((p: any) => ({
             ...p,
-            global_index: parseInt(p.global_index),
+            global_index: p.global_index !== null ? Number(p.global_index) : 0,
           })),
         };
       })
