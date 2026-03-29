@@ -135,12 +135,31 @@ router.get('/volume/:volumeNumber', async (req, res) => {
     );
     const count = parseInt(countResult.rows[0].count);
 
-    // 查询段落
-    let query = `SELECT * FROM zizhitongjian_paragraphs WHERE volume_number = $1 ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC`;
+    // 查询段落，使用窗口函数计算全局索引
+    let query = `
+      SELECT *, 
+        ROW_NUMBER() OVER (
+          ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC
+        ) - 1 as global_index
+      FROM zizhitongjian_paragraphs 
+      WHERE volume_number = $1 
+      ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC
+    `;
     const params: unknown[] = [volumeNum];
 
     if (limitNum !== null) {
-      query += ` LIMIT $2 OFFSET $3`;
+      query = `
+        SELECT * FROM (
+          SELECT *, 
+            ROW_NUMBER() OVER (
+              ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC
+            ) - 1 as global_index
+          FROM zizhitongjian_paragraphs 
+          WHERE volume_number = $1
+        ) sub
+        ORDER BY global_index
+        LIMIT $2 OFFSET $3
+      `;
       params.push(limitNum, offsetNum);
     }
 
@@ -173,7 +192,10 @@ router.get('/volume/:volumeNumber', async (req, res) => {
           gan_zhi: eraInfo.ganZhi,
           bc_year: first.bc_year,
           emperor_note: eraInfo.note,
-          paragraphs: paras,
+          paragraphs: paras.map((p: any) => ({
+            ...p,
+            global_index: parseInt(p.global_index),
+          })),
         };
       })
     );

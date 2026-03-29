@@ -75,3 +75,10 @@ export function clearReadingCache(): void {
   recentReadCache = null;
   cacheTimestamp = 0;
 }
+
+/**
+ * 清除最近阅读缓存（用于页面刷新时）
+ */
+export function clearRecentReadCache(): void {
+  recentReadCache = null;
+}

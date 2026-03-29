@@ -225,19 +225,6 @@ CREATE TABLE IF NOT EXISTS notes (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 高亮标记表
-CREATE TABLE IF NOT EXISTS highlights (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id),
-  device_id VARCHAR(100),
-  volume_number INTEGER NOT NULL,
-  paragraph_index INTEGER NOT NULL,
-  start_offset INTEGER NOT NULL,
-  end_offset INTEGER NOT NULL,
-  color VARCHAR(20) DEFAULT 'yellow',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- 注释表
 CREATE TABLE IF NOT EXISTS annotations (
   id SERIAL PRIMARY KEY,

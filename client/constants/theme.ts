@@ -12,6 +12,7 @@ export const Colors = {
     // === 背景层级 ===
     backgroundRoot: "#F8F6F2", // 根背景 - 米白/宣纸色
     backgroundDefault: "#FDFCFA", // 卡片背景 - 近白
+    backgroundSecondary: "#F5F3EF", // 二级背景 - 浅米灰
     backgroundTertiary: "#F2F0EC", // 三级背景 - 浅米灰
     // === 按钮 ===
     buttonPrimaryText: "#FFFFFF", // 主按钮文字 - 白色
@@ -44,6 +45,7 @@ export const Colors = {
     // === 背景层级 ===
     backgroundRoot: "#121212", // 根背景 - 深灰（护眼）
     backgroundDefault: "#1E1E1E", // 卡片背景
+    backgroundSecondary: "#1A1A1A", // 二级背景
     backgroundTertiary: "#2A2A2A", // 三级背景
     // === 按钮 ===
     buttonPrimaryText: "#121212", // 主按钮文字 - 深灰

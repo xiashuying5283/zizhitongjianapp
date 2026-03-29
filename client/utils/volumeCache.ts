@@ -2,7 +2,7 @@
  * 卷数据缓存 - 只缓存当前阅读的一卷
  */
 
-interface Paragraph {
+export interface Paragraph {
   id: number;
   volume_number: number;
   year_mark: string;
@@ -10,33 +10,43 @@ interface Paragraph {
   bc_year: number | null;
   event_index: number;
   paragraph_index: number;
+  global_index: number;  // 全局索引，用于计算阅读进度
   content: string;
+  content_traditional?: string | null;
   with_notes: string | null;
+  with_notes_traditional?: string | null;
   translation: string | null;
+  translation_traditional?: string | null;
   is_chenguangyue: boolean;
 }
 
-interface YearGroup {
+export interface YearGroup {
   emperor: string;
+  emperor_title?: string | null;
   year_mark: string;
+  year_display?: string;
+  era_name?: string | null;
+  era_phase?: string | null;
+  gan_zhi?: string | null;
   bc_year: number | null;
+  emperor_note?: string | null;
   paragraphs: Paragraph[];
 }
 
-interface VolumeData {
+export interface VolumeData {
   volume_number: number;
   years: YearGroup[];
 }
 
-interface CatalogYear {
+export interface CatalogYear {
   id: number;
   year_name: string;
-  year_num: number;
   year_display: string;
-  bc_year: number;
+  year_num?: number;
+  bc_year: number | null;
 }
 
-interface CatalogEmperor {
+export interface CatalogEmperor {
   emperor: {
     id: number;
     name: string;
@@ -44,7 +54,7 @@ interface CatalogEmperor {
   years: CatalogYear[];
 }
 
-interface CatalogData {
+export interface CatalogData {
   volume: {
     id: number;
     volume_number: number;

@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type ThemeMode = 'system' | 'light' | 'dark';
-type ScriptMode = 'simplified' | 'traditional';
-type ReadingMode = 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
-type FontFamily = 'system' | 'serif' | 'kaiti' | 'lishu' | 'zhengkai';
+export type ThemeMode = 'system' | 'light' | 'dark';
+export type ScriptMode = 'simplified' | 'traditional';
+export type ReadingMode = 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
+export type FontFamily = 'system' | 'serif' | 'kaiti' | 'lishu' | 'zhengkai';
 
 interface SettingsContextType {
   // 字体设置

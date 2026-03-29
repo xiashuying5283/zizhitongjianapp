@@ -1,6 +1,8 @@
 import React, { useMemo, useRef, useCallback } from 'react';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { StyleSheet } from 'react-native';
+import { FontFamily } from '@/contexts/SettingsContext';
+import { NoteMarker } from '@/utils/notes';
 
 interface Paragraph {
   id: number;
@@ -45,7 +47,7 @@ interface HorizontalReaderProps {
   viewMode: 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
   scriptMode: 'simplified' | 'traditional';
   fontSize: number;
-  fontFamily: 'system' | 'serif' | 'kaiti' | 'lishu' | 'zhengkai';
+  fontFamily: FontFamily;
   textColor: string;
   bgColor: string;
   annotationColor: string;
@@ -54,10 +56,13 @@ interface HorizontalReaderProps {
   textMuted: string;
   highlightKeyword?: string;
   highlightedParagraphId?: number | null;
+  userNotes?: NoteMarker[];
   onTap?: () => void;
   onLoadMore?: () => void;
-  onVisibleParagraphChange?: (paragraphId: number, visibleIndex: number, totalLoaded: number) => void;
+  onVisibleParagraphChange?: (paragraphId: number, globalIndex: number) => void;
   onScrollToResult?: (targetId: number, success: boolean) => void;
+  onTextSelection?: (selection: { paragraphId: number | null; startOffset: number; endOffset: number; selectedText: string } | null) => void;
+  onNoteClick?: (note: NoteMarker) => void;
   readerWebViewRef?: React.MutableRefObject<WebView | null>;
 }
 
@@ -101,7 +106,7 @@ function generateHTML(props: HorizontalReaderProps): string {
     volumeData, volumeMeta, viewMode, scriptMode, fontSize, fontFamily,
     textColor, bgColor, annotationColor, translationColor,
     accentColor, textMuted,
-    highlightKeyword: kw, highlightedParagraphId,
+    highlightKeyword: kw, highlightedParagraphId, userNotes,
   } = props;
 
   // 根据字体设置选择字体栈
@@ -194,12 +199,13 @@ function generateHTML(props: HorizontalReaderProps): string {
       const isHighlighted = highlightedParagraphId === paragraph.id;
       const hlClass = isHighlighted ? ' paragraph-hl' : '';
 
+      const globalIndex = paragraph.global_index ?? 0;
       if (isTranslationOnly) {
         const trans = getDisplayTranslation(paragraph);
         if (trans) {
-          yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="translation-text">${hl(trans)}</div></div>`;
+          yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="translation-text">${hl(trans)}</div></div>`;
         } else {
-          yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="translation-text empty">（暂无译文）</div></div>`;
+          yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="translation-text empty">（暂无译文）</div></div>`;
         }
       } else if (showNotes) {
         const content = getDisplayContent(paragraph);
@@ -212,7 +218,7 @@ function generateHTML(props: HorizontalReaderProps): string {
             chars += `<span class="note">${hl(part.content)}</span>`;
           }
         }
-        yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="original-text">${chars}</div>`;
+        yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="original-text">${chars}</div>`;
 
         if (showTrans) {
           const trans = getDisplayTranslation(paragraph);
@@ -223,7 +229,7 @@ function generateHTML(props: HorizontalReaderProps): string {
         yearsHTML += `</div>`;
       } else {
         const content = getDisplayContent(paragraph);
-        yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}"><div class="original-text">${hl(content)}</div>`;
+        yearsHTML += `<div class="paragraph${hlClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="original-text">${hl(content)}</div>`;
 
         if (showTrans) {
           const trans = getDisplayTranslation(paragraph);
@@ -426,6 +432,23 @@ function generateHTML(props: HorizontalReaderProps): string {
     padding: 0 1px;
   }
 
+  /* 用户标注样式 */
+  .user-note-marker {
+    cursor: pointer;
+  }
+  .user-note-marker.background {
+    background-color: var(--marker-color, #FECACA);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  .user-note-marker.underline {
+    border-bottom: 2px solid var(--marker-color, #FECACA);
+  }
+  .user-note-marker.wavy {
+    text-decoration: underline wavy var(--marker-color, #FECACA);
+    text-underline-offset: 3px;
+  }
+
   ::selection {
     background-color: rgba(59, 130, 246, 0.3);
   }
@@ -456,7 +479,7 @@ function generateHTML(props: HorizontalReaderProps): string {
     var scrollTop = window.scrollY || document.documentElement.scrollTop;
     var viewCenter = scrollTop + window.innerHeight / 2;
     var foundId = 0;
-    var foundIndex = -1;
+    var foundGlobalIndex = 0;
 
     for (var i = 0; i < paragraphs.length; i++) {
       var rect = paragraphs[i].getBoundingClientRect();
@@ -464,19 +487,19 @@ function generateHTML(props: HorizontalReaderProps): string {
       var bottom = top + rect.height;
       if (viewCenter >= top && viewCenter < bottom) {
         foundId = parseInt(paragraphs[i].getAttribute('data-paragraph-id'));
-        foundIndex = i;
+        foundGlobalIndex = parseInt(paragraphs[i].getAttribute('data-global-index') || '0');
         break;
       }
       if (viewCenter >= bottom) {
         foundId = parseInt(paragraphs[i].getAttribute('data-paragraph-id'));
-        foundIndex = i;
+        foundGlobalIndex = parseInt(paragraphs[i].getAttribute('data-global-index') || '0');
       }
     }
 
     if (foundId > 0 && foundId !== lastTrackedParagraphId) {
       lastTrackedParagraphId = foundId;
       if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'visibleParagraph', paragraphId: foundId, visibleIndex: foundIndex, totalLoaded: paragraphs.length }));
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'visibleParagraph', paragraphId: foundId, globalIndex: foundGlobalIndex }));
       }
     }
   }
@@ -506,6 +529,65 @@ function generateHTML(props: HorizontalReaderProps): string {
   document.addEventListener('click', function() {
     if (window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'tap' }));
+    }
+  });
+
+  // === 文本选择事件 ===
+  document.addEventListener('selectionchange', function() {
+    var selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 0) {
+      var range = selection.getRangeAt(0);
+      var selectedText = selection.toString().trim();
+
+      // 查找所属段落
+      var paragraphEl = range.startContainer;
+      while (paragraphEl && paragraphEl.nodeType !== 1) {
+        paragraphEl = paragraphEl.parentNode;
+      }
+      while (paragraphEl && !paragraphEl.hasAttribute('data-paragraph-id')) {
+        paragraphEl = paragraphEl.parentElement;
+      }
+
+      var paragraphId = paragraphEl ? parseInt(paragraphEl.getAttribute('data-paragraph-id')) : null;
+
+      // 计算段落内的偏移量
+      var startOffset = 0;
+      var endOffset = 0;
+      if (paragraphEl && range.startContainer && range.endContainer) {
+        var preSelectionRange = document.createRange();
+        preSelectionRange.selectNodeContents(paragraphEl);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+        startOffset = preSelectionRange.toString().length;
+        endOffset = startOffset + selectedText.length;
+      }
+
+      // 获取选中文本的位置信息
+      var rects = range.getClientRects();
+      var menuPosition = { top: 0, left: 0, width: 0 };
+      if (rects.length > 0) {
+        var lastRect = rects[rects.length - 1];
+        menuPosition = {
+          top: lastRect.bottom + window.scrollY,
+          left: lastRect.left + lastRect.width / 2,
+          width: lastRect.width
+        };
+      }
+
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'textSelection',
+          paragraphId: paragraphId,
+          startOffset: startOffset,
+          endOffset: endOffset,
+          selectedText: selectedText,
+          menuPosition: menuPosition
+        }));
+      }
+    } else {
+      // 选择被清除
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'textSelectionCleared' }));
+      }
     }
   });
 
@@ -558,6 +640,114 @@ function generateHTML(props: HorizontalReaderProps): string {
     setTimeout(trackVisibleParagraph, 1000);
   });
 
+  // === 用户标注渲染 ===
+  var userNotesData = ${userNotes ? JSON.stringify(userNotes) : '[]'};
+
+  function applyUserNotes() {
+    if (!userNotesData || userNotesData.length === 0) return;
+
+    userNotesData.forEach(function(note) {
+      var paragraphEl = document.querySelector('[data-paragraph-id="' + note.paragraphId + '"]');
+      if (!paragraphEl) return;
+
+      // 找到 .original-text 或 .translation-text（译文模式下）
+      var textContainer = paragraphEl.querySelector('.original-text') || paragraphEl.querySelector('.translation-text');
+      if (!textContainer) return;
+
+      // 获取纯文本内容
+      var textContent = textContainer.textContent || '';
+      if (note.startOffset >= textContent.length || note.endOffset > textContent.length) return;
+
+      // 在文本中查找标注文本的位置（验证）
+      var actualText = textContent.substring(note.startOffset, note.endOffset);
+      if (actualText !== note.highlightedText) {
+        // 如果偏移量不匹配，尝试通过文本内容查找
+        var idx = textContent.indexOf(note.highlightedText);
+        if (idx >= 0) {
+          note.startOffset = idx;
+          note.endOffset = idx + note.highlightedText.length;
+        } else {
+          return;
+        }
+      }
+
+      // 遍历文本节点，找到对应位置并包裹标记
+      wrapTextRange(textContainer, note.startOffset, note.endOffset, note.id, note.markType, note.color);
+    });
+  }
+
+  function wrapTextRange(container, startOffset, endOffset, noteId, markType, color) {
+    var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+    var currentOffset = 0;
+    var startNode = null, endNode = null;
+    var startNodeOffset = 0, endNodeOffset = 0;
+
+    while (walker.nextNode()) {
+      var node = walker.currentNode;
+      var nodeLength = node.textContent.length;
+
+      if (currentOffset + nodeLength > startOffset && !startNode) {
+        startNode = node;
+        startNodeOffset = startOffset - currentOffset;
+      }
+
+      if (currentOffset + nodeLength >= endOffset) {
+        endNode = node;
+        endNodeOffset = endOffset - currentOffset;
+        break;
+      }
+
+      currentOffset += nodeLength;
+    }
+
+    if (!startNode || !endNode) return;
+
+    var type = markType || 'background';
+    var markerColor = color || '#FECACA';
+
+    // 如果是同一个节点
+    if (startNode === endNode) {
+      var range = document.createRange();
+      range.setStart(startNode, startNodeOffset);
+      range.setEnd(endNode, endNodeOffset);
+      var span = document.createElement('span');
+      span.className = 'user-note-marker ' + type;
+      span.setAttribute('data-note-id', noteId);
+      span.style.setProperty('--marker-color', markerColor);
+      range.surroundContents(span);
+    } else {
+      // 跨多个节点的情况，简化处理：只标记第一个节点中的部分
+      var range = document.createRange();
+      range.setStart(startNode, startNodeOffset);
+      range.setEnd(startNode, startNode.textContent.length);
+      var span = document.createElement('span');
+      span.className = 'user-note-marker ' + type;
+      span.setAttribute('data-note-id', noteId);
+      span.style.setProperty('--marker-color', markerColor);
+      span.setAttribute('data-note-id', noteId);
+      range.surroundContents(span);
+    }
+  }
+  
+  // 点击标注下划线
+  document.addEventListener('click', function(e) {
+    var target = e.target;
+    if (target.classList && target.classList.contains('user-note-marker')) {
+      e.stopPropagation();
+      var noteId = parseInt(target.getAttribute('data-note-id'));
+      var note = userNotesData.find(function(n) { return n.id === noteId; });
+      if (note && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'noteClick',
+          note: note
+        }));
+      }
+    }
+  });
+  
+  // 延迟应用标注（等待 DOM 完全渲染）
+  setTimeout(applyUserNotes, 100);
+
 </script>
 </body>
 </html>`;
@@ -578,7 +768,7 @@ export function HorizontalReader(props: HorizontalReaderProps) {
     rest.volumeData, rest.volumeMeta, rest.viewMode, rest.scriptMode,
     rest.fontSize, rest.fontFamily, rest.textColor, rest.bgColor, rest.annotationColor,
     rest.translationColor, rest.accentColor, rest.textMuted,
-    rest.highlightKeyword, rest.highlightedParagraphId,
+    rest.highlightKeyword, rest.highlightedParagraphId, rest.userNotes,
   ]);
 
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
@@ -588,14 +778,28 @@ export function HorizontalReader(props: HorizontalReaderProps) {
         case 'tap': rest.onTap?.(); break;
         case 'loadMore': rest.onLoadMore?.(); break;
         case 'visibleParagraph':
-          rest.onVisibleParagraphChange?.(data.paragraphId, data.visibleIndex, data.totalLoaded);
+          rest.onVisibleParagraphChange?.(data.paragraphId, data.globalIndex);
           break;
         case 'scrollToResult':
           rest.onScrollToResult?.(data.targetId, data.success);
           break;
+        case 'textSelection':
+          rest.onTextSelection?.({
+            paragraphId: data.paragraphId,
+            startOffset: data.startOffset,
+            endOffset: data.endOffset,
+            selectedText: data.selectedText,
+          });
+          break;
+        case 'textSelectionCleared':
+          rest.onTextSelection?.(null);
+          break;
+        case 'noteClick':
+          rest.onNoteClick?.(data.note);
+          break;
       }
     } catch (e) {}
-  }, [rest.onTap, rest.onLoadMore, rest.onVisibleParagraphChange, rest.onScrollToResult]);
+  }, [rest.onTap, rest.onLoadMore, rest.onVisibleParagraphChange, rest.onScrollToResult, rest.onTextSelection, rest.onNoteClick]);
 
   return (
     <WebView
