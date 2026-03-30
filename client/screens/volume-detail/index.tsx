@@ -2016,34 +2016,7 @@ export default function VolumeDetailScreen() {
       <View style={{ flex: 1 }}>
         {(textLayout === 'vertical' || textLayout === 'horizontal') && volumeData && hasYears ? (
           textLayout === 'vertical' ? (
-            <VerticalReader
-              volumeData={volumeData}
-              volumeMeta={volumeMeta}
-              viewMode={viewMode}
-              scriptMode={scriptMode}
-              fontSize={fontSize}
-              fontFamily={fontFamily}
-              textColor={currentTheme.text}
-              bgColor={currentTheme.background}
-              annotationColor={annotationColorForReader}
-              translationColor={theme.textTranslation || theme.textSecondary}
-              accentColor={theme.accent}
-              textMuted={theme.textMuted}
-              highlightKeyword={keyword}
-              highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
-              userNotes={userNotes}
-              onTap={handleScreenTap}
-              onLoadMore={handleLoadMore}
-              onVisibleParagraphChange={handleVisibleParagraphChange}
-              onScrollToResult={handleScrollToResult}
-              onTextSelection={handleTextSelection}
-              onNoteClick={handleNoteClick}
-              readerWebViewRef={htmlWebViewRef}
-            />
-          ) : (
-            // 横排模式：支持边缘滑动切换章节
-            <View style={{ flex: 1 }}>
-              <HorizontalReader
+              <VerticalReader
                 volumeData={volumeData}
                 volumeMeta={volumeMeta}
                 viewMode={viewMode}
@@ -2066,7 +2039,36 @@ export default function VolumeDetailScreen() {
                 onTextSelection={handleTextSelection}
                 onNoteClick={handleNoteClick}
                 readerWebViewRef={htmlWebViewRef}
+                initialScrollParagraphId={currentVisibleParagraphIdRef.current}
               />
+            ) : (
+              // 横排模式：支持边缘滑动切换章节
+              <View style={{ flex: 1 }}>
+                <HorizontalReader
+                  volumeData={volumeData}
+                  volumeMeta={volumeMeta}
+                  viewMode={viewMode}
+                  scriptMode={scriptMode}
+                  fontSize={fontSize}
+                  fontFamily={fontFamily}
+                  textColor={currentTheme.text}
+                  bgColor={currentTheme.background}
+                  annotationColor={annotationColorForReader}
+                  translationColor={theme.textTranslation || theme.textSecondary}
+                  accentColor={theme.accent}
+                  textMuted={theme.textMuted}
+                  highlightKeyword={keyword}
+                  highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
+                  userNotes={userNotes}
+                  onTap={handleScreenTap}
+                  onLoadMore={handleLoadMore}
+                  onVisibleParagraphChange={handleVisibleParagraphChange}
+                  onScrollToResult={handleScrollToResult}
+                  onTextSelection={handleTextSelection}
+                  onNoteClick={handleNoteClick}
+                  readerWebViewRef={htmlWebViewRef}
+                  initialScrollParagraphId={currentVisibleParagraphIdRef.current}
+                />
               {/* 左边缘触摸区域 - 上一章 */}
               <Pressable
                 style={styles.edgeTapLeft}

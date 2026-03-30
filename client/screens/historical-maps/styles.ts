@@ -5,77 +5,95 @@ export const createStyles = (theme: Theme) => {
   return StyleSheet.create({
     scrollContent: {
       flexGrow: 1,
-      paddingHorizontal: Spacing.lg,
-      paddingTop: Spacing['2xl'],
-      paddingBottom: Spacing['5xl'],
+      paddingHorizontal: Spacing["2xl"],
+      paddingTop: Spacing["2xl"],
+      paddingBottom: Spacing["5xl"],
     },
     header: {
-      marginBottom: Spacing.xl,
+      marginBottom: Spacing["2xl"],
     },
-    title: {
-      marginBottom: Spacing.xs,
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Spacing.sm,
     },
-    subtitle: {
-      lineHeight: 24,
+    backButton: {
+      padding: Spacing.sm,
     },
-    sectionTitle: {
-      marginBottom: Spacing.md,
+    placeholder: {
+      width: 40,
     },
-    mapCard: {
-      marginBottom: Spacing.md,
-      borderRadius: BorderRadius.lg,
-      overflow: 'hidden',
+    headerSubtitle: {
+      marginTop: Spacing.xs,
+    },
+    sectionsContainer: {
+      gap: Spacing.lg,
+      marginBottom: Spacing["2xl"],
+    },
+    sectionCard: {
+      flexDirection: 'row',
       backgroundColor: theme.backgroundDefault,
-      shadowColor: '#000',
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.lg,
+      borderWidth: 1,
+      shadowColor: theme.primary,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
       shadowRadius: 8,
-      elevation: 3,
+      elevation: 2,
     },
-    mapCardCover: {
-      width: '100%',
-      height: 140,
-      backgroundColor: theme.backgroundTertiary,
+    iconContainer: {
+      width: 64,
+      height: 64,
+      borderRadius: BorderRadius.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: Spacing.lg,
     },
-    mapCardContent: {
-      padding: Spacing.md,
+    contentContainer: {
+      flex: 1,
+      justifyContent: 'space-between',
     },
-    mapCardTitle: {
+    sectionTitle: {
       marginBottom: Spacing.xs,
     },
-    mapCardMeta: {
+    sectionDescription: {
+      marginBottom: Spacing.md,
+      lineHeight: 22,
+    },
+    footer: {
       flexDirection: 'row',
+      justifyContent: 'space-between',
       alignItems: 'center',
-      gap: Spacing.md,
-      marginBottom: Spacing.sm,
     },
-    mapCardMetaItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.xs,
-    },
-    mapCardDescription: {
-      lineHeight: 20,
-    },
-    mapCardTags: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: Spacing.xs,
-      marginTop: Spacing.sm,
-    },
-    tag: {
+    countBadge: {
       paddingHorizontal: Spacing.sm,
       paddingVertical: Spacing.xs,
       borderRadius: BorderRadius.sm,
       backgroundColor: theme.backgroundTertiary,
     },
-    comingSoon: {
+    infoCard: {
+      flexDirection: 'row',
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.md,
       padding: Spacing.lg,
-      borderRadius: BorderRadius.lg,
-      backgroundColor: theme.backgroundTertiary,
-      alignItems: 'center',
+      gap: Spacing.md,
+    },
+    infoIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.full,
+      backgroundColor: `${theme.primary}15`,
       justifyContent: 'center',
-      marginBottom: Spacing.md,
+      alignItems: 'center',
+    },
+    infoContent: {
+      flex: 1,
+      justifyContent: 'center',
+    },
+    infoTitle: {
+      marginBottom: Spacing.xs,
     },
   });
 };

@@ -65,6 +65,7 @@ interface VerticalReaderProps {
   onTextSelection?: (selection: { paragraphId: number | null; startOffset: number; endOffset: number; selectedText: string } | null) => void;
   onNoteClick?: (note: NoteMarker) => void;
   readerWebViewRef?: React.MutableRefObject<WebView | null>;
+  initialScrollParagraphId?: number;
 }
 
 function escapeHTML(str: string): string {
@@ -247,7 +248,7 @@ function generateHTML(props: VerticalReaderProps): string {
       if (isTranslationOnly) {
         const trans = getDisplayTranslation(paragraph);
         if (trans) {
-          yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="translation-vertical">\u3000\u3000${hl(trans)}</div></div>`;
+          yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="translation-vertical">${hl(trans)}</div></div>`;
         } else {
           yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="translation-vertical empty">（暫無譯文）</div></div>`;
         }
@@ -262,23 +263,23 @@ function generateHTML(props: VerticalReaderProps): string {
             textChars += `<span class="note">${hl(part.content)}</span>`;
           }
         }
-        yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="vertical-text">\u3000\u3000${textChars}</div>`;
+        yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="vertical-text">${textChars}</div>`;
 
         if (showTrans) {
           const trans = getDisplayTranslation(paragraph);
           if (trans) {
-            yearsHTML += `<div class="translation-horizontal">\u3000\u3000${hl(trans)}</div>`;
+            yearsHTML += `<div class="translation-horizontal">${hl(trans)}</div>`;
           }
         }
         yearsHTML += `</div>`;
       } else {
         const content = getDisplayContent(paragraph);
-        yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="vertical-text">\u3000\u3000${hl(content)}</div>`;
+        yearsHTML += `<div class="paragraph${highlightClass}" id="paragraph-${paragraph.id}" data-paragraph-id="${paragraph.id}" data-global-index="${globalIndex}"><div class="vertical-text">${hl(content)}</div>`;
 
         if (showTrans) {
           const trans = getDisplayTranslation(paragraph);
           if (trans) {
-            yearsHTML += `<div class="translation-horizontal">\u3000\u3000${hl(trans)}</div>`;
+            yearsHTML += `<div class="translation-horizontal">${hl(trans)}</div>`;
           }
         }
         yearsHTML += `</div>`;
@@ -301,7 +302,7 @@ function generateHTML(props: VerticalReaderProps): string {
 
   const volumeTitle = volumeMeta?.volume_name || `第${volumeData.volume_number}卷`;
 
-  return `<!DOCTYPE html>
+  return /* html */ `<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
@@ -466,6 +467,7 @@ function generateHTML(props: VerticalReaderProps): string {
     font-size: ${fontSize}px;
     line-height: 2.2;
     letter-spacing: 0.15em;
+    text-indent: 2em;
   }
 
   /* 竖排标点符号：使用系统字体确保正确显示 */
@@ -490,6 +492,7 @@ function generateHTML(props: VerticalReaderProps): string {
     color: ${translationColor};
     margin: 8px 4px;
     opacity: 0.85;
+    text-indent: 2em;
   }
 
   .translation-vertical {
@@ -498,6 +501,7 @@ function generateHTML(props: VerticalReaderProps): string {
     font-size: ${fontSize}px;
     line-height: 2.2;
     letter-spacing: 0.15em;
+    text-indent: 2em;
   }
   .translation-vertical.empty {
     color: ${textMuted};
@@ -520,10 +524,14 @@ function generateHTML(props: VerticalReaderProps): string {
     padding: 0 1px;
   }
   .user-note-marker.underline {
-    border-right: 2px solid var(--marker-color, #FECACA);
+    text-decoration: underline var(--marker-color, #FECACA) 2px;
+    text-underline-offset: 4px;
+    text-underline-position: right;
   }
   .user-note-marker.wavy {
-    border-right: 2px wavy var(--marker-color, #FECACA);
+    text-decoration: underline wavy var(--marker-color, #FECACA);
+    text-underline-offset: 4px;
+    text-underline-position: right;
   }
 
   ::selection {
@@ -618,9 +626,8 @@ function generateHTML(props: VerticalReaderProps): string {
   // === 文本选择事件 ===
   document.addEventListener('selectionchange', function() {
     var selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 0) {
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
       var range = selection.getRangeAt(0);
-      var selectedText = selection.toString().trim();
 
       // 查找所属段落
       var paragraphEl = range.startContainer;
@@ -636,12 +643,39 @@ function generateHTML(props: VerticalReaderProps): string {
       // 计算段落内的偏移量
       var startOffset = 0;
       var endOffset = 0;
+      var selectedText = '';
       if (paragraphEl && range.startContainer && range.endContainer) {
-        var preSelectionRange = document.createRange();
-        preSelectionRange.selectNodeContents(paragraphEl);
-        preSelectionRange.setEnd(range.startContainer, range.startOffset);
-        startOffset = preSelectionRange.toString().length;
-        endOffset = startOffset + selectedText.length;
+        try {
+          var preSelectionRange = document.createRange();
+          preSelectionRange.selectNodeContents(paragraphEl);
+          preSelectionRange.setEnd(range.startContainer, range.startOffset);
+          startOffset = preSelectionRange.toString().length;
+
+          var endSelectionRange = document.createRange();
+          endSelectionRange.selectNodeContents(paragraphEl);
+          endSelectionRange.setEnd(range.endContainer, range.endOffset);
+          endOffset = endSelectionRange.toString().length;
+          
+          if (startOffset > endOffset) {
+            var temp = startOffset;
+            startOffset = endOffset;
+            endOffset = temp;
+          }
+          
+          selectedText = paragraphEl.textContent.substring(startOffset, endOffset).trim();
+        } catch (e) {
+          selectedText = selection.toString().trim();
+          endOffset = startOffset + selectedText.length;
+        }
+      } else {
+        selectedText = selection.toString().trim();
+      }
+
+      if (selectedText.length === 0) {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'textSelectionCleared' }));
+        }
+        return;
       }
 
       // 获取选中文本的位置信息
@@ -694,7 +728,7 @@ function generateHTML(props: VerticalReaderProps): string {
     if (el) {
       requestAnimationFrame(function() {
         // 竖排模式：水平滚动，使用 scrollIntoView 并指定 inline: 'start'
-        el.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+        el.scrollIntoView({ behavior: 'auto', inline: 'start', block: 'start' });
       });
     }
   };
@@ -704,7 +738,7 @@ function generateHTML(props: VerticalReaderProps): string {
     if (el) {
       requestAnimationFrame(function() {
         // 竖排模式：水平居中显示
-        el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        el.scrollIntoView({ behavior: 'auto', inline: 'start', block: 'start' });
       });
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'scrollToResult', targetId: paragraphId, success: true }));
@@ -722,7 +756,15 @@ function generateHTML(props: VerticalReaderProps): string {
   };
 
   // 初始化
+  var initParaId = ${props.initialScrollParagraphId || 0};
   window.addEventListener('load', function() {
+    if (initParaId > 0) {
+      setTimeout(function() {
+        if (window.__scrollToParagraph) {
+          window.__scrollToParagraph(initParaId);
+        }
+      }, 150);
+    }
     setTimeout(trackVisibleParagraph, 200);
     setTimeout(trackVisibleParagraph, 1000);
   });
@@ -733,19 +775,29 @@ function generateHTML(props: VerticalReaderProps): string {
   function applyUserNotes() {
     if (!userNotesData || userNotesData.length === 0) return;
 
+    function normalizeQuotes(s) {
+      if (!s) return '';
+      return s.replace(/[\u201C\u300C]/g, '"')
+              .replace(/[\u201D\u300D]/g, '"')
+              .replace(/[\u2018\u300E]/g, "'")
+              .replace(/[\u2019\u300F]/g, "'");
+    }
+
     userNotesData.forEach(function(note) {
       var paragraphEl = document.querySelector('[data-paragraph-id="' + note.paragraphId + '"]');
       if (!paragraphEl) return;
 
-      var textContainer = paragraphEl.querySelector('.vertical-text') || paragraphEl.querySelector('.translation-vertical');
-      if (!textContainer) return;
-
+      var textContainer = paragraphEl;
       var textContent = textContainer.textContent || '';
+      
       if (note.startOffset >= textContent.length || note.endOffset > textContent.length) return;
 
       var actualText = textContent.substring(note.startOffset, note.endOffset);
-      if (actualText !== note.highlightedText) {
-        var idx = textContent.indexOf(note.highlightedText);
+      
+      if (normalizeQuotes(actualText) !== normalizeQuotes(note.highlightedText)) {
+        var normalizedContent = normalizeQuotes(textContent);
+        var normalizedNote = normalizeQuotes(note.highlightedText);
+        var idx = normalizedContent.indexOf(normalizedNote);
         if (idx >= 0) {
           note.startOffset = idx;
           note.endOffset = idx + note.highlightedText.length;
@@ -761,50 +813,53 @@ function generateHTML(props: VerticalReaderProps): string {
   function wrapTextRange(container, startOffset, endOffset, noteId, markType, color) {
     var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
     var currentOffset = 0;
-    var startNode = null, endNode = null;
-    var startNodeOffset = 0, endNodeOffset = 0;
+    var nodesToWrap = [];
 
     while (walker.nextNode()) {
       var node = walker.currentNode;
       var nodeLength = node.textContent.length;
+      
+      var nodeStart = currentOffset;
+      var nodeEnd = currentOffset + nodeLength;
 
-      if (currentOffset + nodeLength > startOffset && !startNode) {
-        startNode = node;
-        startNodeOffset = startOffset - currentOffset;
-      }
-
-      if (currentOffset + nodeLength >= endOffset) {
-        endNode = node;
-        endNodeOffset = endOffset - currentOffset;
-        break;
+      if (nodeEnd > startOffset && nodeStart < endOffset) {
+        var overlapStart = Math.max(0, startOffset - nodeStart);
+        var overlapEnd = Math.min(nodeLength, endOffset - nodeStart);
+        nodesToWrap.push({
+          node: node,
+          startOffset: overlapStart,
+          endOffset: overlapEnd
+        });
       }
 
       currentOffset += nodeLength;
+      if (currentOffset >= endOffset) break;
     }
-
-    if (!startNode || !endNode) return;
 
     var type = markType || 'background';
     var markerColor = color || '#FECACA';
 
-    if (startNode === endNode) {
-      var range = document.createRange();
-      range.setStart(startNode, startNodeOffset);
-      range.setEnd(endNode, endNodeOffset);
-      var span = document.createElement('span');
-      span.className = 'user-note-marker ' + type;
-      span.setAttribute('data-note-id', noteId);
-      span.style.setProperty('--marker-color', markerColor);
-      range.surroundContents(span);
-    } else {
-      var range = document.createRange();
-      range.setStart(startNode, startNodeOffset);
-      range.setEnd(startNode, startNode.textContent.length);
-      var span = document.createElement('span');
-      span.className = 'user-note-marker ' + type;
-      span.setAttribute('data-note-id', noteId);
-      span.style.setProperty('--marker-color', markerColor);
-      range.surroundContents(span);
+    for (var i = nodesToWrap.length - 1; i >= 0; i--) {
+      var item = nodesToWrap[i];
+      try {
+        var textNode = item.node;
+        var start = item.startOffset;
+        var end = item.endOffset;
+        if (start === end) continue;
+
+        var middleNode = textNode.splitText(start);
+        middleNode.splitText(end - start);
+
+        var span = document.createElement('span');
+        span.className = 'user-note-marker ' + type;
+        span.setAttribute('data-note-id', noteId);
+        span.style.setProperty('--marker-color', markerColor);
+
+        middleNode.parentNode.insertBefore(span, middleNode);
+        span.appendChild(middleNode);
+      } catch (e) {
+        // ignore
+      }
     }
   }
   
@@ -831,7 +886,31 @@ function generateHTML(props: VerticalReaderProps): string {
 }
 
 export const VerticalReader = React.memo(function VerticalReader(props: VerticalReaderProps) {
-  const { readerWebViewRef, ...rest } = props;
+  const {
+    readerWebViewRef,
+    volumeData,
+    volumeMeta,
+    viewMode,
+    scriptMode,
+    fontSize,
+    fontFamily,
+    textColor,
+    bgColor,
+    annotationColor,
+    translationColor,
+    accentColor,
+    textMuted,
+    highlightKeyword,
+    highlightedParagraphId,
+    userNotes,
+    onTap,
+    onLoadMore,
+    onVisibleParagraphChange,
+    onScrollToResult,
+    onTextSelection,
+    onNoteClick
+  } = props;
+
   const internalRef = useRef<WebView>(null);
 
   const setRef = useCallback((ref: WebView | null) => {
@@ -841,22 +920,11 @@ export const VerticalReader = React.memo(function VerticalReader(props: Vertical
     }
   }, [readerWebViewRef]);
 
-  const html = useMemo(() => generateHTML(rest), [
-    rest.volumeData,
-    rest.volumeMeta,
-    rest.viewMode,
-    rest.scriptMode,
-    rest.fontSize,
-    rest.fontFamily,
-    rest.textColor,
-    rest.bgColor,
-    rest.annotationColor,
-    rest.translationColor,
-    rest.accentColor,
-    rest.textMuted,
-    rest.highlightKeyword,
-    rest.highlightedParagraphId,
-    rest.userNotes,
+  const html = useMemo(() => generateHTML(props), [
+    volumeData, volumeMeta, viewMode, scriptMode,
+    fontSize, fontFamily, textColor, bgColor, annotationColor,
+    translationColor, accentColor, textMuted,
+    highlightKeyword, highlightedParagraphId, userNotes,
   ]);
 
   const source = useMemo(() => ({ html }), [html]);
@@ -866,19 +934,19 @@ export const VerticalReader = React.memo(function VerticalReader(props: Vertical
       const data = JSON.parse(event.nativeEvent.data);
       switch (data.type) {
         case 'tap':
-          rest.onTap?.();
+          onTap?.();
           break;
         case 'loadMore':
-          rest.onLoadMore?.();
+          onLoadMore?.();
           break;
         case 'visibleParagraph':
-          rest.onVisibleParagraphChange?.(data.paragraphId, data.globalIndex);
+          onVisibleParagraphChange?.(data.paragraphId, data.globalIndex);
           break;
         case 'scrollToResult':
-          rest.onScrollToResult?.(data.targetId, data.success);
+          onScrollToResult?.(data.targetId, data.success);
           break;
         case 'textSelection':
-          rest.onTextSelection?.({
+          onTextSelection?.({
             paragraphId: data.paragraphId,
             startOffset: data.startOffset,
             endOffset: data.endOffset,
@@ -886,16 +954,16 @@ export const VerticalReader = React.memo(function VerticalReader(props: Vertical
           });
           break;
         case 'textSelectionCleared':
-          rest.onTextSelection?.(null);
+          onTextSelection?.(null);
           break;
         case 'noteClick':
-          rest.onNoteClick?.(data.note);
+          onNoteClick?.(data.note);
           break;
       }
     } catch (e) {
       // ignore
     }
-  }, [rest.onTap, rest.onLoadMore, rest.onVisibleParagraphChange, rest.onScrollToResult, rest.onTextSelection, rest.onNoteClick]);
+  }, [onTap, onLoadMore, onVisibleParagraphChange, onScrollToResult, onTextSelection, onNoteClick]);
 
   return (
     <WebView

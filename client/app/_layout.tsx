@@ -69,6 +69,14 @@ export default function RootLayout() {
               <Stack.Screen name="notes" options={{ title: "" }} />
               <Stack.Screen name="reading-stats" options={{ title: "" }} />
               <Stack.Screen name="notifications" options={{ title: "" }} />
+              <Stack.Screen name="historical-maps" options={{ title: "" }} />
+              <Stack.Screen name="historical-maps/dynasty" options={{ title: "" }} />
+              <Stack.Screen name="historical-maps/topic" options={{ title: "" }} />
+              <Stack.Screen name="characters" options={{ title: "" }} />
+              <Stack.Screen name="titles" options={{ title: "" }} />
+              <Stack.Screen name="events" options={{ title: "" }} />
+              <Stack.Screen name="quotes" options={{ title: "" }} />
+              <Stack.Screen name="era-names" options={{ title: "" }} />
             </Stack>
             <Toast />
           </GestureHandlerRootView>

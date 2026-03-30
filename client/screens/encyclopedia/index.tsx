@@ -58,6 +58,16 @@ export default function EncyclopediaScreen() {
       route: '/events',
     },
     {
+      id: 'historical-maps',
+      title: '历史地图',
+      description: '历朝地图与专题地图',
+      icon: 'map',
+      color: '#0891B2',
+      gradient: ['#06B6D4', '#0891B2'],
+      route: '/historical-maps',
+      count: 20,
+    },
+    {
       id: 'quotes',
       title: '典著名句',
       description: '资治通鉴经典语录',
@@ -88,107 +98,115 @@ export default function EncyclopediaScreen() {
   };
 
   const renderCategory = (category: CategoryItem) => (
-    <TouchableOpacity
-      key={category.id}
-      style={[styles.categoryCard, { borderColor: category.color }]}
-      onPress={() => handleCategoryPress(category)}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.categoryIcon, { backgroundColor: category.color }]}>
-        <FontAwesome6 name={category.icon as any} size={24} color="#FFFFFF" />
-      </View>
-      <View style={styles.categoryContent}>
-        <View style={styles.categoryHeader}>
-          <ThemedText variant="h4" color={theme.textPrimary}>
-            {category.title}
-          </ThemedText>
-          {category.count !== undefined && (
-            <ThemedText variant="caption" color={category.color} style={styles.categoryCount}>
-              {category.count}
-            </ThemedText>
-          )}
+      <TouchableOpacity
+          key={category.id}
+          style={[styles.categoryCard, { borderColor: category.color }]}
+          onPress={() => handleCategoryPress(category)}
+          activeOpacity={0.7}
+      >
+        <View style={[styles.categoryIcon, { backgroundColor: category.color }]}>
+          <FontAwesome6 name={category.icon as any} size={24} color="#FFFFFF" />
         </View>
-        <ThemedText variant="body" color={theme.textSecondary}>
-          {category.description}
-        </ThemedText>
-      </View>
-      <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
-    </TouchableOpacity>
+        <View style={styles.categoryContent}>
+          <View style={styles.categoryHeader}>
+            <ThemedText variant="h4" color={theme.textPrimary}>
+              {category.title}
+            </ThemedText>
+            {category.count !== undefined && (
+                <ThemedText variant="caption" color={category.color} style={styles.categoryCount}>
+                  {category.count}
+                </ThemedText>
+            )}
+          </View>
+          <ThemedText variant="body" color={theme.textSecondary}>
+            {category.description}
+          </ThemedText>
+        </View>
+        <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
+      </TouchableOpacity>
   );
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <ThemedView level="root" style={styles.header}>
-          <ThemedText variant="h2" color={theme.textPrimary}>
-            通鉴百科
-          </ThemedText>
-          <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
-            探索历史的智慧
-          </ThemedText>
-        </ThemedView>
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Header */}
+          <ThemedView level="root" style={styles.header}>
+            <ThemedText variant="h2" color={theme.textPrimary}>
+              资治通鉴百科
+            </ThemedText>
+            <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
+              探索历史的智慧
+            </ThemedText>
+          </ThemedView>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <FontAwesome6 name="magnifying-glass" size={16} color={theme.textMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="搜索人物、官职、事件..."
-            placeholderTextColor={theme.textMuted}
-            value={searchText}
-            onChangeText={setSearchText}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-          />
-          {searchText.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchText('')}>
-              <FontAwesome6 name="xmark" size={16} color={theme.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Categories */}
-        <View style={styles.categoriesContainer}>
-          <ThemedText variant="h4" color={theme.textPrimary} style={styles.sectionTitle}>
-            知识分区
-          </ThemedText>
-          {categories.map(category => renderCategory(category))}
-        </View>
-
-        {/* Quick Stats */}
-        <ThemedView level="default" style={styles.statsCard}>
-          <ThemedText variant="labelSmall" color={theme.textMuted} style={styles.statsTitle}>
-            数据统计
-          </ThemedText>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <ThemedText variant="h2" color={theme.primary}>
-                294
-              </ThemedText>
-              <ThemedText variant="caption" color={theme.textSecondary}>
-                卷
-              </ThemedText>
-            </View>
-            <View style={styles.statItem}>
-              <ThemedText variant="h2" color={theme.accent}>
-                234
-              </ThemedText>
-              <ThemedText variant="caption" color={theme.textSecondary}>
-                人物
-              </ThemedText>
-            </View>
-            <View style={styles.statItem}>
-              <ThemedText variant="h2" color="#F59E0B">
-                87
-              </ThemedText>
-              <ThemedText variant="caption" color={theme.textSecondary}>
-                官职
-              </ThemedText>
-            </View>
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <FontAwesome6 name="magnifying-glass" size={16} color={theme.textMuted} />
+            <TextInput
+                style={styles.searchInput}
+                placeholder="搜索人物、官职、事件..."
+                placeholderTextColor={theme.textMuted}
+                value={searchText}
+                onChangeText={setSearchText}
+                onSubmitEditing={handleSearch}
+                returnKeyType="search"
+            />
+            {searchText.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchText('')}>
+                  <FontAwesome6 name="xmark" size={16} color={theme.textMuted} />
+                </TouchableOpacity>
+            )}
           </View>
-        </ThemedView>
-      </ScrollView>
-    </Screen>
+
+          {/* Categories */}
+          <View style={styles.categoriesContainer}>
+            <ThemedText variant="h4" color={theme.textPrimary} style={styles.sectionTitle}>
+              知识分区
+            </ThemedText>
+            {categories.map(category => renderCategory(category))}
+          </View>
+
+          {/* Quick Stats */}
+          <ThemedView level="default" style={styles.statsCard}>
+            <ThemedText variant="labelSmall" color={theme.textMuted} style={styles.statsTitle}>
+              数据统计
+            </ThemedText>
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <ThemedText variant="h2" color={theme.primary}>
+                  294
+                </ThemedText>
+                <ThemedText variant="caption" color={theme.textSecondary}>
+                  卷
+                </ThemedText>
+              </View>
+              <View style={styles.statItem}>
+                <ThemedText variant="h2" color={theme.accent}>
+                  234
+                </ThemedText>
+                <ThemedText variant="caption" color={theme.textSecondary}>
+                  人物
+                </ThemedText>
+              </View>
+              <View style={styles.statItem}>
+                <ThemedText variant="h2" color="#F59E0B">
+                  87
+                </ThemedText>
+                <ThemedText variant="caption" color={theme.textSecondary}>
+                  官职
+                </ThemedText>
+              </View>
+              <View style={styles.statItem}>
+                <ThemedText variant="h2" color="#0891B2">
+                  20
+                </ThemedText>
+                <ThemedText variant="caption" color={theme.textSecondary}>
+                  地图
+                </ThemedText>
+              </View>
+            </View>
+          </ThemedView>
+        </ScrollView>
+      </Screen>
   );
 }
