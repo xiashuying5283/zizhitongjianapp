@@ -112,7 +112,7 @@ export default function ProfileScreen() {
   }, [router]);
 
   return (
-    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
       >

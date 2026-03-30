@@ -64,7 +64,7 @@ export default function HistoricalMapsScreen() {
   };
 
   return (
-    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <ThemedView level="root" style={styles.header}>

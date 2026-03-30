@@ -427,7 +427,7 @@ export default function ReadingScreen() {
 
   if (loading) {
     return (
-      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <ThemedText variant="body" color={theme.textMuted} style={{ marginTop: Spacing.md }}>
@@ -439,7 +439,7 @@ export default function ReadingScreen() {
   }
 
   return (
-    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <ThemedView level="root" style={styles.header}>

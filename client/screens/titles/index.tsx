@@ -160,7 +160,7 @@ export default function TitlesScreen() {
   );
 
   return (
-      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         {/* Header */}
         <ThemedView level="root" style={styles.header}>
           <View style={styles.headerRow}>

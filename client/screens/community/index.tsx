@@ -344,7 +344,7 @@ export default function CommunityScreen() {
   const categories: Category[] = ['all', 'discussion', 'question', 'sharing', 'notice'];
 
   return (
-    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       {/* 头部 */}
       <ThemedView level="root" style={styles.header}>
         <ThemedText variant="h2" color={theme.textPrimary}>读书社区</ThemedText>

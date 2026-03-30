@@ -8,7 +8,7 @@ export default function DemoPage() {
   const { theme, isDark } = useTheme();
 
   return (
-    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
+    <Screen preset="scroll" backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
       <View
         style={styles.container}
       >

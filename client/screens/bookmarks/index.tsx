@@ -152,7 +152,7 @@ export default function BookmarksScreen() {
   };
 
   return (
-    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       {/* Header */}
       <ThemedView level="root" style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>

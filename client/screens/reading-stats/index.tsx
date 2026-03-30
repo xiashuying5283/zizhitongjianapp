@@ -116,7 +116,7 @@ export default function ReadingStatsScreen() {
 
   if (loading) {
     return (
-      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
@@ -125,7 +125,7 @@ export default function ReadingStatsScreen() {
   }
 
   return (
-    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <ThemedView level="root" style={styles.header}>

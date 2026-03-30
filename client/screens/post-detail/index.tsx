@@ -445,7 +445,7 @@ export default function PostDetailScreen() {
 
   if (loading) {
     return (
-      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         <View style={styles.loadingContainer}>
           <ThemedText variant="body" color={theme.textMuted}>加载中...</ThemedText>
         </View>
@@ -455,7 +455,7 @@ export default function PostDetailScreen() {
 
   if (!post) {
     return (
-      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         <View style={styles.loadingContainer}>
           <ThemedText variant="body" color={theme.textMuted}>帖子不存在</ThemedText>
         </View>
@@ -464,7 +464,7 @@ export default function PostDetailScreen() {
   }
 
   return (
-    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

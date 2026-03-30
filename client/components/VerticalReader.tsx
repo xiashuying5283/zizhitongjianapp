@@ -210,26 +210,34 @@ function generateHTML(props: VerticalReaderProps): string {
     const year = volumeData.years[yi];
     yearsHTML += `<div class="year-section" id="year-section-${yi}" data-year-index="${yi}">`;
 
-    // 右列：帝王名 + 注解（有注解才显示）
-    if (year.emperor_note) {
-      yearsHTML += `<div class="year-emperor-col">`;
-      yearsHTML += `<span class="year-emperor">${wrapVP(escapeHTML(year.emperor))}</span>`;
-      yearsHTML += `<span class="emperor-note">${hl(year.emperor_note)}</span>`;
+    // 帝王信息卡片（竖排从右往左，先渲染的在右边）
+    if (year.emperor_title) {
+      yearsHTML += `<div class="emperor-card">`;
+      yearsHTML += `<span class="emperor-title">${hl(year.emperor_title)}</span>`;
+      // 帝王注解 - 直接条件渲染
+      if (showAnnotation && year.era_phase) {
+        yearsHTML += `<span class="emperor-phase">${hl(year.era_phase)}</span>`;
+      }
       yearsHTML += `</div>`;
+      // 帝王和年号之间的分隔线
+      yearsHTML += `<span class="col-sep"></span>`;
     }
 
-    // 左列：年号 + 干支 + 公元 + 分隔线
-    yearsHTML += `<div class="year-info-col">`;
-    yearsHTML += `<span class="year-title">${wrapVP(escapeHTML(year.year_mark))}</span>`;
-    var subInfo = '';
-    if (year.gan_zhi) subInfo += wrapVP(escapeHTML(year.gan_zhi));
+    // 年号信息卡片
+    yearsHTML += `<div class="year-card">`;
+    yearsHTML += `<span class="year-title">${wrapVP(escapeHTML(year.year_display || year.year_mark))}</span>`;
     const bcStr = formatBcYear(year.bc_year);
-    if (bcStr) subInfo += (subInfo ? '、' : '') + bcStr;
-    if (subInfo) {
-      yearsHTML += `<span class="year-sub">${wrapVP('（' + subInfo + '）')}</span>`;
+    const parenContent = [year.gan_zhi, bcStr].filter(Boolean).join('、');
+    if (parenContent) {
+      yearsHTML += `<span class="year-ganzhi">${wrapVP('（' + escapeHTML(parenContent) + '）')}</span>`;
     }
-    yearsHTML += `<span class="year-sep"></span>`;
+    // 年号注解 - 直接条件渲染
+    if (showAnnotation && year.emperor_note) {
+      yearsHTML += `<span class="year-note">${hl(year.emperor_note)}</span>`;
+    }
     yearsHTML += `</div>`;
+    // 年号后的分隔线
+    yearsHTML += `<span class="year-sep"></span>`;
 
     for (const paragraph of year.paragraphs) {
       const isHighlighted = highlightedParagraphId === paragraph.id;
@@ -259,7 +267,6 @@ function generateHTML(props: VerticalReaderProps): string {
         if (showTrans) {
           const trans = getDisplayTranslation(paragraph);
           if (trans) {
-            yearsHTML += `<div class="translation-sep"></div>`;
             yearsHTML += `<div class="translation-horizontal">\u3000\u3000${hl(trans)}</div>`;
           }
         }
@@ -271,7 +278,6 @@ function generateHTML(props: VerticalReaderProps): string {
         if (showTrans) {
           const trans = getDisplayTranslation(paragraph);
           if (trans) {
-            yearsHTML += `<div class="translation-sep"></div>`;
             yearsHTML += `<div class="translation-horizontal">\u3000\u3000${hl(trans)}</div>`;
           }
         }
@@ -369,53 +375,78 @@ function generateHTML(props: VerticalReaderProps): string {
     margin-left: 24px;
     scroll-margin-left: 0;
     scroll-margin-right: 0;
+    position: relative;
   }
 
-  .year-emperor-col {
+  /* 帝王信息卡片 */
+  .emperor-card {
     writing-mode: vertical-rl;
     display: inline-block;
-    border-right: 2px solid ${accentColor};
-    padding-left: 6px;
+    vertical-align: top;
+    padding-right: 8px;
     margin-right: 8px;
   }
-  .year-emperor {
-    font-size: ${fontSize * 1.05}px;
-    font-weight: 400;
+  .emperor-title {
+    writing-mode: vertical-rl;
+    font-size: ${fontSize * 1.1}px;
+    font-weight: 700;
     color: ${textColor};
-    letter-spacing: 0.18em;
+    letter-spacing: 0.1em;
+  }
+  .emperor-phase {
+    writing-mode: vertical-rl;
+    font-size: ${Math.round(fontSize * 0.75)}px;
+    color: ${annotationColor};
+    letter-spacing: 0.08em;
+    margin-top: 4px;
   }
 
-  .year-info-col {
+  /* 帝王和年号之间的分隔线 - 独立元素，固定高度拉到底 */
+  .col-sep {
     writing-mode: vertical-rl;
     display: inline-block;
+    vertical-align: top;
+    width: 1px;
+    height: 9999px;
+    background-color: ${textColor}20;
+    margin-right: 8px;
+  }
+
+  /* 年号信息卡片 */
+  .year-card {
+    writing-mode: vertical-rl;
+    display: inline-block;
+    vertical-align: top;
   }
   .year-title {
     writing-mode: vertical-rl;
-    font-size: ${Math.round(fontSize * 0.9)}px;
-    font-weight: 400;
-    color: ${textMuted};
-    letter-spacing: 0.15em;
+    font-size: ${fontSize * 1.05}px;
+    font-weight: 600;
+    color: ${textColor};
+    letter-spacing: 0.08em;
   }
-  .year-sub {
+  .year-ganzhi {
     writing-mode: vertical-rl;
-    display: inline-block;
-    font-size: ${Math.round(fontSize * 0.7)}px;
+    font-size: ${Math.round(fontSize * 0.78)}px;
     color: ${textMuted};
-    letter-spacing: 0.1em;
-    margin-top: 8px;
+    letter-spacing: 0.06em;
+    margin-top: 4px;
+  }
+  .year-note {
+    writing-mode: vertical-rl;
+    font-size: ${Math.round(fontSize * 0.75)}px;
+    color: ${annotationColor};
+    letter-spacing: 0.08em;
+    margin-top: 4px;
   }
   .year-sep {
     writing-mode: vertical-rl;
     display: inline-block;
+    vertical-align: top;
     width: 1px;
-    height: 100%;
+    min-height: 1em;
     background-color: ${textColor}20;
     margin-left: 8px;
-  }
-
-  .emperor-note {
-    font-size: ${Math.round(fontSize * 0.65)}px;
-    color: ${annotationColor};
   }
 
   .paragraph {
@@ -449,15 +480,6 @@ function generateHTML(props: VerticalReaderProps): string {
     color: ${annotationColor};
     letter-spacing: 0.08em;
   }
-  }
-
-  .translation-sep {
-    writing-mode: vertical-rl;
-    width: 1px;
-    background: ${textColor}15;
-    margin: 4px 8px;
-    min-height: 20px;
-  }
 
   .translation-horizontal {
     writing-mode: vertical-rl;
@@ -466,8 +488,6 @@ function generateHTML(props: VerticalReaderProps): string {
     line-height: 2.2;
     letter-spacing: 0.15em;
     color: ${translationColor};
-    padding: 8px 10px;
-    border-right: 2px solid ${annotationColor}33;
     margin: 8px 4px;
     opacity: 0.85;
   }
@@ -784,16 +804,6 @@ function generateHTML(props: VerticalReaderProps): string {
       span.className = 'user-note-marker ' + type;
       span.setAttribute('data-note-id', noteId);
       span.style.setProperty('--marker-color', markerColor);
-      span.className = 'user-note-marker';
-      span.setAttribute('data-note-id', noteId);
-      range.surroundContents(span);
-    } else {
-      var range = document.createRange();
-      range.setStart(startNode, startNodeOffset);
-      range.setEnd(startNode, startNode.textContent.length);
-      var span = document.createElement('span');
-      span.className = 'user-note-marker';
-      span.setAttribute('data-note-id', noteId);
       range.surroundContents(span);
     }
   }
@@ -820,7 +830,7 @@ function generateHTML(props: VerticalReaderProps): string {
 </html>`;
 }
 
-export function VerticalReader(props: VerticalReaderProps) {
+export const VerticalReader = React.memo(function VerticalReader(props: VerticalReaderProps) {
   const { readerWebViewRef, ...rest } = props;
   const internalRef = useRef<WebView>(null);
 
@@ -848,6 +858,8 @@ export function VerticalReader(props: VerticalReaderProps) {
     rest.highlightedParagraphId,
     rest.userNotes,
   ]);
+
+  const source = useMemo(() => ({ html }), [html]);
 
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
     try {
@@ -889,7 +901,7 @@ export function VerticalReader(props: VerticalReaderProps) {
     <WebView
       ref={setRef}
       originWhitelist={['*']}
-      source={{ html }}
+      source={source}
       style={styles.webview}
       scrollEnabled={true}
       showsVerticalScrollIndicator={false}
@@ -903,7 +915,7 @@ export function VerticalReader(props: VerticalReaderProps) {
       onMessage={handleMessage}
     />
   );
-}
+});
 
 const styles = StyleSheet.create({
   webview: {

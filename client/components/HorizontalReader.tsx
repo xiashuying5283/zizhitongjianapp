@@ -754,7 +754,7 @@ function generateHTML(props: HorizontalReaderProps): string {
 </html>`;
 }
 
-export function HorizontalReader(props: HorizontalReaderProps) {
+export const HorizontalReader = React.memo(function HorizontalReader(props: HorizontalReaderProps) {
   const { readerWebViewRef, ...rest } = props;
   const internalRef = useRef<WebView>(null);
 
@@ -771,6 +771,8 @@ export function HorizontalReader(props: HorizontalReaderProps) {
     rest.translationColor, rest.accentColor, rest.textMuted,
     rest.highlightKeyword, rest.highlightedParagraphId, rest.userNotes,
   ]);
+
+  const source = useMemo(() => ({ html }), [html]);
 
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
     try {
@@ -806,7 +808,7 @@ export function HorizontalReader(props: HorizontalReaderProps) {
     <WebView
       ref={setRef}
       originWhitelist={['*']}
-      source={{ html }}
+      source={source}
       style={styles.webview}
       scrollEnabled={true}
       showsVerticalScrollIndicator={false}
@@ -820,7 +822,7 @@ export function HorizontalReader(props: HorizontalReaderProps) {
       onMessage={handleMessage}
     />
   );
-}
+});
 
 const styles = StyleSheet.create({
   webview: {

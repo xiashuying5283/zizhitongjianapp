@@ -1169,13 +1169,28 @@ export default function VolumeDetailScreen() {
   }, [yearMark, emperor, volumeData?.years, hasMore, loadingMore, scrollToYear, fetchVolumeData]);
 
   // 点击屏幕处理 - 判断是点击还是滚动
+  const activeTabRef = useRef<SettingsTab>(null);
+  activeTabRef.current = activeTab;
   const handleScreenTap = useCallback(() => {
-    if (activeTab) {
+    if (activeTabRef.current) {
       setActiveTab(null);
     } else {
       setShowToolbar(prev => !prev);
     }
-  }, [activeTab]);
+  }, []);
+
+  // 可见段落变化回调（使用 ref 避免重新创建）
+  const handleVisibleParagraphChange = useCallback((pId: number, gIdx: number) => {
+    currentVisibleParagraphIdRef.current = pId;
+    globalIndexRef.current = gIdx;
+  }, []);
+
+  // 滚动结果回调（使用 ref 避免重新创建）
+  const handleScrollToResult = useCallback((targetId: number, success: boolean) => {
+    if (targetId === scrollToTargetRef.current && success) {
+      scrollToSucceededRef.current = true;
+    }
+  }, []);
 
   // 处理文本选择
   const handleTextSelection = useCallback((selection: TextSelection | null) => {
@@ -1895,7 +1910,7 @@ export default function VolumeDetailScreen() {
 
   if (loading) {
     return (
-      <Screen backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
+      <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={currentTheme.text} />
         </View>
@@ -1905,7 +1920,7 @@ export default function VolumeDetailScreen() {
 
   if (error || !volumeData) {
     return (
-      <Screen backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
+      <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
         <View style={styles.centerContainer}>
           <FontAwesome6 name="circle-exclamation" size={32} color={currentTheme.text} />
           <ThemedText variant="body" color={currentTheme.text} style={{ marginTop: Spacing.md }}>
@@ -1925,7 +1940,7 @@ export default function VolumeDetailScreen() {
   const hasYears = volumeData.years && volumeData.years.length > 0;
 
   return (
-    <Screen backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
+    <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
       {/* 滑动切换章节提示 */}
       {swipeHint && (
         <View style={[
@@ -2019,15 +2034,8 @@ export default function VolumeDetailScreen() {
               userNotes={userNotes}
               onTap={handleScreenTap}
               onLoadMore={handleLoadMore}
-              onVisibleParagraphChange={(pId, gIdx) => {
-                currentVisibleParagraphIdRef.current = pId;
-                globalIndexRef.current = gIdx;
-              }}
-              onScrollToResult={(targetId, success) => {
-                if (targetId === scrollToTargetRef.current && success) {
-                  scrollToSucceededRef.current = true;
-                }
-              }}
+              onVisibleParagraphChange={handleVisibleParagraphChange}
+              onScrollToResult={handleScrollToResult}
               onTextSelection={handleTextSelection}
               onNoteClick={handleNoteClick}
               readerWebViewRef={htmlWebViewRef}
@@ -2053,15 +2061,8 @@ export default function VolumeDetailScreen() {
                 userNotes={userNotes}
                 onTap={handleScreenTap}
                 onLoadMore={handleLoadMore}
-                onVisibleParagraphChange={(pId, gIdx) => {
-                  currentVisibleParagraphIdRef.current = pId;
-                  globalIndexRef.current = gIdx;
-                }}
-                onScrollToResult={(targetId, success) => {
-                  if (targetId === scrollToTargetRef.current && success) {
-                    scrollToSucceededRef.current = true;
-                  }
-                }}
+                onVisibleParagraphChange={handleVisibleParagraphChange}
+                onScrollToResult={handleScrollToResult}
                 onTextSelection={handleTextSelection}
                 onNoteClick={handleNoteClick}
                 readerWebViewRef={htmlWebViewRef}
