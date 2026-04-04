@@ -174,7 +174,10 @@ export default function MapDetailScreen() {
 
     return (
         <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView 
+                contentContainerStyle={styles.scrollContent}
+                removeClippedSubviews={false}
+            >
                 {/* Header */}
                 <ThemedView level="root" style={styles.header}>
                     <View style={styles.headerRow}>

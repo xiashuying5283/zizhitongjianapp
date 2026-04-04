@@ -109,10 +109,25 @@ export function GeoJsonMap({ geoJson, width = SCREEN_WIDTH, height = 400, style,
     const { theme } = useTheme();
     const webViewRef = useRef<WebView>(null);
     const [loading, setLoading] = useState(true);
+    const cachedHtmlRef = useRef<string>('');
+    const geoJsonKeyRef = useRef<string>('');
 
-    const { htmlContent, initialCenter, initialZoom } = useMemo(() => {
+    // 生成 GeoJSON 的唯一 key（用于判断内容是否变化）
+    const geoJsonKey = useMemo(() => {
+        if (!geoJson?.features?.length) return '';
+        return `${geoJson.features.length}_${geoJson.features[0]?.properties?.title || ''}`;
+    }, [geoJson]);
+
+    // 只在 GeoJSON 内容真正变化时才重新生成 HTML
+    const htmlContent = useMemo(() => {
         if (!geoJson?.features?.length) {
-            return { htmlContent: '', initialCenter: [116.4, 35.9], initialZoom: 5 };
+            return '';
+        }
+
+        // 如果内容没变，返回缓存的 HTML
+        if (geoJsonKey && geoJsonKey === geoJsonKeyRef.current && cachedHtmlRef.current) {
+            console.log('GeoJsonMap: 使用缓存');
+            return cachedHtmlRef.current;
         }
 
         console.log('GeoJsonMap: 处理', geoJson.features.length, '个 features');
@@ -171,8 +186,6 @@ export function GeoJsonMap({ geoJson, width = SCREEN_WIDTH, height = 400, style,
         });
 
         var geoJsonData = ${geoJsonStr};
-        var polygons = [];
-        var labels = [];
 
         geoJsonData.features.forEach(function(feature) {
             var coordinates = feature.geometry.coordinates;
@@ -231,8 +244,12 @@ export function GeoJsonMap({ geoJson, width = SCREEN_WIDTH, height = 400, style,
 </body>
 </html>`;
 
-        return { htmlContent: html, initialCenter: center, initialZoom: zoom };
-    }, [geoJson]);
+        // 缓存 HTML 和 key
+        cachedHtmlRef.current = html;
+        geoJsonKeyRef.current = geoJsonKey;
+
+        return html;
+    }, [geoJson, geoJsonKey]);
 
     if (!geoJson?.features?.length) {
         return (
@@ -253,6 +270,7 @@ export function GeoJsonMap({ geoJson, width = SCREEN_WIDTH, height = 400, style,
                 </View>
             )}
             <WebView
+                key={geoJsonKey || 'empty'}
                 ref={webViewRef}
                 source={{ html: htmlContent }}
                 style={[styles.webview, loading && { opacity: 0 }]}
