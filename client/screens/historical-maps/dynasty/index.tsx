@@ -36,12 +36,20 @@ export default function DynastyMapsScreen() {
             color: '#EF4444',
         },
         {
-            id: 'han',
-            title: '汉朝',
-            years: '公元前202年 - 公元220年',
-            description: '西汉与东汉的疆域变迁',
+            id: 'western-han',
+            title: '西汉',
+            years: '公元前202年 - 公元8年',
+            description: '汉武帝开疆拓土，丝绸之路开辟',
             imageUrl: 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=800&h=500&fit=crop',
             color: '#F59E0B',
+        },
+        {
+            id: 'eastern-han',
+            title: '东汉',
+            years: '公元25年 - 公元220年',
+            description: '光武中兴，班超经营西域',
+            imageUrl: 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=800&h=500&fit=crop',
+            color: '#EAB308',
         },
         {
             id: 'three-kingdoms',
@@ -97,7 +105,7 @@ export default function DynastyMapsScreen() {
         ? dynastyMaps.filter(map => map.id === selectedDynasty)
         : dynastyMaps;
 
-    const dynasties = ['全部', '秦', '汉', '三国', '晋', '隋', '唐', '宋', '元'];
+    const dynasties = ['全部', '秦', '西汉', '东汉', '三国', '晋', '隋', '唐', '宋', '元'];
 
     const handleMapPress = (map: DynastyMap) => {
         // 跳转到地图详情页，可以在这里添加更详细的交互
@@ -107,88 +115,88 @@ export default function DynastyMapsScreen() {
     const renderMapCard = (map: DynastyMap) => (
         <TouchableOpacity
             key={map.id}
-    style={styles.mapCard}
-    onPress={() => handleMapPress(map)}
-    activeOpacity={0.7}
-    >
-    <View style={styles.mapImageContainer}>
-    <Image
-        source={{ uri: map.imageUrl }}
-    style={styles.mapImage}
-    resizeMode="cover"
-    />
-    <View style={[styles.mapBadge, { backgroundColor: map.color }]}>
-    <ThemedText variant="tiny" color="#FFFFFF">
-        {map.title}
-        </ThemedText>
-        </View>
-        </View>
-        <View style={styles.mapContent}>
-    <View style={styles.mapHeader}>
-    <ThemedText variant="h4" color={theme.textPrimary}>
-        {map.title}
-        </ThemedText>
-        <FontAwesome6 name="expand" size={14} color={map.color} />
-    </View>
-    <ThemedText variant="caption" color={map.color} style={styles.mapYears}>
-        {map.years}
-        </ThemedText>
-        <ThemedText variant="body" color={theme.textSecondary} numberOfLines={2}>
-        {map.description}
-        </ThemedText>
-        </View>
+            style={styles.mapCard}
+            onPress={() => handleMapPress(map)}
+            activeOpacity={0.7}
+        >
+            <View style={styles.mapImageContainer}>
+                <Image
+                    source={{ uri: map.imageUrl }}
+                    style={styles.mapImage}
+                    resizeMode="cover"
+                />
+                <View style={[styles.mapBadge, { backgroundColor: map.color }]}>
+                    <ThemedText variant="tiny" color="#FFFFFF">
+                        {map.title}
+                    </ThemedText>
+                </View>
+            </View>
+            <View style={styles.mapContent}>
+                <View style={styles.mapHeader}>
+                    <ThemedText variant="h4" color={theme.textPrimary}>
+                        {map.title}
+                    </ThemedText>
+                    <FontAwesome6 name="expand" size={14} color={map.color} />
+                </View>
+                <ThemedText variant="caption" color={map.color} style={styles.mapYears}>
+                    {map.years}
+                </ThemedText>
+                <ThemedText variant="body" color={theme.textSecondary} numberOfLines={2}>
+                    {map.description}
+                </ThemedText>
+            </View>
         </TouchableOpacity>
-);
+    );
 
     return (
         <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <ThemedView level="root" style={styles.header}>
-    <View style={styles.headerRow}>
-    <TouchableOpacity
-        style={styles.backButton}
-    onPress={() => router.back()}
->
-    <FontAwesome6 name="arrow-left" size={20} color={theme.textPrimary} />
-    </TouchableOpacity>
-    <ThemedText variant="h2" color={theme.textPrimary}>
-        历朝地图
-        </ThemedText>
-        <View style={styles.placeholder} />
-    </View>
-    <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
-        按朝代查看历史地图演变
-        </ThemedText>
-        </ThemedView>
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+                {/* Header */}
+                <ThemedView level="root" style={styles.header}>
+                    <View style={styles.headerRow}>
+                        <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={() => router.back()}
+                        >
+                            <FontAwesome6 name="arrow-left" size={20} color={theme.textPrimary} />
+                        </TouchableOpacity>
+                        <ThemedText variant="h2" color={theme.textPrimary}>
+                            历朝地图
+                        </ThemedText>
+                        <View style={styles.placeholder} />
+                    </View>
+                    <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
+                        按朝代查看历史地图演变
+                    </ThemedText>
+                </ThemedView>
 
-    {/* Dynasty Filter */}
-    <View style={styles.filterContainer}>
-        {dynasties.map(dynasty => (
-                <TouchableOpacity
-                    key={dynasty}
-            style={[
-                    styles.filterChip,
-                selectedDynasty === dynasty && styles.filterChipActive,
-            selectedDynasty === dynasty && { backgroundColor: theme.primary }
-]}
-    onPress={() => setSelectedDynasty(selectedDynasty === dynasty ? null : dynasty)}
->
-    <ThemedText
-        variant="small"
-    color={selectedDynasty === dynasty ? theme.buttonPrimaryText : theme.textSecondary}
->
-    {dynasty}
-    </ThemedText>
-    </TouchableOpacity>
-))}
-    </View>
+                {/* Dynasty Filter */}
+                <View style={styles.filterContainer}>
+                    {dynasties.map(dynasty => (
+                        <TouchableOpacity
+                            key={dynasty}
+                            style={[
+                                styles.filterChip,
+                                selectedDynasty === dynasty && styles.filterChipActive,
+                                selectedDynasty === dynasty && { backgroundColor: theme.primary }
+                            ]}
+                            onPress={() => setSelectedDynasty(selectedDynasty === dynasty ? null : dynasty)}
+                        >
+                            <ThemedText
+                                variant="small"
+                                color={selectedDynasty === dynasty ? theme.buttonPrimaryText : theme.textSecondary}
+                            >
+                                {dynasty}
+                            </ThemedText>
+                        </TouchableOpacity>
+                    ))}
+                </View>
 
-    {/* Maps Grid */}
-    <View style={styles.mapsGrid}>
-        {filteredMaps.map(renderMapCard)}
-        </View>
-        </ScrollView>
+                {/* Maps Grid */}
+                <View style={styles.mapsGrid}>
+                    {filteredMaps.map(renderMapCard)}
+                </View>
+            </ScrollView>
         </Screen>
-);
+    );
 }

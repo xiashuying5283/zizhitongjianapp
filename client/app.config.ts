@@ -15,6 +15,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""
+      },
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "weixin",
@@ -38,7 +41,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.zizhitongjian.app"
+      "package": "com.zizhitongjian.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""
+        }
+      }
     },
     "web": {
       "bundler": "metro",
