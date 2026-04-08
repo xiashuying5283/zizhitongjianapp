@@ -11,12 +11,6 @@ import { createStyles } from './styles';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// 地图文件路径配置
-const mapFilePaths: Record<string, any> = {
-    'western-han': require('@/assets/maps/dynasty/western-han.json'),
-    'jin': require('@/assets/maps/dynasty/jin.json'),
-};
-
 interface MapDetail {
     id: string;
     title: string;
@@ -78,6 +72,15 @@ const dynastyMapData: Record<string, MapDetail> = {
         fullDescription: '晋朝分为西晋和东晋两个时期。西晋短暂统一后迅速衰落，永嘉之乱后晋室南渡，东晋偏安江南，北方进入五胡十六国的混乱时期。',
         hasLocalMap: true,
     },
+    'eastern-jin-sixteen-kingdoms': {
+        id: 'eastern-jin-sixteen-kingdoms',
+        title: '东晋十六国',
+        years: '公元317年 - 公元420年',
+        description: '东晋偏安江南，北方十六国割据',
+        color: '#06B6D4',
+        fullDescription: '东晋十六国时期是中国历史上的大分裂时代。东晋偏安江南，北方则先后出现了成汉、前赵、后赵、前凉、前燕、前秦、后燕、后秦、西秦、后凉、南凉、西凉、北凉、南燕、北燕、胡夏等十六个政权。',
+        hasLocalMap: true,
+    },
     'sui': {
         id: 'sui',
         title: '隋朝',
@@ -118,47 +121,38 @@ export default function MapDetailScreen() {
     const router = useSafeRouter();
     const params = useSafeSearchParams<{ id: string; type: string }>();
     const [geoJsonData, setGeoJsonData] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
     const mapDetail = params.id ? dynastyMapData[params.id] : null;
 
     useEffect(() => {
-        console.log('useEffect: 加载地图:', mapDetail?.id, 'hasLocalMap:', mapDetail?.hasLocalMap);
         if (mapDetail?.hasLocalMap) {
-            setLoading(true);
-            // 动态加载 GeoJSON 文件
-            const loadMap = async () => {
+            // 使用 setTimeout 延迟加载，让页面先渲染
+            const timer = setTimeout(() => {
                 try {
                     let data;
-                    console.log('开始加载文件:', mapDetail.id);
                     if (mapDetail.id === 'western-han') {
                         data = require('@/assets/maps/dynasty/western-han.json');
                     } else if (mapDetail.id === 'jin') {
                         data = require('@/assets/maps/dynasty/jin.json');
+                    } else if (mapDetail.id === 'eastern-jin-sixteen-kingdoms') {
+                        data = require('@/assets/maps/dynasty/东晋十六国（366年）地图.json');
                     }
-                    console.log('加载成功, features:', data?.features?.length, 'type:', data?.type);
-                    console.log('设置 geoJsonData...');
                     setGeoJsonData(data);
-                    console.log('setGeoJsonData 调用完成');
                 } catch (error) {
                     console.error('加载地图数据失败:', error);
                 } finally {
                     setLoading(false);
-                    console.log('loading 设置为 false');
                 }
-            };
-            loadMap();
+            }, 50); // 延迟 50ms 让页面先渲染
+
+            return () => clearTimeout(timer);
         } else {
-            // 如果没有本地地图，清空数据
             setGeoJsonData(null);
+            setLoading(false);
         }
     }, [mapDetail?.id]);
-    
-    // 监控 geoJsonData 变化
-    useEffect(() => {
-        console.log('geoJsonData 变化:', geoJsonData ? `有数据 (${geoJsonData.features?.length} features)` : 'null');
-    }, [geoJsonData]);
 
     if (!mapDetail) {
         return (
@@ -200,8 +194,11 @@ export default function MapDetailScreen() {
                 <View style={styles.imageContainer}>
                     {mapDetail.hasLocalMap ? (
                         loading ? (
-                            <View style={[styles.mapImage, { justifyContent: 'center', alignItems: 'center' }]}>
+                            <View style={[styles.mapImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.backgroundCard }]}>
                                 <ActivityIndicator size="large" color={mapDetail.color} />
+                                <ThemedText variant="small" color={theme.textMuted} style={{ marginTop: 12 }}>
+                                    正在加载地图数据...
+                                </ThemedText>
                             </View>
                         ) : geoJsonData ? (
                             <>

@@ -68,6 +68,14 @@ export default function DynastyMapsScreen() {
             color: '#0891B2',
         },
         {
+            id: 'eastern-jin-sixteen-kingdoms',
+            title: '东晋十六国',
+            years: '公元317年 - 公元420年',
+            description: '东晋偏安江南，北方十六国割据',
+            imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=500&fit=crop',
+            color: '#06B6D4',
+        },
+        {
             id: 'sui',
             title: '隋朝',
             years: '公元581年 - 公元618年',
