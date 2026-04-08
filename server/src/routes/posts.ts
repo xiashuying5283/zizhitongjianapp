@@ -1,91 +1,85 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getSupabaseClient } from '../storage/database/supabase-client';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = Router();
 
+// 帖子分类
 const VALID_CATEGORIES = ['discussion', 'question', 'sharing', 'notice'];
 
-// 辅助：将 posts 行附加 user 信息
-function attachUser(rows: any[], userMap: Map<number, any>) {
-  return rows.map((row: any) => ({
-    ...row,
-    user: userMap.get(row.user_id) ? {
-      id: userMap.get(row.user_id).id,
-      username: userMap.get(row.user_id).username,
-      nickname: userMap.get(row.user_id).nickname,
-    } : null,
-  }));
-}
-
 /**
- * GET /api/v1/posts
+ * 服务端文件：server/src/routes/posts.ts
+ * 接口：GET /api/v1/posts
+ * Query 参数：category?: string, userId?: number, page?: number, limit?: number
  */
 router.get('/', async (req, res) => {
   try {
-    const { category, page = 1, limit = 20, userId } = req.query;
+    const { category, userId, page = 1, limit = 20 } = req.query;
     const pageNum = Math.max(1, parseInt(page as string) || 1);
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string) || 20));
     const offset = (pageNum - 1) * limitNum;
 
-    const conditions: string[] = [];
-    const params: unknown[] = [];
-    let paramIndex = 1;
+    const supabase = getSupabaseClient();
+
+    // 构建查询
+    let query = supabase
+      .from('posts')
+      .select(`
+        id,
+        title,
+        content,
+        category,
+        like_count,
+        comment_count,
+        is_pinned,
+        created_at,
+        updated_at,
+        user:users(id, username, nickname)
+      `)
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limitNum - 1);
 
     if (category && VALID_CATEGORIES.includes(category as string)) {
-      conditions.push(`p.category = $${paramIndex++}`);
-      params.push(category);
+      query = query.eq('category', category);
     }
 
     if (userId) {
-      conditions.push(`p.user_id = $${paramIndex++}`);
-      params.push(parseInt(userId as string));
+      query = query.eq('user_id', parseInt(userId as string));
     }
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const { data: posts, error } = await query;
+
+    if (error) {
+      console.error('获取帖子列表失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '获取帖子列表失败',
+      });
+    }
 
     // 获取总数
-    const countResult = await pool.query(`SELECT COUNT(*) FROM posts p ${where}`, params);
-    const total = parseInt(countResult.rows[0].count);
+    let countQuery = supabase
+      .from('posts')
+      .select('*', { count: 'exact', head: true });
 
-    // 获取帖子
-    const result = await pool.query(
-      `SELECT p.id, p.title, p.content, p.category, p.like_count, p.comment_count, p.is_pinned, p.created_at, p.updated_at, p.user_id,
-              u.id as user_id_col, u.username, u.nickname
-       FROM posts p
-       LEFT JOIN users u ON p.user_id = u.id
-       ${where}
-       ORDER BY p.is_pinned DESC NULLS LAST, p.created_at DESC
-       LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
-      [...params, limitNum, offset]
-    );
+    if (category && VALID_CATEGORIES.includes(category as string)) {
+      countQuery = countQuery.eq('category', category);
+    }
 
-    // 将行转为带 user 对象的结构
-    const posts = result.rows.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      content: row.content,
-      category: row.category,
-      like_count: row.like_count,
-      comment_count: row.comment_count,
-      is_pinned: row.is_pinned,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      user: row.user_id_col ? {
-        id: row.user_id_col,
-        username: row.username,
-        nickname: row.nickname,
-      } : null,
-    }));
+    if (userId) {
+      countQuery = countQuery.eq('user_id', parseInt(userId as string));
+    }
+
+    const { count } = await countQuery;
 
     res.json({
       success: true,
       data: {
-        posts,
-        total,
+        posts: posts || [],
+        total: count || 0,
         page: pageNum,
         limit: limitNum,
-        totalPages: Math.ceil(total / limitNum),
+        totalPages: Math.ceil((count || 0) / limitNum),
       },
     });
   } catch (error) {
@@ -99,100 +93,138 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * GET /api/v1/posts/:id
+ * 服务端文件：server/src/routes/posts.ts
+ * 接口：GET /api/v1/posts/:id
+ * Path 参数：id: number
  */
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(
-      `SELECT p.id, p.title, p.content, p.category, p.like_count, p.comment_count, p.is_pinned, p.created_at, p.updated_at, p.user_id,
-              u.id as user_id_col, u.username, u.nickname
-       FROM posts p
-       LEFT JOIN users u ON p.user_id = u.id
-       WHERE p.id = $1`,
-      [parseInt(id)]
-    );
+    const supabase = getSupabaseClient();
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '帖子不存在' });
+    const { data: post, error } = await supabase
+      .from('posts')
+      .select(`
+        id,
+        title,
+        content,
+        category,
+        like_count,
+        comment_count,
+        is_pinned,
+        created_at,
+        updated_at,
+        user:users(id, username, nickname)
+      `)
+      .eq('id', parseInt(id))
+      .single();
+
+    if (error || !post) {
+      return res.status(404).json({
+        success: false,
+        message: '帖子不存在',
+      });
     }
 
-    const row = result.rows[0];
-    const post = {
-      id: row.id,
-      title: row.title,
-      content: row.content,
-      category: row.category,
-      like_count: row.like_count,
-      comment_count: row.comment_count,
-      is_pinned: row.is_pinned,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      user: row.user_id_col ? {
-        id: row.user_id_col,
-        username: row.username,
-        nickname: row.nickname,
-      } : null,
-    };
-
-    res.json({ success: true, data: post });
+    res.json({
+      success: true,
+      data: post,
+    });
   } catch (error) {
     console.error('获取帖子详情失败:', error);
-    res.status(500).json({ success: false, message: '获取帖子详情失败' });
+    res.status(500).json({
+      success: false,
+      message: '获取帖子详情失败',
+    });
   }
 });
 
 /**
- * POST /api/v1/posts
+ * 服务端文件：server/src/routes/posts.ts
+ * 接口：POST /api/v1/posts
+ * Body 参数：title: string, content: string, category?: string, userId: number
  */
 router.post('/', async (req, res) => {
   try {
     const { title, content, category = 'discussion', userId } = req.body;
 
     if (!title || !content) {
-      return res.status(400).json({ success: false, message: '标题和内容不能为空' });
+      return res.status(400).json({
+        success: false,
+        message: '标题和内容不能为空',
+      });
     }
+
     if (title.length > 200) {
-      return res.status(400).json({ success: false, message: '标题不能超过200个字符' });
+      return res.status(400).json({
+        success: false,
+        message: '标题不能超过200个字符',
+      });
     }
+
     if (!userId) {
-      return res.status(401).json({ success: false, message: '请先登录' });
+      return res.status(401).json({
+        success: false,
+        message: '请先登录',
+      });
     }
+
     if (!VALID_CATEGORIES.includes(category)) {
-      return res.status(400).json({ success: false, message: '无效的帖子分类' });
+      return res.status(400).json({
+        success: false,
+        message: '无效的帖子分类',
+      });
     }
 
-    const result = await pool.query(
-      `INSERT INTO posts (title, content, category, user_id)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, title, content, category, like_count, comment_count, created_at`,
-      [title, content, category, userId]
-    );
+    const supabase = getSupabaseClient();
 
-    const row = result.rows[0];
+    const { data: post, error } = await supabase
+      .from('posts')
+      .insert({
+        title,
+        content,
+        category,
+        user_id: userId,
+      })
+      .select(`
+        id,
+        title,
+        content,
+        category,
+        like_count,
+        comment_count,
+        created_at,
+        user:users(id, username, nickname)
+      `)
+      .single();
 
-    // 获取用户信息
-    const userResult = await pool.query('SELECT id, username, nickname FROM users WHERE id = $1', [userId]);
+    if (error) {
+      console.error('创建帖子失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '创建帖子失败',
+      });
+    }
 
-    const post = {
-      ...row,
-      user: userResult.rows[0] ? {
-        id: userResult.rows[0].id,
-        username: userResult.rows[0].username,
-        nickname: userResult.rows[0].nickname,
-      } : null,
-    };
-
-    res.json({ success: true, data: post });
+    res.json({
+      success: true,
+      data: post,
+    });
   } catch (error) {
     console.error('创建帖子失败:', error);
-    res.status(500).json({ success: false, message: '创建帖子失败' });
+    res.status(500).json({
+      success: false,
+      message: '创建帖子失败',
+    });
   }
 });
 
 /**
- * PUT /api/v1/posts/:id
+ * 服务端文件：server/src/routes/posts.ts
+ * 接口：PUT /api/v1/posts/:id
+ * Path 参数：id: number
+ * Body 参数：title?: string, content?: string, category?: string, userId: number
  */
 router.put('/:id', async (req, res) => {
   try {
@@ -200,73 +232,82 @@ router.put('/:id', async (req, res) => {
     const { title, content, category, userId } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: '请先登录' });
+      return res.status(401).json({
+        success: false,
+        message: '请先登录',
+      });
     }
+
+    const supabase = getSupabaseClient();
 
     // 检查帖子是否存在且属于当前用户
-    const existResult = await pool.query('SELECT user_id FROM posts WHERE id = $1', [parseInt(id)]);
-    if (existResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '帖子不存在' });
-    }
-    if (existResult.rows[0].user_id !== userId) {
-      return res.status(403).json({ success: false, message: '无权编辑此帖子' });
-    }
+    const { data: existingPost } = await supabase
+      .from('posts')
+      .select('user_id')
+      .eq('id', parseInt(id))
+      .single();
 
-    const updateFields: string[] = ['updated_at = NOW()'];
-    const params: unknown[] = [];
-    let paramIndex = 1;
-
-    if (title) {
-      updateFields.push(`title = $${paramIndex++}`);
-      params.push(title);
-    }
-    if (content) {
-      updateFields.push(`content = $${paramIndex++}`);
-      params.push(content);
-    }
-    if (category && VALID_CATEGORIES.includes(category)) {
-      updateFields.push(`category = $${paramIndex++}`);
-      params.push(category);
+    if (!existingPost) {
+      return res.status(404).json({
+        success: false,
+        message: '帖子不存在',
+      });
     }
 
-    params.push(parseInt(id));
-    const result = await pool.query(
-      `UPDATE posts SET ${updateFields.join(', ')} WHERE id = $${paramIndex}
-       RETURNING id, title, content, category, like_count, comment_count, updated_at, user_id`,
-      params
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(500).json({ success: false, message: '更新帖子失败' });
+    if (existingPost.user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: '无权编辑此帖子',
+      });
     }
 
-    const row = result.rows[0];
-    const userResult = await pool.query('SELECT id, username, nickname FROM users WHERE id = $1', [row.user_id]);
+    const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (title) updateData.title = title;
+    if (content) updateData.content = content;
+    if (category && VALID_CATEGORIES.includes(category)) updateData.category = category;
 
-    const post = {
-      id: row.id,
-      title: row.title,
-      content: row.content,
-      category: row.category,
-      like_count: row.like_count,
-      comment_count: row.comment_count,
-      updated_at: row.updated_at,
-      user: userResult.rows[0] ? {
-        id: userResult.rows[0].id,
-        username: userResult.rows[0].username,
-        nickname: userResult.rows[0].nickname,
-      } : null,
-    };
+    const { data: post, error } = await supabase
+      .from('posts')
+      .update(updateData)
+      .eq('id', parseInt(id))
+      .select(`
+        id,
+        title,
+        content,
+        category,
+        like_count,
+        comment_count,
+        updated_at,
+        user:users(id, username, nickname)
+      `)
+      .single();
 
-    res.json({ success: true, data: post });
+    if (error) {
+      console.error('更新帖子失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '更新帖子失败',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: post,
+    });
   } catch (error) {
     console.error('更新帖子失败:', error);
-    res.status(500).json({ success: false, message: '更新帖子失败' });
+    res.status(500).json({
+      success: false,
+      message: '更新帖子失败',
+    });
   }
 });
 
 /**
- * DELETE /api/v1/posts/:id
+ * 服务端文件：server/src/routes/posts.ts
+ * 接口：DELETE /api/v1/posts/:id
+ * Path 参数：id: number
+ * Body 参数：userId: number
  */
 router.delete('/:id', async (req, res) => {
   try {
@@ -274,28 +315,66 @@ router.delete('/:id', async (req, res) => {
     const { userId } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: '请先登录' });
+      return res.status(401).json({
+        success: false,
+        message: '请先登录',
+      });
     }
 
-    const existResult = await pool.query('SELECT user_id FROM posts WHERE id = $1', [parseInt(id)]);
-    if (existResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '帖子不存在' });
-    }
-    if (existResult.rows[0].user_id !== userId) {
-      return res.status(403).json({ success: false, message: '无权删除此帖子' });
+    const supabase = getSupabaseClient();
+
+    // 检查帖子是否存在且属于当前用户
+    const { data: existingPost } = await supabase
+      .from('posts')
+      .select('user_id')
+      .eq('id', parseInt(id))
+      .single();
+
+    if (!existingPost) {
+      return res.status(404).json({
+        success: false,
+        message: '帖子不存在',
+      });
     }
 
-    await pool.query('DELETE FROM posts WHERE id = $1', [parseInt(id)]);
+    if (existingPost.user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: '无权删除此帖子',
+      });
+    }
 
-    res.json({ success: true, message: '删除成功' });
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', parseInt(id));
+
+    if (error) {
+      console.error('删除帖子失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '删除帖子失败',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: '删除成功',
+    });
   } catch (error) {
     console.error('删除帖子失败:', error);
-    res.status(500).json({ success: false, message: '删除帖子失败' });
+    res.status(500).json({
+      success: false,
+      message: '删除帖子失败',
+    });
   }
 });
 
 /**
- * POST /api/v1/posts/:id/like
+ * 服务端文件：server/src/routes/posts.ts
+ * 接口：POST /api/v1/posts/:id/like
+ * Path 参数：id: number
+ * Body 参数：userId: number
  */
 router.post('/:id/like', async (req, res) => {
   try {
@@ -303,38 +382,65 @@ router.post('/:id/like', async (req, res) => {
     const { userId } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: '请先登录' });
+      return res.status(401).json({
+        success: false,
+        message: '请先登录',
+      });
     }
 
-    const postId = parseInt(id);
+    const supabase = getSupabaseClient();
 
     // 检查是否已点赞
-    const existingResult = await pool.query(
-      'SELECT id FROM post_likes WHERE post_id = $1 AND user_id = $2',
-      [postId, userId]
-    );
+    const { data: existingLike } = await supabase
+      .from('post_likes')
+      .select('id')
+      .eq('post_id', parseInt(id))
+      .eq('user_id', userId)
+      .single();
 
-    if (existingResult.rows.length > 0) {
+    if (existingLike) {
       // 取消点赞
-      await pool.query('DELETE FROM post_likes WHERE id = $1', [existingResult.rows[0].id]);
-      // 减少点赞数
-      await pool.query('UPDATE posts SET like_count = GREATEST(like_count - 1, 0) WHERE id = $1', [postId]);
+      await supabase
+        .from('post_likes')
+        .delete()
+        .eq('id', existingLike.id);
 
-      res.json({ success: true, data: { liked: false } });
+      // 减少点赞数
+      await supabase.rpc('decrement_post_like', { post_id: parseInt(id) });
+
+      res.json({
+        success: true,
+        data: { liked: false },
+      });
     } else {
       // 添加点赞
-      await pool.query(
-        'INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [postId, userId]
-      );
-      // 增加点赞数
-      await pool.query('UPDATE posts SET like_count = like_count + 1 WHERE id = $1', [postId]);
+      await supabase
+        .from('post_likes')
+        .insert({ post_id: parseInt(id), user_id: userId });
 
-      res.json({ success: true, data: { liked: true } });
+      // 增加点赞数
+      const { data: post } = await supabase
+        .from('posts')
+        .select('like_count')
+        .eq('id', parseInt(id))
+        .single();
+
+      await supabase
+        .from('posts')
+        .update({ like_count: (post?.like_count || 0) + 1 })
+        .eq('id', parseInt(id));
+
+      res.json({
+        success: true,
+        data: { liked: true },
+      });
     }
   } catch (error) {
     console.error('点赞操作失败:', error);
-    res.status(500).json({ success: false, message: '点赞操作失败' });
+    res.status(500).json({
+      success: false,
+      message: '点赞操作失败',
+    });
   }
 });
 

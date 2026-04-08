@@ -63,6 +63,7 @@ export default function EncyclopediaDetailScreen() {
       const result = await response.json();
 
       if (result.success) {
+        // 后端已经将 aliases 转换为数组，直接使用
         setData(result.data);
       } else {
         throw new Error(result.error || '获取数据失败');
@@ -76,7 +77,7 @@ export default function EncyclopediaDetailScreen() {
 
   if (loading) {
     return (
-      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <ThemedText variant="body" color={theme.textMuted} style={{ marginTop: 16 }}>
@@ -89,7 +90,7 @@ export default function EncyclopediaDetailScreen() {
 
   if (error || !data) {
     return (
-      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         <View style={styles.centerContainer}>
           <ThemedText variant="h3" color={theme.textPrimary}>
             {error || '未找到相关内容'}
@@ -103,7 +104,7 @@ export default function EncyclopediaDetailScreen() {
   const charData = isCharacter ? (data as Character) : null;
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* 标题 */}
         <ThemedView level="default" style={styles.header}>

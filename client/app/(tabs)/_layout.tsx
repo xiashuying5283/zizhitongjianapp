@@ -54,16 +54,16 @@ export default function TabLayout() {
           ),
         }}
       />
-        <Tabs.Screen
-          name="encyclopedia"
-          options={{
-            title: '百科',
-            tabBarIcon: ({ color, focused }) => (
-              <FontAwesome6
-                name="book"
-                size={focused ? 22 : 20}
-                color={color}
-                solid={focused}
+      <Tabs.Screen
+        name="encyclopedia"
+        options={{
+          title: '百科',
+          tabBarIcon: ({ color, focused }) => (
+            <FontAwesome6
+              name="book"
+              size={focused ? 22 : 20}
+              color={color}
+              solid={focused}
             />
           ),
         }}

@@ -1,41 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
 import Toast from 'react-native-toast-message';
-import * as Font from 'expo-font';
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { ColorSchemeProvider } from '@/hooks/useColorScheme';
 
 LogBox.ignoreLogs([
   "TurboModuleRegistry.getEnforcing(...): 'RNMapsAirModule' could not be found",
+  // 添加其它想暂时忽略的错误或警告信息
 ]);
 
 export default function RootLayout() {
-  const [fontsLoaded, setFontsLoaded] = useState(false);
-
-  useEffect(() => {
-    async function loadFonts() {
-      try {
-        await Font.loadAsync({
-          'RareCJKSubset': require('@/assets/fonts/RareCJKSubset.ttf'),
-        });
-        console.log('RareCJKSubset font loaded');
-      } catch (error) {
-        console.warn('Failed to load RareCJKSubset font:', error);
-      } finally {
-        setFontsLoaded(true);
-      }
-    }
-    loadFonts();
-  }, []);
-
-  if (!fontsLoaded) {
-    return null;
-  }
-
   return (
     <AuthProvider>
       <SettingsProvider>
@@ -52,6 +30,7 @@ export default function RootLayout() {
             }}>
               <Stack.Screen name="(tabs)" options={{ title: "" }} />
               <Stack.Screen name="volume-detail" options={{ title: "" }} />
+              <Stack.Screen name="encyclopedia-detail" options={{ title: "" }} />
               <Stack.Screen name="map-event" options={{ title: "" }} />
               <Stack.Screen name="browse" options={{ title: "" }} />
               <Stack.Screen name="login" options={{ title: "" }} />
@@ -68,15 +47,15 @@ export default function RootLayout() {
               <Stack.Screen name="bookmarks" options={{ title: "" }} />
               <Stack.Screen name="notes" options={{ title: "" }} />
               <Stack.Screen name="reading-stats" options={{ title: "" }} />
-              <Stack.Screen name="notifications" options={{ title: "" }} />
               <Stack.Screen name="historical-maps" options={{ title: "" }} />
-              <Stack.Screen name="historical-maps/dynasty" options={{ title: "" }} />
-              <Stack.Screen name="historical-maps/topic" options={{ title: "" }} />
               <Stack.Screen name="characters" options={{ title: "" }} />
               <Stack.Screen name="titles" options={{ title: "" }} />
               <Stack.Screen name="events" options={{ title: "" }} />
               <Stack.Screen name="quotes" options={{ title: "" }} />
               <Stack.Screen name="era-names" options={{ title: "" }} />
+              <Stack.Screen name="group-chat" options={{ title: "" }} />
+              <Stack.Screen name="chat-rooms" options={{ title: "" }} />
+              <Stack.Screen name="create-character" options={{ title: "" }} />
             </Stack>
             <Toast />
           </GestureHandlerRootView>

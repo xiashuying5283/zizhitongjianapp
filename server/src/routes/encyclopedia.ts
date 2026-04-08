@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getSupabaseClient } from '../storage/database/supabase-client';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = Router();
 
 /**
@@ -9,50 +8,51 @@ const router = Router();
  * GET /api/v1/encyclopedia/characters/:name
  */
 router.get('/characters/:name', async (req, res) => {
-    try {
-        const { name } = req.params;
+  try {
+    const { name } = req.params;
+    const supabase = getSupabaseClient();
+    
+    // 先按 name 精确匹配
+    let { data: character, error } = await supabase
+      .from('characters')
+      .select('*')
+      .eq('name', name)
+      .single();
 
-        // 先按 name 精确匹配
-        const result = await pool.query(
-            'SELECT * FROM characters WHERE name = $1 LIMIT 1',
-            [name]
-        );
-
-        let character = result.rows[0];
-
-        // 如果没找到，再在别名中查找
-        if (!character) {
-            const aliasResult = await pool.query(
-                "SELECT * FROM characters WHERE $1 = ANY(string_to_array(aliases, ','))",
-                [name]
-            );
-            character = aliasResult.rows[0];
-        }
-
-        if (!character) {
-            return res.status(404).json({
-                success: false,
-                error: '人物未找到'
-            });
-        }
-
-        // 将 aliases 字段从字符串转换为数组
-        const processedData = {
-            ...character,
-            aliases: character.aliases ? character.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
-        };
-
-        res.json({
-            success: true,
-            data: processedData
-        });
-    } catch (error) {
-        console.error('获取人物百科失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
+    // 如果没找到，再在别名中查找
+    if (error || !character) {
+      const { data: charactersByAlias, error: aliasError } = await supabase
+        .rpc('search_character_by_alias', { search_name: name });
+      
+      if (!aliasError && charactersByAlias && charactersByAlias.length > 0) {
+        character = charactersByAlias[0];
+      }
     }
+
+    if (!character) {
+      return res.status(404).json({
+        success: false,
+        error: '人物未找到'
+      });
+    }
+
+    // 将 aliases 字段从字符串转换为数组
+    const processedData = {
+      ...character,
+      aliases: character.aliases ? character.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
+    };
+
+    res.json({
+      success: true,
+      data: processedData
+    });
+  } catch (error) {
+    console.error('获取人物百科失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '服务器错误'
+    });
+  }
 });
 
 /**
@@ -60,50 +60,51 @@ router.get('/characters/:name', async (req, res) => {
  * GET /api/v1/encyclopedia/titles/:name
  */
 router.get('/titles/:name', async (req, res) => {
-    try {
-        const { name } = req.params;
+  try {
+    const { name } = req.params;
+    const supabase = getSupabaseClient();
+    
+    // 先按 name 精确匹配
+    let { data: title, error } = await supabase
+      .from('titles')
+      .select('*')
+      .eq('name', name)
+      .single();
 
-        // 先按 name 精确匹配
-        const result = await pool.query(
-            'SELECT * FROM titles WHERE name = $1 LIMIT 1',
-            [name]
-        );
-
-        let title = result.rows[0];
-
-        // 如果没找到，再在别名中查找
-        if (!title) {
-            const aliasResult = await pool.query(
-                "SELECT * FROM titles WHERE $1 = ANY(string_to_array(aliases, ','))",
-                [name]
-            );
-            title = aliasResult.rows[0];
-        }
-
-        if (!title) {
-            return res.status(404).json({
-                success: false,
-                error: '官职未找到'
-            });
-        }
-
-        // 将 aliases 字段从字符串转换为数组
-        const processedData = {
-            ...title,
-            aliases: title.aliases ? title.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
-        };
-
-        res.json({
-            success: true,
-            data: processedData
-        });
-    } catch (error) {
-        console.error('获取官职百科失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
+    // 如果没找到，再在别名中查找
+    if (error || !title) {
+      const { data: titlesByAlias, error: aliasError } = await supabase
+        .rpc('search_title_by_alias', { search_name: name });
+      
+      if (!aliasError && titlesByAlias && titlesByAlias.length > 0) {
+        title = titlesByAlias[0];
+      }
     }
+
+    if (!title) {
+      return res.status(404).json({
+        success: false,
+        error: '官职未找到'
+      });
+    }
+
+    // 将 aliases 字段从字符串转换为数组
+    const processedData = {
+      ...title,
+      aliases: title.aliases ? title.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
+    };
+
+    res.json({
+      success: true,
+      data: processedData
+    });
+  } catch (error) {
+    console.error('获取官职百科失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '服务器错误'
+    });
+  }
 });
 
 /**
@@ -111,39 +112,41 @@ router.get('/titles/:name', async (req, res) => {
  * GET /api/v1/encyclopedia/characters
  */
 router.get('/characters', async (req, res) => {
-    try {
-        const { dynasty, limit = 20, offset = 0 } = req.query;
-
-        let query = 'SELECT * FROM characters';
-        const params: unknown[] = [];
-
-        if (dynasty) {
-            query += ' WHERE dynasty = $1';
-            params.push(dynasty);
-        }
-
-        query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-        params.push(Number(limit), Number(offset));
-
-        const result = await pool.query(query, params);
-
-        // 将 aliases 字段从字符串转换为数组
-        const processedData = result.rows.map((item: any) => ({
-            ...item,
-            aliases: item.aliases ? item.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
-        }));
-
-        res.json({
-            success: true,
-            data: processedData
-        });
-    } catch (error) {
-        console.error('获取人物列表失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
+  try {
+    const { dynasty, limit = 20, offset = 0 } = req.query;
+    const supabase = getSupabaseClient();
+    
+    let query = supabase.from('characters').select('*');
+    
+    if (dynasty) {
+      query = query.eq('dynasty', dynasty as string);
     }
+    
+    const { data: characterList, error } = await query
+      .limit(Number(limit))
+      .range(Number(offset), Number(offset) + Number(limit) - 1);
+    
+    if (error) {
+      throw error;
+    }
+    
+    // 将 aliases 字段从字符串转换为数组
+    const processedData = (characterList || []).map((item: any) => ({
+      ...item,
+      aliases: item.aliases ? item.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
+    }));
+    
+    res.json({
+      success: true,
+      data: processedData
+    });
+  } catch (error) {
+    console.error('获取人物列表失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '服务器错误'
+    });
+  }
 });
 
 /**
@@ -151,39 +154,41 @@ router.get('/characters', async (req, res) => {
  * GET /api/v1/encyclopedia/titles
  */
 router.get('/titles', async (req, res) => {
-    try {
-        const { dynasty, limit = 20, offset = 0 } = req.query;
-
-        let query = 'SELECT * FROM titles';
-        const params: unknown[] = [];
-
-        if (dynasty) {
-            query += ' WHERE dynasty = $1';
-            params.push(dynasty);
-        }
-
-        query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-        params.push(Number(limit), Number(offset));
-
-        const result = await pool.query(query, params);
-
-        // 将 aliases 字段从字符串转换为数组
-        const processedData = result.rows.map((item: any) => ({
-            ...item,
-            aliases: item.aliases ? item.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
-        }));
-
-        res.json({
-            success: true,
-            data: processedData
-        });
-    } catch (error) {
-        console.error('获取官职列表失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
+  try {
+    const { dynasty, limit = 20, offset = 0 } = req.query;
+    const supabase = getSupabaseClient();
+    
+    let query = supabase.from('titles').select('*');
+    
+    if (dynasty) {
+      query = query.eq('dynasty', dynasty as string);
     }
+    
+    const { data: titleList, error } = await query
+      .limit(Number(limit))
+      .range(Number(offset), Number(offset) + Number(limit) - 1);
+    
+    if (error) {
+      throw error;
+    }
+    
+    // 将 aliases 字段从字符串转换为数组
+    const processedData = (titleList || []).map((item: any) => ({
+      ...item,
+      aliases: item.aliases ? item.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
+    }));
+    
+    res.json({
+      success: true,
+      data: processedData
+    });
+  } catch (error) {
+    console.error('获取官职列表失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '服务器错误'
+    });
+  }
 });
 
 /**
@@ -191,47 +196,59 @@ router.get('/titles', async (req, res) => {
  * POST /api/v1/encyclopedia/batch
  */
 router.post('/batch', async (req, res) => {
-    try {
-        const { names } = req.body; // names: string[]
-
-        if (!Array.isArray(names) || names.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: '参数错误'
-            });
-        }
-
-        // 并行查询人物和官职
-        const [characterResult, titleResult] = await Promise.all([
-            pool.query('SELECT * FROM characters WHERE name = ANY($1)', [names]),
-            pool.query('SELECT * FROM titles WHERE name = ANY($1)', [names])
-        ]);
-
-        // 合并结果，并将 aliases 字段从字符串转换为数组
-        const results = [
-            ...characterResult.rows.map((c: any) => ({
-                ...c,
-                type: 'character',
-                aliases: c.aliases ? c.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
-            })),
-            ...titleResult.rows.map((t: any) => ({
-                ...t,
-                type: 'title',
-                aliases: t.aliases ? t.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
-            }))
-        ];
-
-        res.json({
-            success: true,
-            data: results
-        });
-    } catch (error) {
-        console.error('批量获取失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
+  try {
+    const { names } = req.body; // names: string[]
+    
+    if (!Array.isArray(names) || names.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '参数错误'
+      });
     }
+
+    const supabase = getSupabaseClient();
+
+    // 查找所有匹配的人物和官职
+    const [characterResults, titleResults] = await Promise.all([
+      supabase
+        .from('characters')
+        .select('*')
+        .in('name', names),
+      supabase
+        .from('titles')
+        .select('*')
+        .in('name', names)
+    ]);
+
+    if (characterResults.error || titleResults.error) {
+      throw new Error('查询失败');
+    }
+
+    // 合并结果，并将 aliases 字段从字符串转换为数组
+    const results = [
+      ...characterResults.data.map((c: any) => ({
+        ...c,
+        type: 'character',
+        aliases: c.aliases ? c.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
+      })),
+      ...titleResults.data.map((t: any) => ({
+        ...t,
+        type: 'title',
+        aliases: t.aliases ? t.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
+      }))
+    ];
+
+    res.json({
+      success: true,
+      data: results
+    });
+  } catch (error) {
+    console.error('批量获取失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '服务器错误'
+    });
+  }
 });
 
 export default router;

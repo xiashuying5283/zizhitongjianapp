@@ -1,44 +1,54 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getSupabaseClient } from '../storage/database/supabase-client';
 import { getEraNameByYear } from '../utils/formatYearDisplay';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = Router();
 
 /**
- * GET /api/v1/paragraphs
+ * 服务端文件：server/src/routes/paragraphs.ts
+ * 接口：GET /api/v1/paragraphs
+ * Query 参数：volume_number?: number, year_mark?: string, event_index?: number
+ * 返回段落列表（支持按卷、年份、事件筛选）
  */
 router.get('/', async (req, res) => {
   try {
     const { volume_number, year_mark, event_index } = req.query;
+    const supabase = getSupabaseClient();
 
-    const conditions: string[] = [];
-    const params: unknown[] = [];
-    let paramIndex = 1;
+    let query = supabase
+      .from('zizhitongjian_paragraphs')
+      .select('*')
+      .order('volume_number', { ascending: true })
+      .order('bc_year', { ascending: true })
+      .order('event_index', { ascending: true })
+      .order('paragraph_index', { ascending: true });
 
+    // 可选过滤
     if (volume_number) {
-      conditions.push(`volume_number = $${paramIndex++}`);
-      params.push(parseInt(volume_number as string));
+      query = query.eq('volume_number', parseInt(volume_number as string));
     }
     if (year_mark) {
-      conditions.push(`year_mark = $${paramIndex++}`);
-      params.push(year_mark);
+      query = query.eq('year_mark', year_mark);
     }
     if (event_index) {
-      conditions.push(`event_index = $${paramIndex++}`);
-      params.push(parseInt(event_index as string));
+      query = query.eq('event_index', parseInt(event_index as string));
     }
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const result = await pool.query(
-      `SELECT * FROM zizhitongjian_paragraphs ${where} ORDER BY volume_number ASC, bc_year ASC, event_index ASC, paragraph_index ASC`,
-      params
-    );
+    const { data: paragraphs, error } = await query;
+
+    if (error) {
+      console.error('获取段落列表失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '获取段落列表失败',
+        error: error.message,
+      });
+    }
 
     res.json({
       success: true,
-      data: result.rows,
-      total: result.rows.length,
+      data: paragraphs,
+      total: paragraphs?.length || 0,
     });
   } catch (error) {
     console.error('获取段落列表失败:', error);
@@ -51,39 +61,53 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * GET /api/v1/paragraphs/search
+ * 服务端文件：server/src/routes/paragraphs.ts
+ * 接口：GET /api/v1/paragraphs/search
+ * Query 参数：keyword: string, limit?: number, offset?: number
+ * 全文搜索功能（搜索段落内容）
  */
 router.get('/search', async (req, res) => {
   try {
     const { keyword, limit = 50, offset = 0 } = req.query;
 
     if (!keyword || typeof keyword !== 'string') {
-      return res.status(400).json({ success: false, message: '请输入搜索关键词' });
+      return res.status(400).json({
+        success: false,
+        message: '请输入搜索关键词',
+      });
     }
 
+    const supabase = getSupabaseClient();
     const searchTerm = keyword.trim();
-    const limitNum = parseInt(limit as string);
-    const offsetNum = parseInt(offset as string);
 
-    const result = await pool.query(
-      `SELECT * FROM zizhitongjian_paragraphs WHERE content ILIKE $1
-       ORDER BY volume_number ASC, bc_year ASC, event_index ASC, paragraph_index ASC
-       LIMIT $2 OFFSET $3`,
-      [`%${searchTerm}%`, limitNum, offsetNum]
-    );
+    // 搜索 zizhitongjian_paragraphs 表
+    const { data: paragraphs, error: paragraphsError } = await supabase
+      .from('zizhitongjian_paragraphs')
+      .select('*')
+      .ilike('content', `%${searchTerm}%`)
+      .range(parseInt(offset as string), parseInt(offset as string) + parseInt(limit as string) - 1)
+      .order('volume_number', { ascending: true })
+      .order('bc_year', { ascending: true })
+      .order('event_index', { ascending: true })
+      .order('paragraph_index', { ascending: true });
 
-    // 获取总数
-    const countResult = await pool.query(
-      'SELECT COUNT(*) FROM zizhitongjian_paragraphs WHERE content ILIKE $1',
-      [`%${searchTerm}%`]
-    );
+    if (paragraphsError) {
+      console.error('搜索失败:', paragraphsError);
+      return res.status(500).json({
+        success: false,
+        message: '搜索失败',
+        error: paragraphsError.message,
+      });
+    }
 
+    // 高亮关键词
     const highlightText = (text: string | null) => {
       if (!text) return null;
       return text.replace(new RegExp(`(${searchTerm})`, 'gi'), '**$1**');
     };
 
-    const results = result.rows.map((p: any) => ({
+    // 格式化搜索结果
+    const results = (paragraphs || []).map(p => ({
       id: p.id,
       volume_number: p.volume_number,
       year_mark: p.year_mark,
@@ -97,10 +121,16 @@ router.get('/search', async (req, res) => {
       is_chenguangyue: p.is_chenguangyue,
     }));
 
+    // 获取总数
+    const { count } = await supabase
+      .from('zizhitongjian_paragraphs')
+      .select('*', { count: 'exact', head: true })
+      .ilike('content', `%${searchTerm}%`);
+
     res.json({
       success: true,
       data: results,
-      total: parseInt(countResult.rows[0].count),
+      total: count || 0,
       keyword: searchTerm,
     });
   } catch (error) {
@@ -114,7 +144,11 @@ router.get('/search', async (req, res) => {
 });
 
 /**
- * GET /api/v1/paragraphs/volume/:volumeNumber
+ * 服务端文件：server/src/routes/paragraphs.ts
+ * 接口：GET /api/v1/paragraphs/volume/:volumeNumber
+ * Path 参数：volumeNumber: number
+ * Query 参数：offset?: number, limit?: number
+ * 返回指定卷的段落（支持分页，按年份分组）
  */
 router.get('/volume/:volumeNumber', async (req, res) => {
   try {
@@ -122,49 +156,56 @@ router.get('/volume/:volumeNumber', async (req, res) => {
     const { offset = 0, limit } = req.query;
     const volumeNum = parseInt(volumeNumber);
     const offsetNum = parseInt(offset as string) || 0;
-    const limitNum = limit ? parseInt(limit as string) : null;
+    const limitNum = limit ? parseInt(limit as string) : null; // null 表示不分页
 
     if (isNaN(volumeNum)) {
-      return res.status(400).json({ success: false, message: '无效的卷号' });
+      return res.status(400).json({
+        success: false,
+        message: '无效的卷号',
+      });
     }
 
-    // 获取总数
-    const countResult = await pool.query(
-      'SELECT COUNT(*) FROM zizhitongjian_paragraphs WHERE volume_number = $1',
-      [volumeNum]
-    );
-    const count = parseInt(countResult.rows[0].count);
+    const supabase = getSupabaseClient();
 
-    // 查询段落，使用窗口函数计算全局索引
-    let query = `
-      SELECT *, 
-        ROW_NUMBER() OVER (
-          ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC
-        ) - 1 as global_index
-      FROM zizhitongjian_paragraphs 
-      WHERE volume_number = $1 
-      ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC
-    `;
-    const params: unknown[] = [volumeNum];
+    // 先获取总数
+    const { count, error: countError } = await supabase
+      .from('zizhitongjian_paragraphs')
+      .select('*', { count: 'exact', head: true })
+      .eq('volume_number', volumeNum);
 
+    if (countError) {
+      console.error('获取段落总数失败:', countError);
+      return res.status(500).json({
+        success: false,
+        message: '获取段落总数失败',
+        error: countError.message,
+      });
+    }
+
+    // 查询段落
+    let query = supabase
+      .from('zizhitongjian_paragraphs')
+      .select('*')
+      .eq('volume_number', volumeNum)
+      .order('bc_year', { ascending: true })
+      .order('event_index', { ascending: true })
+      .order('paragraph_index', { ascending: true });
+
+    // 分页
     if (limitNum !== null) {
-      query = `
-        SELECT * FROM (
-          SELECT *, 
-            ROW_NUMBER() OVER (
-              ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC
-            ) - 1 as global_index
-          FROM zizhitongjian_paragraphs 
-          WHERE volume_number = $1
-        ) sub
-        ORDER BY global_index
-        LIMIT $2 OFFSET $3
-      `;
-      params.push(limitNum, offsetNum);
+      query = query.range(offsetNum, offsetNum + limitNum - 1);
     }
 
-    const result = await pool.query(query, params);
-    const paragraphs = result.rows;
+    const { data: paragraphs, error } = await query;
+
+    if (error) {
+      console.error('获取卷段落失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '获取卷段落失败',
+        error: error.message,
+      });
+    }
 
     // 按年份分组（使用 bc_year 作为唯一key，因为 year_mark 可能重复）
     const yearGroups = new Map<number, typeof paragraphs>();
@@ -179,23 +220,22 @@ router.get('/volume/:volumeNumber', async (req, res) => {
     const formattedYears = await Promise.all(
       Array.from(yearGroups.entries()).map(async ([key, paras]) => {
         const first = paras[0];
+        
+        // 从 era_years 表获取年份信息（display_name、gan_zhi、note）
         const eraInfo = await getEraNameByYear(first.bc_year);
+        
+        // 只显示年号，不显示干支
         const yearDisplay = eraInfo.displayName || first.year_mark;
-
+        
         return {
           emperor: first.emperor,
-          emperor_title: eraInfo.emperorTitle,
           year_mark: first.year_mark,
           year_display: yearDisplay,
           era_name: eraInfo.eraName,
-          era_phase: eraInfo.eraPhase,
           gan_zhi: eraInfo.ganZhi,
           bc_year: first.bc_year,
-          emperor_note: eraInfo.note,
-          paragraphs: paras.map((p: any) => ({
-            ...p,
-            global_index: p.global_index !== null ? Number(p.global_index) : 0,
-          })),
+          emperor_note: eraInfo.note,  // 直接使用 era_years 表的 note 字段
+          paragraphs: paras,
         };
       })
     );
@@ -206,8 +246,8 @@ router.get('/volume/:volumeNumber', async (req, res) => {
         volume_number: volumeNum,
         years: formattedYears,
       },
-      total: count,
-      hasMore: limitNum !== null ? offsetNum + limitNum < count : false,
+      total: count || 0,
+      hasMore: limitNum !== null ? offsetNum + limitNum < (count || 0) : false,
     });
   } catch (error) {
     console.error('获取卷段落失败:', error);

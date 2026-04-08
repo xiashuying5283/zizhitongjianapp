@@ -1,13 +1,12 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, Text, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, Alert, Pressable } from 'react-native';
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, Text, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, Alert } from 'react-native';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useScriptText } from '@/hooks/useScriptText';
 import { Screen } from '@/components/Screen';
-import { VerticalReader } from '@/components/VerticalReader';
-import { HorizontalReader } from '@/components/HorizontalReader';
+import { ParagraphWithAnnotation } from '@/components/ParagraphWithAnnotation';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
@@ -15,6 +14,7 @@ import { createAudioPlayer, AudioPlayer, AudioStatus } from 'expo-audio';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
 import { updateReadingProgress, getReadingRecords } from '@/utils/readingProgress';
+import { scrollToSection } from './scrollHelper';
 import { getDeviceId } from '@/utils/deviceId';
 import {
   loadReadingSettings,
@@ -22,21 +22,30 @@ import {
   saveFontSize as saveFontSizeToStorage,
   saveBackgroundTheme as saveBackgroundThemeToStorage,
   saveViewMode as saveViewModeToStorage,
-  saveTextLayout as saveTextLayoutToStorage,
   saveTtsVoice as saveTtsVoiceToStorage,
   saveTtsSpeed as saveTtsSpeedToStorage,
 } from '@/utils/readingSettings';
 import {
   getCachedVolume,
   setCachedVolume,
-  Paragraph,
-  YearGroup,
-  VolumeData,
-  CatalogYear,
-  CatalogEmperor,
-  CatalogData,
 } from '@/utils/volumeCache';
-import { createUserNote, fetchUserNotes, updateUserNote, deleteUserNote, TextSelection, NoteMarker, UserNote } from '@/utils/notes';
+
+interface Paragraph {
+  id: number;
+  volume_number: number;
+  year_mark: string;
+  emperor: string;
+  bc_year: number | null;
+  event_index: number;
+  paragraph_index: number;
+  content: string;
+  content_traditional?: string | null;  // 繁体内容
+  with_notes: string | null;
+  with_notes_traditional?: string | null;  // 繁体注解内容
+  translation: string | null;
+  translation_traditional?: string | null;  // 繁体译文
+  is_chenguangyue: boolean;
+}
 
 // TTS朗读分段（按条目）
 interface TTSSegment {
@@ -46,6 +55,17 @@ interface TTSSegment {
   yearMark: string;     // 年份标识
   emperor: string;      // 帝王名
   text: string;         // 朗读文本
+}
+
+interface YearGroup {
+  emperor: string;
+  year_mark: string;
+  year_display?: string;  // 格式化后的年份显示（含干支）
+  era_name?: string | null;  // 年号
+  gan_zhi?: string | null;  // 干支
+  bc_year: number | null;
+  emperor_note?: string | null;  // 帝王注解（胡三省注）
+  paragraphs: Paragraph[];
 }
 
 interface VolumeMeta {
@@ -58,8 +78,37 @@ interface VolumeMeta {
   introduction: string | null;  // 卷首注
 }
 
+interface VolumeData {
+  volume_number: number;
+  years: YearGroup[];
+}
+
+interface CatalogYear {
+  id: number;
+  year_name: string;
+  year_display: string;  // 格式化后的年份显示
+  year_num: number;
+  bc_year: number;
+}
+
+interface CatalogEmperor {
+  emperor: {
+    id: number;
+    name: string;
+  };
+  years: CatalogYear[];
+}
+
+interface CatalogData {
+  volume: {
+    id: number;
+    volume_number: number;
+    title?: string;
+  };
+  catalog: CatalogEmperor[];
+}
+
 type ViewMode = 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
-type TextLayout = 'horizontal' | 'vertical';
 type BackgroundTheme = 'light' | 'dark' | 'sepia';
 type SettingsTab = 'catalog' | 'font' | 'background' | 'viewMode' | 'tts' | null;
 
@@ -71,9 +120,9 @@ const FONT_SIZES = [
 ];
 
 const BACKGROUND_THEMES: Record<BackgroundTheme, { background: string; text: string; name: string; color: string }> = {
-  light: { background: '#FFFFFF', text: '#1E1E1E', name: '亮色', color: '#FFFFFF' },
-  dark: { background: '#121212', text: '#E8E8E8', name: '暗色', color: '#121212' },
-  sepia: { background: '#F5E6D3', text: '#4A3C31', name: '护眼', color: '#F5E6D3' },
+  light: { background: '#FFFFFF', text: '#1F2937', name: '亮色', color: '#FFFFFF' },
+  dark: { background: '#1F2937', text: '#F3F4F6', name: '暗色', color: '#1F2937' },
+  sepia: { background: '#F5F0E6', text: '#5C4B37', name: '护眼', color: '#F5F0E6' },
 };
 
 // TTS音色选项
@@ -95,7 +144,7 @@ const TTS_SPEEDS = [
 
 export default function VolumeDetailScreen() {
   const { theme } = useTheme();
-  const { scriptMode, setScriptMode, fontFamily, setFontFamily } = useSettings();
+  const { scriptMode, setScriptMode } = useSettings();
   const { t } = useScriptText();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
@@ -108,11 +157,16 @@ export default function VolumeDetailScreen() {
     scrollToParagraphId?: number;  // 从首页传递的段落ID，用于直接恢复位置
   }>();
   const volumeNumber = id ? parseInt(id) : null;  // 当前卷号
-  const htmlWebViewRef = useRef<any>(null);  // HTML 读者的 WebView 引用
-  const scrollToTargetRef = useRef(0);  // 当前滚动目标段落 ID（用于判断重试是否过期）
-  const scrollToSucceededRef = useRef(false);  // 当前滚动是否已成功
-  const textLayoutRef = useRef<TextLayout>('horizontal');  // 避免 stale closure
-  const globalIndexRef = useRef(0);  // 当前可见段落的全局索引（用于计算阅读进度）
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollContentRef = useRef<View>(null);
+  const yearSectionRefs = useRef<Map<number, View | React.Component>>(new Map());
+  const yearLayoutsRef = useRef<Map<number, number>>(new Map());  // 记录年份组的布局位置 (y 坐标)
+  const currentScrollYRef = useRef(0);  // 记录当前滚动位置
+  const paragraphRefs = useRef<Map<number, View>>(new Map());
+  const paragraphLayoutsRef = useRef<Map<number, { y: number; height: number }>>(new Map());  // 段落布局位置
+  const touchStartY = useRef(0);
+  const touchStartX = useRef(0);
+  const touchStartTime = useRef(0);
   const lastTitleTapTime = useRef(0);  // 用于双击标题检测
 
   // 工具栏和面板状态
@@ -151,14 +205,8 @@ export default function VolumeDetailScreen() {
   const [fontSize, setFontSize] = useState(cachedSettings.fontSize);
   const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>(cachedSettings.backgroundTheme);
   const [viewMode, setViewMode] = useState<ViewMode>(cachedSettings.viewMode);
-  const [textLayout, setTextLayout] = useState<TextLayout>(cachedSettings.textLayout);
   const [ttsVoice, setTtsVoice] = useState(cachedSettings.ttsVoice);
   const [ttsSpeed, setTtsSpeed] = useState(cachedSettings.ttsSpeed);
-
-  // 同步 textLayoutRef
-  useEffect(() => {
-    textLayoutRef.current = textLayout;
-  }, [textLayout]);
 
   const [volumeData, setVolumeData] = useState<VolumeData | null>(null);
   const [volumeMeta, setVolumeMeta] = useState<VolumeMeta | null>(null);
@@ -167,31 +215,12 @@ export default function VolumeDetailScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-
-  // 文本选择状态
-  const [textSelection, setTextSelection] = useState<TextSelection | null>(null);
-  const [showNoteModal, setShowNoteModal] = useState(false);
-  const [noteContent, setNoteContent] = useState('');
-  const [savingNote, setSavingNote] = useState(false);
-  const [showMarkMenu, setShowMarkMenu] = useState(false);
-  const [selectedMarkType, setSelectedMarkType] = useState<'background' | 'underline' | 'wavy'>('background');
-  const [selectedMarkColor, setSelectedMarkColor] = useState('#FECACA');
-
-  // 用户标注数据
-  const [userNotes, setUserNotes] = useState<NoteMarker[]>([]);
-  const [clickedNote, setClickedNote] = useState<NoteMarker | null>(null);
-  const [showNoteDetail, setShowNoteDetail] = useState(false);
-  const [isEditingNote, setIsEditingNote] = useState(false);
-  const [editNoteContent, setEditNoteContent] = useState('');
-  const [editNoteColor, setEditNoteColor] = useState('');
-  const [editNoteMarkType, setEditNoteMarkType] = useState<'background' | 'underline' | 'wavy'>('background');
-  const [savingEditNote, setSavingEditNote] = useState(false);
-  const [deletingNote, setDeletingNote] = useState(false);
-
+  const [totalParagraphs, setTotalParagraphs] = useState(0);
   const initializedRef = useRef(false);
   const currentVolumeRef = useRef<number | null>(null);
   const loadedParagraphsRef = useRef(0);
-  const pendingJumpRef = useRef<{ bcYear: number | null; yearName?: string; emperorName?: string } | null>(null);
+  const pendingJumpRef = useRef<{ bcYear: number } | null>(null);
+
   // 字体大小切换
   const handleSetFontSize = useCallback(async (size: number) => {
     setFontSize(size);
@@ -208,12 +237,6 @@ export default function VolumeDetailScreen() {
   const handleSetViewMode = useCallback(async (mode: ViewMode) => {
     setViewMode(mode);
     await saveViewModeToStorage(mode);
-  }, []);
-
-  // 文字排版方向切换
-  const handleSetTextLayout = useCallback(async (layout: TextLayout) => {
-    setTextLayout(layout);
-    await saveTextLayoutToStorage(layout);
   }, []);
 
   // TTS音色切换
@@ -237,20 +260,28 @@ export default function VolumeDetailScreen() {
     
     // 计算当前可见的第一个年份作为书签位置
     if (volumeData?.years && volumeData.years.length > 0) {
-      // WebView 模式：使用可见段落索引来估算年份
-      const visibleIndex = globalIndexRef.current;
-      let totalParagraphs = 0;
+      // 查找当前滚动位置对应的年份
+      let foundYear = null;
+      const scrollY = currentScrollYRef.current;
       
-      for (const year of volumeData.years) {
-        totalParagraphs += year.paragraphs.length;
-        if (visibleIndex < totalParagraphs) {
-          setCurrentVisibleYear({
-            yearMark: year.year_mark,
-            emperor: year.emperor,
-          });
+      // 遍历年份布局，找到第一个可见的
+      for (let i = 0; i < volumeData.years.length; i++) {
+        const layoutY = yearLayoutsRef.current.get(i);
+        if (layoutY !== undefined && layoutY >= scrollY - 100) {  // 允许一点误差
+          foundYear = volumeData.years[i];
           break;
         }
       }
+      
+      // 如果没找到，使用第一个年份
+      if (!foundYear) {
+        foundYear = volumeData.years[0];
+      }
+      
+      setCurrentVisibleYear({
+        yearMark: foundYear.year_mark,
+        emperor: foundYear.emperor,
+      });
     }
     
     setBookmarkModalVisible(true);
@@ -426,6 +457,22 @@ export default function VolumeDetailScreen() {
     return segments;
   }, [volumeData, getDisplayText]);
 
+  // 获取当前播放条目的显示信息
+  const getPlayingSegmentInfo = useCallback((): string => {
+    if (!ttsSegmentsRef.current || currentPlayingIndex < 0) return '';
+    const segment = ttsSegmentsRef.current[currentPlayingIndex];
+    if (!segment) return '';
+    
+    // 获取年份内的条目序号
+    const yearStartIndex = ttsSegmentsRef.current.findIndex(s => 
+      s.yearIndex === segment.yearIndex && s.paragraphIndex === 0
+    );
+    const itemInYear = currentPlayingIndex - yearStartIndex + 1;
+    const totalInYear = ttsSegmentsRef.current.filter(s => s.yearIndex === segment.yearIndex).length;
+    
+    return `${segment.yearMark} · ${itemInYear}/${totalInYear}`;
+  }, [currentPlayingIndex]);
+
   // 获取单段音频（带缓存）
   const fetchAudioForSegment = useCallback(async (index: number): Promise<string | null> => {
     const segments = ttsSegmentsRef.current;
@@ -490,13 +537,36 @@ export default function VolumeDetailScreen() {
 
   // 滚动到指定条目
   const scrollToParagraph = useCallback((yearIndex: number, paragraphIndex: number) => {
-    // 通过 WebView JS 滚动
+    // 从segment中获取paragraphId
     const segments = ttsSegmentsRef.current;
     const segment = segments.find(s => s.yearIndex === yearIndex && s.paragraphIndex === paragraphIndex);
-    if (segment) {
-      injectScroll(`window.__scrollToParagraph && window.__scrollToParagraph(${segment.id});`);
+    
+    if (!segment || !scrollViewRef.current || !scrollContentRef.current) return;
+    
+    const paragraphRef = paragraphRefs.current.get(segment.id); // segment.id 就是 paragraph.id
+    
+    if (paragraphRef) {
+      scrollToSection({
+        sectionRef: paragraphRef,
+        scrollViewRef,
+        scrollContentRef,
+        onSuccess: () => {
+          // 滚动成功
+        },
+        onError: () => {
+          // 滚动失败，回退到年份区域
+          const y = yearLayoutsRef.current.get(yearIndex);
+          if (y !== undefined && scrollViewRef.current) {
+            scrollViewRef.current.scrollTo({ y, animated: true });
+          }
+        },
+      });
     } else {
-      injectScroll(`window.__scrollToYear && window.__scrollToYear(${yearIndex});`);
+      // 如果找不到段落引用，回退到年份区域
+      const y = yearLayoutsRef.current.get(yearIndex);
+      if (y !== undefined && scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y, animated: true });
+      }
     }
   }, []);
 
@@ -714,15 +784,6 @@ export default function VolumeDetailScreen() {
 
   const currentTheme = BACKGROUND_THEMES[backgroundTheme];
 
-  // 根据阅读主题确定注解颜色
-  const getAnnotationColor = () => {
-    if (backgroundTheme === 'sepia') {
-      return '#8B5A3C'; // 护眼模式 - 棕红古注色
-    }
-    return theme.textAnnotation || theme.textSecondary;
-  };
-  const annotationColorForReader = getAnnotationColor();
-
   // 用 ref 存储 volumeData 用于合并，避免 useCallback 依赖导致无限循环
   const volumeDataRef = useRef<VolumeData | null>(null);
   
@@ -741,7 +802,8 @@ export default function VolumeDetailScreen() {
         yearMap.set(year.bc_year, year);
       }
     }
-
+    
+    // 合并新的
     for (const year of newGroups) {
       if (year.bc_year !== null) {
         if (yearMap.has(year.bc_year)) {
@@ -804,7 +866,7 @@ export default function VolumeDetailScreen() {
       const result = await response.json();
 
       if (result.success) {
-        totalParagraphsRef.current = result.total;  // 保存服务器返回的总段落数（用于进度计算）
+        setTotalParagraphs(result.total);
         setHasMore(result.hasMore);
         
         // 使用 ref 获取当前数据，避免依赖 volumeData
@@ -906,27 +968,6 @@ export default function VolumeDetailScreen() {
     }
   }, [catalogData]); // 移除 volumeData 依赖
 
-  // 获取当前卷的用户标注
-  const fetchUserNotesForVolume = useCallback(async (volumeNumber: number) => {
-    try {
-      const notes = await fetchUserNotes({ volumeNumber });
-      // 转换为 NoteMarker 格式
-      const markers: NoteMarker[] = notes.map(note => ({
-        id: note.id,
-        paragraphId: note.paragraphId,
-        startOffset: note.startOffset,
-        endOffset: note.endOffset,
-        highlightedText: note.highlightedText,
-        noteContent: note.noteContent,
-        color: note.color || '#FECACA',
-        markType: note.markType || 'background',
-      }));
-      setUserNotes(markers);
-    } catch (err) {
-      console.error('获取用户标注失败:', err);
-    }
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
       const volumeNumber = id ? parseInt(id) : null;
@@ -940,9 +981,9 @@ export default function VolumeDetailScreen() {
         loadedParagraphsRef.current = 0;
         currentVisibleParagraphIdRef.current = 0;  // 重置段落ID
         hasRestoredPositionRef.current = false;    // 重置恢复标志
+        paragraphLayoutsRef.current.clear();       // 清空段落布局
         setVolumeData(null);
         setHasMore(false);
-        setUserNotes([]);  // 重置标注数据
       }
 
       // 判断是否是静默刷新（已初始化且是同一卷）
@@ -954,7 +995,6 @@ export default function VolumeDetailScreen() {
           setFontSize(settings.fontSize);
           setBackgroundTheme(settings.backgroundTheme);
           setViewMode(settings.viewMode);
-          setTextLayout(settings.textLayout);
           setTtsVoice(settings.ttsVoice);
           setTtsSpeed(settings.ttsSpeed);
         });
@@ -965,10 +1005,9 @@ export default function VolumeDetailScreen() {
       fetchVolumeData(volumeNumber, isSilentRefresh);
       fetchCatalog(volumeNumber);
       fetchVolumeMeta(volumeNumber);
-      fetchUserNotesForVolume(volumeNumber);
       // 注意：不再重置进度，进入页面时不应该修改阅读进度
       currentVolumeRef.current = volumeNumber;
-    }, [id, fetchVolumeData, fetchCatalog, fetchVolumeMeta, fetchUserNotesForVolume])
+    }, [id, fetchVolumeData, fetchCatalog, fetchVolumeMeta])
   );
 
   // 缓存数据到 volumeCache（当 volumeData 变化时）
@@ -981,7 +1020,8 @@ export default function VolumeDetailScreen() {
       for (const year of volumeData.years) {
         totalP += year.paragraphs.length;
       }
-
+      totalParagraphsRef.current = totalP;
+      
       // 初始化：如果还没有设置段落ID，设置为第一个年份的第一个段落
       if (currentVisibleParagraphIdRef.current === 0 && volumeData.years?.length > 0 && volumeData.years[0].paragraphs?.length > 0) {
         currentVisibleParagraphIdRef.current = volumeData.years[0].paragraphs[0].id;
@@ -989,45 +1029,67 @@ export default function VolumeDetailScreen() {
     }
   }, [volumeData, catalogData]);
 
-  // HTML 模式辅助：通过 WebView JS 滚动
-  const injectScroll = useCallback((js: string) => {
-    htmlWebViewRef.current?.injectJavaScript(js);
-  }, []);
-
   // 滚动到指定年份段落
-  const scrollToYear = useCallback((yearIndex: number) => {
-    // 通过 WebView JS 滚动
-    setShowToolbar(false);
-    setActiveTab(null);
-    setTimeout(() => {
-      injectScroll(`window.__scrollToYear && window.__scrollToYear(${yearIndex});`);
-    }, 350);
+  const scrollToYear = useCallback((yearIndex: number, retryCount = 0) => {
+    const sectionRef = yearSectionRefs.current.get(yearIndex);
+    if (!sectionRef || !scrollViewRef.current || !scrollContentRef.current) {
+      if (retryCount < 10) {
+        setTimeout(() => {
+          scrollToYear(yearIndex, retryCount + 1);
+        }, 300);
+      } else {
+        console.warn('scrollToYear: max retries reached, cannot find section ref');
+      }
+      return;
+    }
+
+    scrollToSection({
+      sectionRef,
+      scrollViewRef,
+      scrollContentRef,
+      onSuccess: () => {
+        setShowToolbar(false);
+        setActiveTab(null);
+      },
+      onError: () => {
+        setShowToolbar(false);
+        setActiveTab(null);
+      },
+    });
   }, []);
 
   // 滚动到高亮段落（从搜索结果跳转）
   const scrollToHighlightParagraph = useCallback((paragraphId: number, retryCount = 0) => {
-    // 首次调用时重置状态
-    if (retryCount === 0) {
-      scrollToTargetRef.current = paragraphId;
-      scrollToSucceededRef.current = false;
-    }
-    // 目标已变更 或 已成功 → 停止重试
-    if (scrollToSucceededRef.current || scrollToTargetRef.current !== paragraphId) return;
-
-    if (htmlWebViewRef.current) {
-      injectScroll(`window.__scrollToParagraph && window.__scrollToParagraph(${paragraphId});`);
-    }
-
-    // 未成功才重试
-    if (retryCount < 15) {
-      if (retryCount === 0 && hasMore && !loadingMore && currentVolumeRef.current) {
-        fetchVolumeData(currentVolumeRef.current, true, true);
+    const paragraphRef = paragraphRefs.current.get(paragraphId);
+    
+    if (!paragraphRef || !scrollViewRef.current || !scrollContentRef.current) {
+      if (retryCount < 20) {
+        // 如果段落未加载，尝试加载更多数据
+        if (hasMore && !loadingMore && currentVolumeRef.current) {
+          fetchVolumeData(currentVolumeRef.current, true, true);
+        }
+        setTimeout(() => {
+          scrollToHighlightParagraph(paragraphId, retryCount + 1);
+        }, 500);
+      } else {
+        console.warn('scrollToHighlightParagraph: max retries reached');
       }
-      setTimeout(() => scrollToHighlightParagraph(paragraphId, retryCount + 1), 500);
-    } else {
-      setShowToolbar(false);
-      setActiveTab(null);
+      return;
     }
+
+    scrollToSection({
+      sectionRef: paragraphRef,
+      scrollViewRef,
+      scrollContentRef,
+      onSuccess: () => {
+        setShowToolbar(false);
+        setActiveTab(null);
+      },
+      onError: () => {
+        setShowToolbar(false);
+        setActiveTab(null);
+      },
+    });
   }, [hasMore, loadingMore, fetchVolumeData]);
 
   // 处理从搜索结果跳转到高亮段落
@@ -1061,19 +1123,21 @@ export default function VolumeDetailScreen() {
       return () => {
         const currentVolume = currentVolumeRef.current;
         const paragraphId = currentVisibleParagraphIdRef.current;
-
-        if (!currentVolume || paragraphId <= 0) return;
-
-        const contentType = (viewMode === 'translation') ? 1 : 0;
-        // 用服务端返回的卷总段落数计算百分比
-        const totalInVolume = totalParagraphsRef.current || 1;
-
-        // 使用全局索引计算准确的阅读百分比
-        const globalIndex = globalIndexRef.current;
-        const readPercent = Math.min(100, Math.round(((globalIndex + 1) / totalInVolume) * 100));
-        updateReadingProgress({ volumeNumber: currentVolume, paraId: paragraphId, readPercent, contentType });
+        
+        if (currentVolume && paragraphId > 0 && paragraphLayoutsRef.current.size > 0) {
+          // 计算进度：段落索引 / 总段落数
+          const sortedParagraphs = Array.from(paragraphLayoutsRef.current.keys())
+            .sort((a, b) => a - b);
+          const paragraphIndex = sortedParagraphs.indexOf(paragraphId);
+          const progress = sortedParagraphs.length > 0 
+            ? Math.round((paragraphIndex / sortedParagraphs.length) * 100) 
+            : 0;
+          
+          // 异步保存
+          updateReadingProgress(currentVolume, progress, paragraphId);
+        }
       };
-    }, [viewMode])
+    }, [])
   );
 
   // 恢复阅读位置（首次加载时）
@@ -1100,12 +1164,13 @@ export default function VolumeDetailScreen() {
     getReadingRecords().then(records => {
       const record = records.find(r => r.volumeNumber === currentVolume);
       
-      // 有段落记录就恢复位置
-      if (record && record.paraId > 0) {
+      // 只有当进度 > 0 且有段落记录时才恢复位置
+      // 进度为 0% 表示用户在顶部，不需要滚动
+      if (record && record.progress > 0 && record.lastParagraphIndex > 0) {
         hasRestoredPositionRef.current = true;
         // 延迟滚动确保 ref 已更新
         setTimeout(() => {
-          scrollToHighlightParagraph(record.paraId);
+          scrollToHighlightParagraph(record.lastParagraphIndex);
         }, 500);
       }
     }).catch(err => {
@@ -1114,17 +1179,14 @@ export default function VolumeDetailScreen() {
   }, [volumeData, loading, highlightId, scrollToHighlightParagraph, scrollToParagraphId]);
 
   // 从目录跳转
-  const handleCatalogItemClick = useCallback((yearName: string, emperorName: string, bcYear: number | null) => {
-    // 先用 bc_year 匹配
-    let yearIndex = volumeData?.years.findIndex(y => y.bc_year === bcYear) ?? -1;
-    if (yearIndex < 0) {
-      // 备用匹配：用年份名和帝王名匹配
-      yearIndex = volumeData?.years.findIndex(y => y.year_mark === yearName && y.emperor === emperorName) ?? -1;
-    }
-    if (yearIndex >= 0) {
+  const handleCatalogItemClick = useCallback((yearName: string, emperorName: string, bcYear: number) => {
+    const yearIndex = volumeData?.years.findIndex(y => y.bc_year === bcYear);
+    if (yearIndex !== undefined && yearIndex >= 0) {
+      // 目标已加载，直接滚动
       scrollToYear(yearIndex);
     } else if (hasMore && currentVolumeRef.current && !loadingMore) {
-      pendingJumpRef.current = { bcYear, yearName, emperorName };
+      // 目标未加载，设置待跳转目标并触发加载
+      pendingJumpRef.current = { bcYear };
       fetchVolumeData(currentVolumeRef.current, true, true);
     }
   }, [volumeData?.years, scrollToYear, hasMore, loadingMore, fetchVolumeData]);
@@ -1133,16 +1195,16 @@ export default function VolumeDetailScreen() {
   useEffect(() => {
     if (!pendingJumpRef.current || !volumeData?.years) return;
 
-    const { bcYear, yearName, emperorName } = pendingJumpRef.current;
-    let yearIndex = volumeData.years.findIndex(y => y.bc_year === bcYear);
-    if (yearIndex < 0 && yearName && emperorName) {
-      yearIndex = volumeData.years.findIndex(y => y.year_mark === yearName && y.emperor === emperorName);
-    }
+    const { bcYear } = pendingJumpRef.current;
+    const yearIndex = volumeData.years.findIndex(y => y.bc_year === bcYear);
 
     if (yearIndex >= 0) {
+      // 目标已加载，执行跳转
       pendingJumpRef.current = null;
+      // 延迟一帧确保 ref 已更新
       setTimeout(() => scrollToYear(yearIndex), 100);
     } else if (hasMore && !loadingMore && currentVolumeRef.current) {
+      // 目标仍未加载，继续加载
       fetchVolumeData(currentVolumeRef.current, true, true);
     }
   }, [volumeData, hasMore, loadingMore, scrollToYear, fetchVolumeData]);
@@ -1163,235 +1225,19 @@ export default function VolumeDetailScreen() {
       setTimeout(() => scrollToYear(yearIndex), 100);
     } else if (hasMore && !loadingMore && currentVolumeRef.current) {
       // 目标未加载，设置待跳转目标并触发加载
-      pendingJumpRef.current = { bcYear: null, yearName: yearMark, emperorName: emperor };
+      pendingJumpRef.current = { yearName: yearMark, emperorName: emperor };
       fetchVolumeData(currentVolumeRef.current, true, true);
     }
   }, [yearMark, emperor, volumeData?.years, hasMore, loadingMore, scrollToYear, fetchVolumeData]);
 
   // 点击屏幕处理 - 判断是点击还是滚动
-  const activeTabRef = useRef<SettingsTab>(null);
-  activeTabRef.current = activeTab;
   const handleScreenTap = useCallback(() => {
-    if (activeTabRef.current) {
+    if (activeTab) {
       setActiveTab(null);
     } else {
       setShowToolbar(prev => !prev);
     }
-  }, []);
-
-  // 可见段落变化回调（使用 ref 避免重新创建）
-  const handleVisibleParagraphChange = useCallback((pId: number, gIdx: number) => {
-    currentVisibleParagraphIdRef.current = pId;
-    globalIndexRef.current = gIdx;
-  }, []);
-
-  // 滚动结果回调（使用 ref 避免重新创建）
-  const handleScrollToResult = useCallback((targetId: number, success: boolean) => {
-    if (targetId === scrollToTargetRef.current && success) {
-      scrollToSucceededRef.current = true;
-    }
-  }, []);
-
-  // 处理文本选择
-  const handleTextSelection = useCallback((selection: TextSelection | null) => {
-    setTextSelection(selection);
-    if (selection) {
-      // 隐藏工具栏，显示选择菜单
-      setShowToolbar(false);
-    }
-  }, []);
-
-  // 取消文本选择
-  const handleCancelSelection = useCallback(() => {
-    setTextSelection(null);
-    setNoteContent('');
-  }, []);
-
-  // 打开标注输入框
-  const handleOpenNoteModal = useCallback(() => {
-    setShowNoteModal(true);
-  }, []);
-
-  // 点击标注下划线
-  const handleNoteClick = useCallback((note: NoteMarker) => {
-    setClickedNote(note);
-    setEditNoteContent(note.noteContent || '');
-    setEditNoteColor(note.color || MARK_COLORS[0].value);
-    setEditNoteMarkType(note.markType || 'background');
-    setIsEditingNote(false);
-    setShowNoteDetail(true);
-  }, []);
-
-  // 开始编辑笔记
-  const handleStartEditNote = useCallback(() => {
-    setIsEditingNote(true);
-  }, []);
-
-  // 取消编辑
-  const handleCancelEditNote = useCallback(() => {
-    setIsEditingNote(false);
-    setEditNoteContent(clickedNote?.noteContent || '');
-    setEditNoteColor(clickedNote?.color || MARK_COLORS[0].value);
-    setEditNoteMarkType(clickedNote?.markType || 'background');
-  }, [clickedNote]);
-
-  // 保存编辑的笔记
-  const handleSaveEditNote = useCallback(async () => {
-    if (!clickedNote) return;
-
-    setSavingEditNote(true);
-    try {
-      await updateUserNote(clickedNote.id, {
-        noteContent: editNoteContent.trim() || undefined,
-        color: editNoteColor,
-        markType: editNoteMarkType,
-      });
-
-      // 更新本地数据
-      setUserNotes(prev => prev.map(n =>
-        n.id === clickedNote.id
-          ? { ...n, noteContent: editNoteContent.trim() || null, color: editNoteColor, markType: editNoteMarkType }
-          : n
-      ));
-
-      // 更新点击的笔记
-      setClickedNote(prev => prev ? {
-        ...prev,
-        noteContent: editNoteContent.trim() || null,
-        color: editNoteColor,
-        markType: editNoteMarkType,
-      } : null);
-
-      setIsEditingNote(false);
-      Alert.alert('成功', '笔记已更新');
-    } catch (error) {
-      console.error('更新笔记失败:', error);
-      Alert.alert('错误', '更新笔记失败，请重试');
-    } finally {
-      setSavingEditNote(false);
-    }
-  }, [clickedNote, editNoteContent, editNoteColor, editNoteMarkType]);
-
-  // 删除笔记
-  const handleDeleteNote = useCallback(async () => {
-    if (!clickedNote || !volumeData) return;
-
-    Alert.alert(
-      '确认删除',
-      '确定要删除这条标注吗？',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: async () => {
-            setDeletingNote(true);
-            try {
-              await deleteUserNote(clickedNote.id);
-
-              // 更新本地数据
-              setUserNotes(prev => prev.filter(n => n.id !== clickedNote.id));
-
-              setShowNoteDetail(false);
-              setClickedNote(null);
-              Alert.alert('成功', '标注已删除');
-            } catch (error) {
-              console.error('删除笔记失败:', error);
-              Alert.alert('错误', '删除笔记失败，请重试');
-            } finally {
-              setDeletingNote(false);
-            }
-          },
-        },
-      ]
-    );
-  }, [clickedNote, volumeData]);
-
-  // 保存标注（带笔记）
-  const handleSaveNote = useCallback(async () => {
-    if (!textSelection || !volumeData) return;
-
-    setSavingNote(true);
-    try {
-      await createUserNote(
-        {
-          volumeNumber: volumeData.volume_number,
-          paragraphId: textSelection.paragraphId || 0,
-          startOffset: textSelection.startOffset,
-          endOffset: textSelection.endOffset,
-          highlightedText: textSelection.selectedText,
-          noteContent: noteContent.trim() || undefined,
-          markType: selectedMarkType,
-          color: selectedMarkColor,
-        }
-      );
-
-      // 刷新标注数据
-      fetchUserNotesForVolume(volumeData.volume_number);
-
-      // 重置状态
-      setShowNoteModal(false);
-      setTextSelection(null);
-      setNoteContent('');
-      Alert.alert('成功', '标注已保存');
-    } catch (error) {
-      console.error('保存标注失败:', error);
-      Alert.alert('错误', '保存标注失败，请重试');
-    } finally {
-      setSavingNote(false);
-    }
-  }, [textSelection, volumeData, noteContent, fetchUserNotesForVolume, selectedMarkType, selectedMarkColor]);
-
-  // 画线类型和颜色配置
-  const MARK_TYPES = [
-    { type: 'background' as const, label: '背景色', icon: 'fill' },
-    { type: 'underline' as const, label: '横线', icon: 'minus' },
-    { type: 'wavy' as const, label: '波浪线', icon: 'water' },
-  ];
-
-  const MARK_COLORS = [
-    { name: '粉色', value: '#FECACA' },  // 浅红
-    { name: '紫色', value: '#DDD6FE' },  // 浅紫
-    { name: '蓝色', value: '#BFDBFE' },  // 浅蓝
-    { name: '绿色', value: '#BBF7D0' },  // 浅绿
-    { name: '黄色', value: '#FEF08A' },  // 浅黄
-    { name: '橙色', value: '#FED7AA' },  // 浅橙
-  ];
-
-  // 快速画线（不带笔记）
-  const handleQuickMark = useCallback(async () => {
-    if (!textSelection || !volumeData) return;
-
-    setSavingNote(true);
-    try {
-      await createUserNote({
-        volumeNumber: volumeData.volume_number,
-        paragraphId: textSelection.paragraphId || 0,
-        startOffset: textSelection.startOffset,
-        endOffset: textSelection.endOffset,
-        highlightedText: textSelection.selectedText,
-        color: selectedMarkColor,
-        markType: selectedMarkType,
-      });
-
-      // 刷新标注数据
-      fetchUserNotesForVolume(volumeData.volume_number);
-
-      // 重置状态
-      setShowMarkMenu(false);
-      setTextSelection(null);
-    } catch (error) {
-      console.error('画线失败:', error);
-      Alert.alert('错误', '画线失败，请重试');
-    } finally {
-      setSavingNote(false);
-    }
-  }, [textSelection, volumeData, fetchUserNotesForVolume, selectedMarkType, selectedMarkColor]);
-
-  // 打开画线菜单
-  const handleOpenMarkMenu = useCallback(() => {
-    setShowMarkMenu(true);
-  }, []);
+  }, [activeTab]);
 
   // 导航到上一卷
   const goToPreviousVolume = useCallback(() => {
@@ -1419,8 +1265,8 @@ export default function VolumeDetailScreen() {
 
   // 滚动到页面顶部
   const scrollToTop = useCallback(() => {
-    injectScroll(`window.__scrollToTop && window.__scrollToTop();`);
-  }, [injectScroll]);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+  }, []);
 
   // 双击标题处理
   const handleTitleDoubleTap = useCallback(() => {
@@ -1437,6 +1283,45 @@ export default function VolumeDetailScreen() {
     }
   }, [scrollToTop]);
 
+  // 触摸开始
+  const handleTouchStart = useCallback((e: any) => {
+    touchStartX.current = e.nativeEvent.locationX;
+    touchStartY.current = e.nativeEvent.locationY;
+    touchStartTime.current = Date.now();
+  }, []);
+
+  // 触摸结束 - 判断是否为点击或滑动
+  const handleTouchEnd = useCallback((e: any) => {
+    const endX = e.nativeEvent.locationX;
+    const endY = e.nativeEvent.locationY;
+    const endTime = Date.now();
+    
+    const dx = endX - touchStartX.current;
+    const dy = endY - touchStartY.current;
+    const dt = endTime - touchStartTime.current;
+    
+    // 滑动手势检测参数
+    const SWIPE_THRESHOLD = 80;  // 最小滑动距离（提高阈值减少误触）
+    const SWIPE_TIME_LIMIT = 500;  // 最大滑动时间（毫秒）
+    
+    // 检测水平滑动（要求水平距离明显大于垂直距离，避免与垂直滚动冲突）
+    if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > SWIPE_THRESHOLD && dt < SWIPE_TIME_LIMIT) {
+      if (dx > 0) {
+        // 右滑 -> 上一章节
+        goToPreviousVolume();
+      } else {
+        // 左滑 -> 下一章节
+        goToNextVolume();
+      }
+      return;
+    }
+    
+    // 如果移动距离小于10px，认为是点击
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+      handleScreenTap();
+    }
+  }, [handleScreenTap, goToPreviousVolume, goToNextVolume]);
+
   // 工具栏按钮点击
   const handleTabPress = useCallback((tab: SettingsTab) => {
     if (activeTab === tab) {
@@ -1447,15 +1332,7 @@ export default function VolumeDetailScreen() {
   }, [activeTab]);
 
   // 渲染目录面板
-  const renderCatalogPanel = () => {
-    const formatYear = (bcYear: number | null) => {
-      if (bcYear === null) return '';
-      if (bcYear < 0) return `公元前${Math.abs(bcYear)}年`;
-      if (bcYear > 0) return `公元${bcYear}年`;
-      return '';
-    };
-
-    return (
+  const renderCatalogPanel = () => (
     <View style={[styles.panel, { backgroundColor: currentTheme.background }]}>
       <View style={styles.panelHeader}>
         <ThemedText variant="h4" color={currentTheme.text}>目录</ThemedText>
@@ -1476,11 +1353,19 @@ export default function VolumeDetailScreen() {
               </ThemedText>
             </View>
 
-            {/* 年份列表 */}
+            {/* 年份列表 - 直接展示 */}
             <View style={styles.yearList}>
               {group.years.map((year, yearIndex) => {
+                // 公元纪年格式化
+                const formatYear = (bcYear: number) => {
+                  if (bcYear < 0) return `公元前${Math.abs(bcYear)}年`;
+                  if (bcYear > 0) return `公元${bcYear}年`;
+                  return year.year_name;
+                };
+                
+                // 使用 emperor name + bc_year 作为稳定的 key
                 const yearItemKey = `${group.emperor.name}-${year.bc_year || yearIndex}`;
-
+                
                 return (
                   <TouchableOpacity
                     key={yearItemKey}
@@ -1501,31 +1386,18 @@ export default function VolumeDetailScreen() {
         ))}
       </ScrollView>
     </View>
-    );
-  };
+  );
 
   // 渲染字体设置面板
-  const FONT_FAMILY_OPTIONS = [
-    { label: '系统默认', value: 'system' as const, desc: '苹方/思源黑体' },
-    { label: '宋体', value: 'serif' as const, desc: '传统印刷风格' },
-    { label: '楷体', value: 'kaiti' as const, desc: '古典书法韵味' },
-    { label: '隶书', value: 'lishu' as const, desc: '典雅庄重风格' },
-    { label: '正楷', value: 'zhengkai' as const, desc: '规范楷书风格' },
-  ];
-
   const renderFontPanel = () => (
     <View style={[styles.panel, { backgroundColor: currentTheme.background }]}>
       <View style={styles.panelHeader}>
-        <ThemedText variant="h4" color={currentTheme.text}>字体设置</ThemedText>
+        <ThemedText variant="h4" color={currentTheme.text}>字体大小</ThemedText>
         <TouchableOpacity onPress={() => setActiveTab(null)}>
           <FontAwesome6 name="xmark" size={18} color={currentTheme.text} />
         </TouchableOpacity>
       </View>
-      <ScrollView style={styles.panelContent} contentContainerStyle={styles.panelScrollContent} showsVerticalScrollIndicator={false}>
-        {/* 字体大小 */}
-        <ThemedText variant="smallMedium" color={theme.textMuted} style={{ marginBottom: 8 }}>
-          字体大小
-        </ThemedText>
+      <View style={styles.panelContent}>
         <View style={styles.fontSizeList}>
           {FONT_SIZES.map((size, index) => (
             <TouchableOpacity
@@ -1552,38 +1424,7 @@ export default function VolumeDetailScreen() {
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* 字体风格 */}
-        <ThemedText variant="smallMedium" color={theme.textMuted} style={{ marginTop: 16, marginBottom: 8 }}>
-          字体风格
-        </ThemedText>
-        <View style={styles.fontFamilyList}>
-          {FONT_FAMILY_OPTIONS.map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              style={[
-                styles.fontFamilyItem,
-                { borderColor: fontFamily === option.value ? theme.primary : theme.border },
-                fontFamily === option.value && { backgroundColor: theme.primary + '10' },
-              ]}
-              onPress={() => setFontFamily(option.value)}
-            >
-              <ThemedText
-                variant="body"
-                color={fontFamily === option.value ? theme.primary : currentTheme.text}
-              >
-                {option.label}
-              </ThemedText>
-              <ThemedText
-                variant="caption"
-                color={theme.textMuted}
-              >
-                {option.desc}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
+      </View>
     </View>
   );
 
@@ -1642,8 +1483,7 @@ export default function VolumeDetailScreen() {
             { key: 'original+translation' as ViewMode, label: '原文+译', desc: '原文与白话译文' },
             { key: 'original+annotation+translation' as ViewMode, label: '全部', desc: '原文、注文、译文' },
             { key: 'translation' as ViewMode, label: '纯译文', desc: '仅显示白话译文' },
-          ].map(mode => {
-            return (
+          ].map(mode => (
             <TouchableOpacity
               key={mode.key}
               style={[
@@ -1668,44 +1508,7 @@ export default function VolumeDetailScreen() {
                 <FontAwesome6 name="check" size={16} color={theme.primary} />
               )}
             </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* 排版方向 */}
-        <View style={[styles.divider, { backgroundColor: theme.border }]} />
-        <View style={styles.scriptModeSection}>
-          <Text style={[styles.sectionLabel, { color: currentTheme.text }]}>{t('排版')}</Text>
-          <View style={styles.scriptModeButtons}>
-            <TouchableOpacity
-              style={[
-                styles.scriptButton,
-                textLayout === 'horizontal' && { backgroundColor: theme.primary + '20', borderColor: theme.primary },
-              ]}
-              onPress={() => handleSetTextLayout('horizontal')}
-            >
-              <Text style={[
-                styles.scriptButtonText,
-                { color: textLayout === 'horizontal' ? theme.primary : currentTheme.text },
-              ]}>
-                {t('横排')}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.scriptButton,
-                textLayout === 'vertical' && { backgroundColor: theme.primary + '20', borderColor: theme.primary },
-              ]}
-              onPress={() => handleSetTextLayout('vertical')}
-            >
-              <Text style={[
-                styles.scriptButtonText,
-                { color: textLayout === 'vertical' ? theme.primary : currentTheme.text },
-              ]}>
-                {t('竖排')}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          ))}
         </View>
         
         {/* 简繁切换 */}
@@ -1910,7 +1713,7 @@ export default function VolumeDetailScreen() {
 
   if (loading) {
     return (
-      <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
+      <Screen backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={currentTheme.text} />
         </View>
@@ -1920,7 +1723,7 @@ export default function VolumeDetailScreen() {
 
   if (error || !volumeData) {
     return (
-      <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
+      <Screen backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
         <View style={styles.centerContainer}>
           <FontAwesome6 name="circle-exclamation" size={32} color={currentTheme.text} />
           <ThemedText variant="body" color={currentTheme.text} style={{ marginTop: Spacing.md }}>
@@ -1940,7 +1743,7 @@ export default function VolumeDetailScreen() {
   const hasYears = volumeData.years && volumeData.years.length > 0;
 
   return (
-    <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
+    <Screen backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
       {/* 滑动切换章节提示 */}
       {swipeHint && (
         <View style={[
@@ -1959,129 +1762,267 @@ export default function VolumeDetailScreen() {
         </View>
       )}
       
-      {/* 顶部栏 - 标题始终占位，按钮联动显示/隐藏 */}
+      {/* 顶部栏 */}
       <View style={[styles.header, { backgroundColor: currentTheme.background }]}>
-        {showToolbar ? (
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <FontAwesome6 name="arrow-left" size={18} color={currentTheme.text} />
-          </TouchableOpacity>
-        ) : (
-          <View style={[styles.backButton, { backgroundColor: 'transparent' }]} />
-        )}
-        <TouchableOpacity
-          style={styles.headerTitle}
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <FontAwesome6 name="arrow-left" size={18} color={currentTheme.text} />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.headerTitle} 
           onPress={handleTitleDoubleTap}
           activeOpacity={0.7}
         >
           <ThemedText variant="h4" color={currentTheme.text}>
-            第{volumeData.volume_number}卷 · {volumeMeta?.volume_name}
+            {volumeMeta?.volume_name || catalogData?.volume.title || `第${volumeData.volume_number}卷`}
           </ThemedText>
         </TouchableOpacity>
-        {showToolbar ? (
-          <TouchableOpacity
-            style={styles.bookmarkButton}
-            onPress={handleOpenBookmarkModal}
-            activeOpacity={0.7}
-          >
-            <FontAwesome6
-              name={isBookmarked ? "bookmark" : "bookmark"}
-              size={18}
-              color={isBookmarked ? theme.primary : currentTheme.text}
-              solid={isBookmarked}
-            />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.bookmarkButton} />
-        )}
-
+        <TouchableOpacity 
+          style={styles.bookmarkButton} 
+          onPress={handleOpenBookmarkModal}
+          activeOpacity={0.7}
+        >
+          <FontAwesome6 
+            name={isBookmarked ? "bookmark" : "bookmark"} 
+            size={18} 
+            color={isBookmarked ? theme.primary : currentTheme.text}
+            solid={isBookmarked}
+          />
+        </TouchableOpacity>
+        
         {/* 播放按钮 */}
-        {showToolbar ? (
-          <TouchableOpacity
-            style={styles.playButton}
-            onPress={handleTogglePlay}
-            activeOpacity={0.7}
-          >
-            <FontAwesome6
-              name={isPlaying ? "pause" : "play"}
-              size={18}
-              color={theme.primary}
-            />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.playButton} />
-        )}
+        <TouchableOpacity 
+          style={styles.playButton} 
+          onPress={handleTogglePlay}
+          activeOpacity={0.7}
+        >
+          <FontAwesome6 
+            name={isPlaying ? "pause" : "play"} 
+            size={18} 
+            color={theme.primary}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* 内容区域 */}
       <View style={{ flex: 1 }}>
-        {(textLayout === 'vertical' || textLayout === 'horizontal') && volumeData && hasYears ? (
-          textLayout === 'vertical' ? (
-              <VerticalReader
-                volumeData={volumeData}
-                volumeMeta={volumeMeta}
-                viewMode={viewMode}
-                scriptMode={scriptMode}
-                fontSize={fontSize}
-                fontFamily={fontFamily}
-                textColor={currentTheme.text}
-                bgColor={currentTheme.background}
-                annotationColor={annotationColorForReader}
-                translationColor={theme.textTranslation || theme.textSecondary}
-                accentColor={theme.accent}
-                textMuted={theme.textMuted}
-                highlightKeyword={keyword}
-                highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
-                userNotes={userNotes}
-                onTap={handleScreenTap}
-                onLoadMore={handleLoadMore}
-                onVisibleParagraphChange={handleVisibleParagraphChange}
-                onScrollToResult={handleScrollToResult}
-                onTextSelection={handleTextSelection}
-                onNoteClick={handleNoteClick}
-                readerWebViewRef={htmlWebViewRef}
-                initialScrollParagraphId={currentVisibleParagraphIdRef.current}
-              />
-            ) : (
-              // 横排模式：支持边缘滑动切换章节
-              <View style={{ flex: 1 }}>
-                <HorizontalReader
-                  volumeData={volumeData}
-                  volumeMeta={volumeMeta}
-                  viewMode={viewMode}
-                  scriptMode={scriptMode}
-                  fontSize={fontSize}
-                  fontFamily={fontFamily}
-                  textColor={currentTheme.text}
-                  bgColor={currentTheme.background}
-                  annotationColor={annotationColorForReader}
-                  translationColor={theme.textTranslation || theme.textSecondary}
-                  accentColor={theme.accent}
-                  textMuted={theme.textMuted}
-                  highlightKeyword={keyword}
-                  highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
-                  userNotes={userNotes}
-                  onTap={handleScreenTap}
-                  onLoadMore={handleLoadMore}
-                  onVisibleParagraphChange={handleVisibleParagraphChange}
-                  onScrollToResult={handleScrollToResult}
-                  onTextSelection={handleTextSelection}
-                  onNoteClick={handleNoteClick}
-                  readerWebViewRef={htmlWebViewRef}
-                  initialScrollParagraphId={currentVisibleParagraphIdRef.current}
-                />
-              {/* 左边缘触摸区域 - 上一章 */}
-              <Pressable
-                style={styles.edgeTapLeft}
-                onPress={goToPreviousVolume}
-              />
-              {/* 右边缘触摸区域 - 下一章 */}
-              <Pressable
-                style={styles.edgeTapRight}
-                onPress={goToNextVolume}
-              />
+        <ScrollView 
+          ref={scrollViewRef} 
+          contentContainerStyle={styles.scrollContent}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onScrollBeginDrag={() => {
+            // 滚动开始时自动关闭工具栏和面板
+            if (showToolbar || activeTab) {
+              setShowToolbar(false);
+              setActiveTab(null);
+            }
+          }}
+          scrollEventThrottle={400}
+          onScroll={({ nativeEvent }) => {
+            // 记录当前滚动位置
+            currentScrollYRef.current = nativeEvent.contentOffset.y;
+            
+            // 计算屏幕中心位置对应的段落
+            const screenCenterY = nativeEvent.contentOffset.y + nativeEvent.layoutMeasurement.height / 2;
+            
+            // 遍历所有段落布局，找到中心位置所在的段落
+            if (paragraphLayoutsRef.current.size > 0) {
+              let centerParagraphId = 0;
+              
+              // 将段落布局按 y 坐标排序
+              const sortedParagraphs = Array.from(paragraphLayoutsRef.current.entries())
+                .sort((a, b) => a[1].y - b[1].y);
+              
+              for (const [pId, layout] of sortedParagraphs) {
+                const paragraphBottom = layout.y + layout.height;
+                if (screenCenterY >= layout.y && screenCenterY < paragraphBottom) {
+                  centerParagraphId = pId;
+                  break;
+                }
+                // 如果中心位置在当前段落之后，继续找
+                if (screenCenterY >= paragraphBottom) {
+                  centerParagraphId = pId;
+                }
+              }
+              
+              if (centerParagraphId > 0 && centerParagraphId !== currentVisibleParagraphIdRef.current) {
+                currentVisibleParagraphIdRef.current = centerParagraphId;
+              }
+            }
+            
+            // 滚动到 70% 时加载更多
+            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+            const scrollPercent = (contentOffset.y + layoutMeasurement.height) / contentSize.height;
+            if (scrollPercent > 0.7 && hasMore && !loadingMore) {
+              handleLoadMore();
+            }
+          }}
+        >
+          <View ref={scrollContentRef} style={styles.content}>
+              {/* 卷元数据 */}
+              {volumeMeta?.time_range && (
+                <ThemedText variant="caption" color={theme.textMuted} style={styles.metaText}>
+                  {volumeMeta.time_range}
+                </ThemedText>
+              )}
+              
+              {/* 卷首注 */}
+              {volumeMeta?.introduction && viewMode.includes('annotation') && (
+                <ThemedText variant="caption" color={theme.textAnnotation || theme.textSecondary} style={styles.introductionText}>
+                  {volumeMeta.introduction.replace(/^[〈《]|[》〉]$/g, '')}
+                </ThemedText>
+              )}
+              
+              {hasYears ? (
+                volumeData.years.map((year, yearIndex) => {
+                  // 使用 emperor + bc_year 作为稳定的 key，避免数据更新后 key 冲突
+                  const yearKey = `${year.emperor}-${year.bc_year || yearIndex}`;
+                  return (
+                    <View
+                      key={yearKey}
+                      ref={(ref) => {
+                        if (ref) {
+                          yearSectionRefs.current.set(yearIndex, ref);
+                          }
+                        }}
+                        style={styles.yearSection}
+                        onLayout={(event) => {
+                          // 记录每个年份组的布局位置
+                          const { y } = event.nativeEvent.layout;
+                          yearLayoutsRef.current.set(yearIndex, y);
+                        }}
+                      >
+                        <View style={[styles.yearHeader, { backgroundColor: backgroundTheme === 'dark' ? '#374151' : theme.backgroundTertiary }]}>
+                          <View style={styles.yearLabelContainer}>
+                            <FontAwesome6 name="calendar-day" size={14} color={theme.accent} />
+                            <ThemedText variant="h4" color={theme.accent} style={styles.yearLabel}>
+                              {year.year_display || year.year_mark}
+                            </ThemedText>
+                            {/* 干支显示 */}
+                            {year.gan_zhi && (
+                              <ThemedText variant="caption" color={theme.textMuted}>
+                                （{year.gan_zhi}）
+                              </ThemedText>
+                            )}
+                            {year.bc_year && (
+                              <ThemedText variant="caption" color={theme.textMuted} style={styles.yearBcText}>
+                                {year.bc_year < 0 ? `公元前${Math.abs(year.bc_year)}年` : `公元${year.bc_year}年`}
+                              </ThemedText>
+                            )}
+                          </View>
+                        </View>
+                        
+                        {/* 帝王注解（胡三省注） */}
+                        {year.emperor_note && viewMode.includes('annotation') && (
+                          <View style={[styles.emperorNoteInline, { backgroundColor: theme.backgroundTertiary }]}>
+                            <ThemedText variant="annotation" color={theme.textAnnotation || theme.textSecondary}>
+                              {year.emperor_note}
+                            </ThemedText>
+                          </View>
+                        )}
+
+                        <View style={styles.yearContent}>
+                          {year.paragraphs.map((paragraph, pIndex) => {
+                            // 根据脚本模式和显示模式选择内容
+                            // 繁体 + 注解模式：优先使用 with_notes_traditional
+                            // 繁体 + 无注解：使用 content_traditional
+                            // 简体 + 注解模式：优先使用 with_notes
+                            // 简体 + 无注解：使用 content
+                            const showAnnotation = viewMode.includes('annotation');
+                            
+                            let displayContent: string;
+                            if (scriptMode === 'traditional') {
+                              if (showAnnotation && paragraph.with_notes_traditional) {
+                                displayContent = paragraph.with_notes_traditional;
+                              } else {
+                                displayContent = paragraph.content_traditional || paragraph.content;
+                              }
+                            } else {
+                              if (showAnnotation && paragraph.with_notes) {
+                                displayContent = paragraph.with_notes;
+                              } else {
+                                displayContent = paragraph.content;
+                              }
+                            }
+                            
+                            const displayTranslation = scriptMode === 'traditional' && paragraph.translation_traditional
+                              ? paragraph.translation_traditional
+                              : paragraph.translation;
+
+                            // 检查是否是高亮段落（搜索高亮 或 TTS播放高亮）
+                            const isSearchHighlighted = highlightId ? parseInt(highlightId) === paragraph.id : false;
+                            const isTtsHighlighted = highlightedParagraphId === paragraph.id;
+
+                            return (
+                            <View 
+                              key={paragraph.id || pIndex} 
+                              ref={(ref) => {
+                                if (ref) {
+                                  paragraphRefs.current.set(paragraph.id, ref);
+                                }
+                              }}
+                              onLayout={(event) => {
+                                // 记录段落的布局位置
+                                const { y, height } = event.nativeEvent.layout;
+                                paragraphLayoutsRef.current.set(paragraph.id, { y, height });
+                              }}
+                              style={[
+                                { marginBottom: Spacing.md },
+                                isTtsHighlighted && { 
+                                  backgroundColor: theme.primary + '10',
+                                  borderRadius: BorderRadius.md,
+                                  marginHorizontal: -Spacing.sm,
+                                  paddingHorizontal: Spacing.sm,
+                                  paddingVertical: Spacing.xs,
+                                }
+                              ]}
+                            >
+                              <ParagraphWithAnnotation
+                                volumeNumber={volumeData.volume_number}
+                                paragraphId={paragraph.id}
+                                content={displayContent}
+                                translation={displayTranslation || undefined}
+                                viewMode={viewMode}
+                                fontSize={fontSize}
+                                textColor={currentTheme.text}
+                                highlightKeyword={keyword}
+                                isHighlighted={isSearchHighlighted}
+                              />
+                            </View>
+                          );})}
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                <View style={styles.centerContainer}>
+                  <FontAwesome6 name="book-open" size={32} color={currentTheme.text} />
+                  <ThemedText variant="body" color={currentTheme.text} style={{ marginTop: Spacing.md }}>
+                    暂无内容
+                  </ThemedText>
+                </View>
+              )}
             </View>
-          )
-        ) : null}
+
+            <View style={styles.footer}>
+              {loadingMore ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color={currentTheme.text} />
+                  <ThemedText variant="caption" color={currentTheme.text} style={{ marginLeft: Spacing.sm }}>
+                    加载中...
+                  </ThemedText>
+                </View>
+              ) : hasMore ? (
+                <ThemedText variant="caption" color={currentTheme.text}>
+                  — 向下滚动加载更多 —
+                </ThemedText>
+              ) : (
+                <ThemedText variant="caption" color={currentTheme.text}>
+                  — 点击屏幕显示设置 —
+                </ThemedText>
+              )}
+            </View>
+          </ScrollView>
       </View>
 
       {/* TTS 播放控制条 */}
@@ -2176,7 +2117,7 @@ export default function VolumeDetailScreen() {
                 {/* Modal Header */}
                 <View style={styles.modalHeader}>
                   <ThemedText variant="h4" color={currentTheme.text}>添加书签</ThemedText>
-                  <TouchableOpacity style={styles.closeButton} onPress={() => setBookmarkModalVisible(false)}>
+                  <TouchableOpacity onPress={() => setBookmarkModalVisible(false)}>
                     <FontAwesome6 name="xmark" size={20} color={currentTheme.text} />
                   </TouchableOpacity>
                 </View>
@@ -2244,417 +2185,6 @@ export default function VolumeDetailScreen() {
           </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </Modal>
-
-      {/* 文本选择菜单 - 固定在底部 */}
-      {textSelection && !showMarkMenu && (
-        <>
-          {/* 透明遮罩层，点击关闭 */}
-          <Pressable
-            style={styles.selectionOverlay}
-            onPress={handleCancelSelection}
-          />
-          {/* 底部菜单 */}
-          <View style={styles.selectionMenu}>
-            <TouchableOpacity
-              style={[styles.selectionMenuItem, { backgroundColor: theme.primary }]}
-              onPress={handleOpenMarkMenu}
-            >
-              <FontAwesome6 name="highlighter" size={14} color="#FFFFFF" />
-              <ThemedText variant="bodyMedium" color="#FFFFFF">标注</ThemedText>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-
-      {/* 标注菜单 */}
-      {textSelection && showMarkMenu && (
-        <>
-          <Pressable
-            style={styles.selectionOverlay}
-            onPress={() => setShowMarkMenu(false)}
-          />
-          <View style={[styles.markMenu, { backgroundColor: currentTheme.background }]}>
-            {/* 画线类型 - 三选一 */}
-            <View style={styles.markSectionLabel}>
-              <ThemedText variant="small" color={theme.textMuted}>画线样式</ThemedText>
-            </View>
-            <View style={styles.markTypeRow}>
-              {MARK_TYPES.map(item => (
-                <TouchableOpacity
-                  key={item.type}
-                  style={[
-                    styles.markTypeItem,
-                    selectedMarkType === item.type && { backgroundColor: theme.primary + '15' },
-                  ]}
-                  onPress={() => setSelectedMarkType(item.type)}
-                >
-                  <View style={[
-                    styles.markTypeIcon,
-                    { backgroundColor: selectedMarkType === item.type ? theme.primary : theme.backgroundSecondary },
-                  ]}>
-                    <FontAwesome6
-                      name={item.icon}
-                      size={16}
-                      color={selectedMarkType === item.type ? '#FFFFFF' : theme.textPrimary}
-                    />
-                  </View>
-                  <ThemedText
-                    variant="tiny"
-                    color={selectedMarkType === item.type ? theme.primary : theme.textMuted}
-                  >
-                    {item.label}
-                  </ThemedText>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* 分隔线 */}
-            <View style={[styles.markDivider, { backgroundColor: theme.border }]} />
-
-            {/* 颜色选择 */}
-            <View style={styles.markSectionLabel}>
-              <ThemedText variant="small" color={theme.textMuted}>选择颜色</ThemedText>
-            </View>
-            <View style={styles.markColorRow}>
-              {MARK_COLORS.map(item => (
-                <TouchableOpacity
-                  key={item.value}
-                  style={[
-                    styles.markColorItem,
-                    { backgroundColor: item.value },
-                    selectedMarkColor === item.value && { borderColor: theme.primary, borderWidth: 2 },
-                  ]}
-                  onPress={() => setSelectedMarkColor(item.value)}
-                />
-              ))}
-            </View>
-
-            {/* 分隔线 */}
-            <View style={[styles.markDivider, { backgroundColor: theme.border }]} />
-
-            {/* 操作按钮 */}
-            <View style={styles.markActionRow}>
-              {/* 完成按钮 - 只画线不加笔记 */}
-              <TouchableOpacity
-                style={[styles.markActionButton, { backgroundColor: theme.primary }]}
-                onPress={handleQuickMark}
-                disabled={savingNote}
-              >
-                {savingNote ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <FontAwesome6 name="check" size={16} color="#FFFFFF" />
-                    <ThemedText variant="bodyMedium" color="#FFFFFF">完成</ThemedText>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {/* 添加笔记按钮 */}
-              <TouchableOpacity
-                style={[styles.markActionButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.primary, borderWidth: 1 }]}
-                onPress={() => {
-                  setShowMarkMenu(false);
-                  setShowNoteModal(true);
-                }}
-              >
-                <FontAwesome6 name="pen-to-square" size={16} color={theme.primary} />
-                <ThemedText variant="bodyMedium" color={theme.primary}>添加笔记</ThemedText>
-              </TouchableOpacity>
-            </View>
-
-            {/* 取消按钮 */}
-            <TouchableOpacity
-              style={styles.markCancelButton}
-              onPress={() => setShowMarkMenu(false)}
-            >
-              <ThemedText variant="bodyMedium" color={theme.textMuted}>取消</ThemedText>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-
-      {/* 标注输入 Modal */}
-      <Modal
-        visible={showNoteModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowNoteModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowNoteModal(false)}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalOverlay}
-          >
-            <TouchableWithoutFeedback>
-              <View style={[styles.noteModalContent, { backgroundColor: currentTheme.background }]}>
-                <View style={styles.modalHeader}>
-                  <ThemedText variant="h4" color={currentTheme.text}>添加标注</ThemedText>
-                  <TouchableOpacity style={styles.closeButton} onPress={() => setShowNoteModal(false)}>
-                    <FontAwesome6 name="xmark" size={20} color={currentTheme.text} />
-                  </TouchableOpacity>
-                </View>
-
-                {/* 选中的文字 */}
-                <View style={[styles.selectedTextContainer, { backgroundColor: theme.backgroundSecondary }]}>
-                  <ThemedText variant="small" color={theme.textMuted}>选中文字：</ThemedText>
-                  <ThemedText variant="body" color={currentTheme.text} style={styles.selectedText}>
-                    {textSelection?.selectedText}
-                  </ThemedText>
-                </View>
-
-                {/* 笔记输入 */}
-                <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
-                  笔记（可选）
-                </ThemedText>
-                <TextInput
-                  style={[styles.textInput, styles.textArea, {
-                    backgroundColor: theme.backgroundTertiary,
-                    color: currentTheme.text,
-                    borderColor: theme.border,
-                  }]}
-                  placeholder="添加笔记..."
-                  placeholderTextColor={theme.textMuted}
-                  value={noteContent}
-                  onChangeText={setNoteContent}
-                  multiline
-                  numberOfLines={4}
-                  maxLength={1000}
-                  textAlignVertical="top"
-                  autoFocus
-                />
-
-                {/* 按钮 */}
-                <View style={styles.modalFooter}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.cancelButton]}
-                    onPress={() => setShowNoteModal(false)}
-                  >
-                    <ThemedText variant="bodyMedium" color={currentTheme.text}>取消</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.submitButton, { backgroundColor: theme.primary }]}
-                    onPress={handleSaveNote}
-                    disabled={savingNote}
-                  >
-                    {savingNote ? (
-                      <ActivityIndicator size="small" color={theme.buttonPrimaryText} />
-                    ) : (
-                      <ThemedText variant="bodyMedium" color={theme.buttonPrimaryText}>保存</ThemedText>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
-      </Modal>
-
-      {/* 标注详情 Modal */}
-      <Modal
-        visible={showNoteDetail}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowNoteDetail(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <TouchableWithoutFeedback onPress={() => !isEditingNote && setShowNoteDetail(false)}>
-            <View style={[styles.noteDetailModal, { backgroundColor: currentTheme.background }]}>
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.noteDetailScrollContent}
-              >
-                <TouchableWithoutFeedback>
-                  <View>
-                    <View style={styles.modalHeader}>
-                      <ThemedText variant="h4" color={currentTheme.text}>我的标注</ThemedText>
-                      <TouchableOpacity style={styles.closeButton} onPress={() => setShowNoteDetail(false)}>
-                        <FontAwesome6 name="xmark" size={20} color={currentTheme.text} />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* 标注的文本 - 简略显示 */}
-                    <View style={[styles.highlightedTextCompact, { backgroundColor: theme.backgroundSecondary }]}>
-                      <ThemedText variant="body" color={currentTheme.text} numberOfLines={2}>
-                        {clickedNote?.highlightedText && clickedNote.highlightedText.length > 50
-                          ? clickedNote.highlightedText.substring(0, 50) + '...'
-                          : clickedNote?.highlightedText}
-                      </ThemedText>
-                    </View>
-
-                    {/* 画线类型选择 - 始终显示 */}
-                    <View style={styles.modalBody}>
-                      <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
-                        画线样式
-                      </ThemedText>
-                      <View style={styles.editMarkTypeRow}>
-                        {MARK_TYPES.map(item => (
-                          <TouchableOpacity
-                            key={item.type}
-                            style={[
-                              styles.editMarkTypeItem,
-                              editNoteMarkType === item.type && { backgroundColor: theme.primary + '15', borderColor: theme.primary },
-                            ]}
-                            onPress={() => {
-                              setEditNoteMarkType(item.type);
-                              // 立即保存
-                              if (clickedNote) {
-                                updateUserNote(clickedNote.id, { markType: item.type });
-                                setUserNotes(prev => prev.map(n =>
-                                  n.id === clickedNote.id ? { ...n, markType: item.type } : n
-                                ));
-                                setClickedNote(prev => prev ? { ...prev, markType: item.type } : null);
-                              }
-                            }}
-                          >
-                            <FontAwesome6
-                              name={item.icon}
-                              size={14}
-                              color={editNoteMarkType === item.type ? theme.primary : theme.textMuted}
-                            />
-                            <ThemedText
-                              variant="tiny"
-                              color={editNoteMarkType === item.type ? theme.primary : theme.textMuted}
-                            >
-                              {item.label}
-                            </ThemedText>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-
-                      {/* 颜色选择 - 始终显示 */}
-                      <ThemedText variant="small" color={theme.textMuted} style={[styles.inputLabel, { marginTop: 12 }]}>
-                        标注颜色
-                      </ThemedText>
-                      <View style={styles.editColorRow}>
-                        {MARK_COLORS.map(item => (
-                          <TouchableOpacity
-                            key={item.value}
-                            style={[
-                              styles.editColorItem,
-                              { backgroundColor: item.value },
-                              editNoteColor === item.value && { borderColor: theme.primary, borderWidth: 2 },
-                            ]}
-                            onPress={() => {
-                              setEditNoteColor(item.value);
-                              // 立即保存
-                              if (clickedNote) {
-                                updateUserNote(clickedNote.id, { color: item.value });
-                                setUserNotes(prev => prev.map(n =>
-                                  n.id === clickedNote.id ? { ...n, color: item.value } : n
-                                ));
-                                setClickedNote(prev => prev ? { ...prev, color: item.value } : null);
-                              }
-                            }}
-                          />
-                        ))}
-                      </View>
-                    </View>
-
-                    {/* 笔记内容 - 查看/编辑模式 */}
-                    {isEditingNote ? (
-                      <View style={styles.modalBody}>
-                        <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
-                          编辑笔记
-                        </ThemedText>
-                        <TextInput
-                          style={[styles.textInput, styles.textAreaLarge, {
-                            backgroundColor: theme.backgroundTertiary,
-                            color: currentTheme.text,
-                            borderColor: theme.border,
-                          }]}
-                          placeholder="添加笔记..."
-                          placeholderTextColor={theme.textMuted}
-                          value={editNoteContent}
-                          onChangeText={setEditNoteContent}
-                          multiline
-                          numberOfLines={6}
-                          maxLength={1000}
-                          textAlignVertical="top"
-                          autoFocus
-                        />
-                      </View>
-                    ) : (
-                      clickedNote?.noteContent ? (
-                        <View style={styles.modalBody}>
-                          <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
-                            我的笔记
-                          </ThemedText>
-                          <View style={[styles.noteContentBox, { backgroundColor: theme.backgroundSecondary }]}>
-                            <ThemedText variant="body" color={currentTheme.text}>
-                              {clickedNote.noteContent}
-                            </ThemedText>
-                          </View>
-                        </View>
-                      ) : (
-                        <View style={styles.modalBody}>
-                          <ThemedText variant="small" color={theme.textMuted}>
-                            暂无笔记内容，点击编辑添加
-                          </ThemedText>
-                        </View>
-                      )
-                    )}
-                  </View>
-                </TouchableWithoutFeedback>
-              </ScrollView>
-
-              {/* 操作按钮 - 固定在底部 */}
-              <View style={[styles.modalFooterFixed, { backgroundColor: currentTheme.background }]}>
-                {isEditingNote ? (
-                  <View style={styles.modalFooterButtons}>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.cancelButton]}
-                      onPress={handleCancelEditNote}
-                      disabled={savingEditNote}
-                    >
-                      <ThemedText variant="bodyMedium" color={currentTheme.text}>取消</ThemedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.submitButton, { backgroundColor: theme.primary }]}
-                      onPress={handleSaveEditNote}
-                      disabled={savingEditNote}
-                    >
-                      {savingEditNote ? (
-                        <ActivityIndicator size="small" color={theme.buttonPrimaryText} />
-                      ) : (
-                        <ThemedText variant="bodyMedium" color={theme.buttonPrimaryText}>保存</ThemedText>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.modalFooterButtons}>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.cancelButton, styles.deleteButton]}
-                      onPress={handleDeleteNote}
-                      disabled={deletingNote}
-                    >
-                      {deletingNote ? (
-                        <ActivityIndicator size="small" color="#EF4444" />
-                      ) : (
-                        <>
-                          <FontAwesome6 name="trash" size={14} color="#EF4444" />
-                          <ThemedText variant="bodyMedium" color="#EF4444">删除</ThemedText>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.submitButton, { backgroundColor: theme.primary }]}
-                      onPress={handleStartEditNote}
-                    >
-                      <ThemedText variant="bodyMedium" color={theme.buttonPrimaryText}>编辑</ThemedText>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
-      </Modal>
-
     </Screen>
   );
 }

@@ -27,11 +27,10 @@ export const createStyles = (theme: Theme) => {
       paddingVertical: Spacing.sm,
       marginBottom: Spacing.lg,
       marginHorizontal: Spacing["2xl"],
+      gap: Spacing.md,
     },
     searchInput: {
       flex: 1,
-      marginLeft: Spacing.sm,
-      marginRight: Spacing.sm,
       fontSize: 16,
       color: theme.textPrimary,
     },
@@ -39,8 +38,8 @@ export const createStyles = (theme: Theme) => {
       flexDirection: 'row',
       flexWrap: 'wrap',
       marginBottom: Spacing.lg,
-      gap: Spacing.sm,
       paddingHorizontal: Spacing["2xl"],
+      gap: Spacing.sm,
     },
     eraChip: {
       backgroundColor: theme.backgroundTertiary,
@@ -52,8 +51,8 @@ export const createStyles = (theme: Theme) => {
       backgroundColor: theme.accent,
     },
     listContent: {
-      paddingBottom: Spacing.xl,
       paddingHorizontal: Spacing["2xl"],
+      paddingBottom: Spacing["5xl"],
     },
     titleCard: {
       flexDirection: 'row',
@@ -89,7 +88,7 @@ export const createStyles = (theme: Theme) => {
     emptyContainer: {
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: Spacing.xl * 2,
+      paddingVertical: Spacing.xl * 3,
     },
     emptyText: {
       marginTop: Spacing.md,

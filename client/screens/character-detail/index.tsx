@@ -131,7 +131,7 @@ export default function CharacterDetailScreen() {
 
   if (loading) {
     return (
-      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         <View style={styles.loadingContainer}>
           <ThemedText variant="body" color={theme.textMuted}>加载中...</ThemedText>
         </View>
@@ -141,7 +141,7 @@ export default function CharacterDetailScreen() {
 
   if (!character) {
     return (
-      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         <View style={styles.loadingContainer}>
           <ThemedText variant="body" color={theme.textMuted}>人物不存在</ThemedText>
         </View>
@@ -155,7 +155,7 @@ export default function CharacterDetailScreen() {
   ];
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       {/* Header */}
       <ThemedView level="root" style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>

@@ -1,44 +1,79 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { Pool } from 'pg';
+import { getSupabaseClient } from '../storage/database/supabase-client';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = Router();
 const SALT_ROUNDS = 10;
 
 /**
- * POST /api/v1/auth/register
+ * 服务端文件：server/src/routes/auth.ts
+ * 接口：POST /api/v1/auth/register
+ * Body 参数：username: string, password: string, nickname?: string
  */
 router.post('/register', async (req, res) => {
   try {
     const { username, password, nickname } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ success: false, message: '用户名和密码不能为空' });
-    }
-    if (username.length < 2 || username.length > 50) {
-      return res.status(400).json({ success: false, message: '用户名长度应为2-50个字符' });
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, message: '密码长度至少6个字符' });
+      return res.status(400).json({
+        success: false,
+        message: '用户名和密码不能为空',
+      });
     }
 
+    if (username.length < 2 || username.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: '用户名长度应为2-50个字符',
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: '密码长度至少6个字符',
+      });
+    }
+
+    const supabase = getSupabaseClient();
+
     // 检查用户名是否已存在
-    const existResult = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
-    if (existResult.rows.length > 0) {
-      return res.status(400).json({ success: false, message: '用户名已存在' });
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username)
+      .single();
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: '用户名已存在',
+      });
     }
 
     // 哈希密码
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
     // 创建用户
-    const result = await pool.query(
-      'INSERT INTO users (username, password_hash, nickname) VALUES ($1, $2, $3) RETURNING id, username, nickname, avatar, created_at',
-      [username, passwordHash, nickname || username]
-    );
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({
+        username,
+        password_hash: passwordHash,
+        nickname: nickname || username,
+      })
+      .select('id, username, nickname, avatar, created_at')
+      .single();
 
-    const user = result.rows[0];
+    if (error) {
+      console.error('注册失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '注册失败',
+        error: error.message,
+      });
+    }
+
     res.json({
       success: true,
       data: {
@@ -60,26 +95,45 @@ router.post('/register', async (req, res) => {
 });
 
 /**
- * POST /api/v1/auth/login
+ * 服务端文件：server/src/routes/auth.ts
+ * 接口：POST /api/v1/auth/login
+ * Body 参数：username: string, password: string
  */
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ success: false, message: '用户名和密码不能为空' });
+      return res.status(400).json({
+        success: false,
+        message: '用户名和密码不能为空',
+      });
     }
 
-    const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-    const user = result.rows[0];
+    const supabase = getSupabaseClient();
 
-    if (!user) {
-      return res.status(401).json({ success: false, message: '用户名或密码错误' });
+    // 查找用户
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .single();
+
+    if (error || !user) {
+      return res.status(401).json({
+        success: false,
+        message: '用户名或密码错误',
+      });
     }
 
+    // 验证密码
     const isValid = await bcrypt.compare(password, user.password_hash);
+
     if (!isValid) {
-      return res.status(401).json({ success: false, message: '用户名或密码错误' });
+      return res.status(401).json({
+        success: false,
+        message: '用户名或密码错误',
+      });
     }
 
     res.json({
@@ -103,47 +157,68 @@ router.post('/login', async (req, res) => {
 });
 
 /**
- * GET /api/v1/auth/check-username
+ * 服务端文件：server/src/routes/auth.ts
+ * 接口：GET /api/v1/auth/check-username
+ * Query 参数：username: string
  */
 router.get('/check-username', async (req, res) => {
   try {
     const { username } = req.query;
 
     if (!username) {
-      return res.status(400).json({ success: false, message: '用户名不能为空' });
+      return res.status(400).json({
+        success: false,
+        message: '用户名不能为空',
+      });
     }
 
-    const result = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
+    const supabase = getSupabaseClient();
+
+    const { data } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username as string)
+      .single();
 
     res.json({
       success: true,
-      data: { available: result.rows.length === 0 },
+      data: {
+        available: !data,
+      },
     });
   } catch (error) {
     res.json({
       success: true,
-      data: { available: true },
+      data: {
+        available: true,
+      },
     });
   }
 });
 
 /**
- * GET /api/v1/auth/user/:id
+ * 服务端文件：server/src/routes/auth.ts
+ * 接口：GET /api/v1/auth/user/:id
+ * Path 参数：id: number
  */
 router.get('/user/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const supabase = getSupabaseClient();
 
-    const result = await pool.query(
-      'SELECT id, username, nickname, avatar, created_at FROM users WHERE id = $1',
-      [id]
-    );
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, username, nickname, avatar, created_at')
+      .eq('id', id)
+      .single();
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '用户不存在' });
+    if (error || !user) {
+      return res.status(404).json({
+        success: false,
+        message: '用户不存在',
+      });
     }
 
-    const user = result.rows[0];
     res.json({
       success: true,
       data: {
@@ -156,52 +231,69 @@ router.get('/user/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('获取用户信息失败:', error);
-    res.status(500).json({ success: false, message: '获取用户信息失败' });
+    res.status(500).json({
+      success: false,
+      message: '获取用户信息失败',
+    });
   }
 });
 
 /**
- * PUT /api/v1/auth/profile
+ * 服务端文件：server/src/routes/auth.ts
+ * 接口：PUT /api/v1/auth/profile
+ * Body 参数：userId: number, nickname?: string, avatar?: string
  */
 router.put('/profile', async (req, res) => {
   try {
     const { userId, nickname, avatar } = req.body;
 
     if (!userId) {
-      return res.status(400).json({ success: false, message: '缺少用户ID' });
+      return res.status(400).json({
+        success: false,
+        message: '缺少用户ID',
+      });
     }
 
-    const updateFields: string[] = [];
-    const params: unknown[] = [];
-    let paramIndex = 1;
+    const supabase = getSupabaseClient();
 
+    // 构建更新对象
+    const updateData: { nickname?: string; avatar?: string } = {};
     if (nickname !== undefined) {
       if (nickname.length < 1 || nickname.length > 50) {
-        return res.status(400).json({ success: false, message: '昵称长度应为1-50个字符' });
+        return res.status(400).json({
+          success: false,
+          message: '昵称长度应为1-50个字符',
+        });
       }
-      updateFields.push(`nickname = $${paramIndex++}`);
-      params.push(nickname);
+      updateData.nickname = nickname;
     }
     if (avatar !== undefined) {
-      updateFields.push(`avatar = $${paramIndex++}`);
-      params.push(avatar);
+      updateData.avatar = avatar;
     }
 
-    if (updateFields.length === 0) {
-      return res.status(400).json({ success: false, message: '没有需要更新的内容' });
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '没有需要更新的内容',
+      });
     }
 
-    params.push(userId);
-    const result = await pool.query(
-      `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${paramIndex} RETURNING id, username, nickname, avatar, created_at`,
-      params
-    );
+    // 更新用户信息
+    const { data: user, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select('id, username, nickname, avatar, created_at')
+      .single();
 
-    if (result.rows.length === 0) {
-      return res.status(500).json({ success: false, message: '更新失败' });
+    if (error) {
+      console.error('更新用户资料失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '更新失败',
+      });
     }
 
-    const user = result.rows[0];
     res.json({
       success: true,
       data: {
@@ -214,7 +306,10 @@ router.put('/profile', async (req, res) => {
     });
   } catch (error) {
     console.error('更新用户资料失败:', error);
-    res.status(500).json({ success: false, message: '更新失败' });
+    res.status(500).json({
+      success: false,
+      message: '更新失败',
+    });
   }
 });
 

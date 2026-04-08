@@ -1,23 +1,22 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
-const appName = process.env.APP_NAME || '资治通鉴深度阅读App';
+const appName = process.env.COZE_PROJECT_NAME || process.env.EXPO_PUBLIC_COZE_PROJECT_NAME || '应用';
+const projectId = process.env.COZE_PROJECT_ID || process.env.EXPO_PUBLIC_COZE_PROJECT_ID;
+const slugAppName = projectId ? `app${projectId}` : 'myapp';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...config,
     "name": appName,
-    "slug": "zizhitongjian",
+    "slug": slugAppName,
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "zizhitongjian",
+    "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "config": {
-        "googleMapsApiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""
-      },
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "weixin",
@@ -41,12 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.zizhitongjian.app",
-      "config": {
-        "googleMaps": {
-          "apiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ""
-        }
-      }
+      "package": `com.anonymous.x${projectId || '0'}`
     },
     "web": {
       "bundler": "metro",

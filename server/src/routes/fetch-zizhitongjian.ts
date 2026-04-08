@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import { FetchClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 const router = Router();
 
 /**
+ * 服务端文件：server/src/routes/fetch-zizhitongjian.ts
  * 接口：POST /api/v1/fetch-zizhitongjian
  * Body 参数：url: string
  * 获取资治通鉴网页内容
@@ -20,36 +20,26 @@ router.post('/', async (req, res) => {
       });
     }
 
+    const customHeaders = HeaderUtils.extractForwardHeaders(req.headers as Record<string, string>);
+    const config = new Config();
+    const client = new FetchClient(config, customHeaders);
+
     console.log(`正在获取: ${url}`);
-    const response = await axios.get(url, {
-      timeout: 15000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-      responseType: 'arraybuffer',
-    });
+    const response = await client.fetch(url);
 
-    const iconvLite = await import('iconv-lite').catch(() => null);
-    let html: string;
-    if (iconvLite) {
-      const buffer = Buffer.from(response.data);
-      const charsetMatch = buffer.toString('binary').match(/charset=["']?([^"'\s>]+)/i);
-      const charset = charsetMatch ? charsetMatch[1] : 'utf-8';
-      html = iconvLite.decode(buffer, charset);
-    } else {
-      html = Buffer.from(response.data).toString('utf-8');
+    if (response.status_code !== 0) {
+      return res.status(500).json({
+        success: false,
+        message: response.status_message || '获取失败',
+      });
     }
-
-    const $ = cheerio.load(html);
-    const title = $('title').text().trim();
-    const textContent = $('body').text().replace(/\s+/g, ' ').trim();
 
     res.json({
       success: true,
       data: {
-        title,
-        url,
-        content: [{ type: 'text', text: textContent }],
+        title: response.title,
+        url: response.url,
+        content: response.content,
       },
     });
   } catch (error) {

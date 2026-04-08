@@ -1,7 +1,5 @@
 import express from "express";
 import cors from "cors";
-import path from "path";
-import { fileURLToPath } from "url";
 import volumeRoutes from "./routes/volumes";
 import characterRoutes from "./routes/characters";
 import readingProgressRoutes from "./routes/reading-progress";
@@ -16,13 +14,13 @@ import feedbackRoutes from "./routes/feedback";
 import uploadRoutes from "./routes/upload";
 import bookmarksRoutes from "./routes/bookmarks";
 import notesRoutes from "./routes/notes";
+import userHighlightsRoutes from "./routes/user-highlights";
 import readingStatsRoutes from "./routes/reading-stats";
 import ttsRoutes from "./routes/tts";
 import encyclopediaRoutes from "./routes/encyclopedia";
-import notificationsRoutes from "./routes/notifications";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import groupChatRoutes from "./routes/group-chat";
+import chatHistoryRoutes from "./routes/chat-history";
+import customCharactersRoutes from "./routes/custom-characters";
 
 const app = express();
 const port = process.env.PORT || 9091;
@@ -31,9 +29,6 @@ const port = process.env.PORT || 9091;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-// 静态文件服务（本地上传的文件）
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Health check
 app.get('/api/v1/health', (req, res) => {
@@ -56,10 +51,13 @@ app.use('/api/v1/feedback', feedbackRoutes);
 app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/bookmarks', bookmarksRoutes);
 app.use('/api/v1/notes', notesRoutes);
+app.use('/api/v1/user-highlights', userHighlightsRoutes);
 app.use('/api/v1/reading-stats', readingStatsRoutes);
 app.use('/api/v1/tts', ttsRoutes);
 app.use('/api/v1/encyclopedia', encyclopediaRoutes);
-app.use('/api/v1/notifications', notificationsRoutes);
+app.use('/api/v1/group-chat', groupChatRoutes);
+app.use('/api/v1/chat-history', chatHistoryRoutes);
+app.use('/api/v1/custom-characters', customCharactersRoutes);
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);

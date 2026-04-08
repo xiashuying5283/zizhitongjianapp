@@ -1,51 +1,52 @@
 /**
- * 批量翻译资治通鉴卷内容 - 使用 OpenAI API
- * 用法: npx tsx scripts/translate_volumes.ts
+ * 翻译资治通鉴指定卷号范围
+ * 使用 LLM 将文言文翻译为现代白话文
+ * 
+ * 使用方法：npx tsx scripts/translate_volumes.ts <开始卷号> <结束卷号>
+ * 示例：npx tsx scripts/translate_volumes.ts 3 100
  */
 
-import OpenAI from 'openai';
-import pg from 'pg';
-import 'dotenv/config';
-
-const { Pool } = pg;
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+import { Pool } from 'pg';
+import { LLMClient, Config } from 'coze-coding-dev-sdk';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-/**
- * 使用 OpenAI 翻译文言文为现代文
- */
-async function translateToModern(text: string, context: string = ''): Promise<string> {
-  const systemPrompt = `你是一位精通古文的学者，专门负责将文言文翻译成现代汉语。
-翻译要求：
-1. 保持原文的语义和情感
-2. 使用流畅的现代汉语表达
-3. 保留重要的人名、地名、官职名，必要时加注释
-4. 对于典故，可以适当添加简短解释
-5. 保持译文的可读性和准确性`;
+const config = new Config();
+const llmClient = new LLMClient(config);
 
-  const userPrompt = context 
-    ? `背景：${context}\n\n请翻译以下文言文：\n${text}`
-    : `请翻译以下文言文：\n${text}`;
+// 翻译系统提示词
+const TRANSLATE_SYSTEM_PROMPT = `你是一位精通文言文和现代汉语的翻译专家。请将《资治通鉴》的文言文段落翻译为现代白话文。
+
+翻译要求：
+1. 准确传达原文含义，不添加个人理解
+2. 保持历史人物和地名的准确性
+3. 语言流畅自然，符合现代汉语表达习惯
+4. 保留原文的句式结构和逻辑关系
+5. 对于专有名词（人名、地名、官职），首次出现时可用括号标注现代对应名称
+6. 直接输出翻译结果，不要添加任何解释或说明
+
+示例：
+原文：初命晋大夫魏斯、赵籍、韩虔为诸侯。
+译文：起初任命晋国大夫魏斯、赵籍、韩虔为诸侯。`;
+
+/**
+ * 翻译单个段落
+ */
+async function translateParagraph(original: string): Promise<string> {
+  const messages = [
+    { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
+    { role: 'user', content: `请翻译以下文言文：\n\n${original}` },
+  ];
 
   try {
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+    const response = await llmClient.invoke(messages, {
+      model: 'doubao-seed-1-6-251015',
       temperature: 0.3,
-      max_tokens: 2000,
     });
 
-    return response.choices[0]?.message?.content || '';
+    return response.content.trim();
   } catch (error) {
     console.error('翻译失败:', error);
     throw error;
@@ -53,60 +54,115 @@ async function translateToModern(text: string, context: string = ''): Promise<st
 }
 
 /**
- * 获取所有需要翻译的卷
+ * 翻译指定卷号范围
  */
-async function getVolumesNeedingTranslation() {
-  const result = await pool.query(`
-    SELECT id, volume_number, title, original_text 
-    FROM volumes 
-    WHERE modern_translation IS NULL OR modern_translation = ''
-    ORDER BY volume_number
-  `);
-  return result.rows;
-}
+async function translateVolumes(startVolume: number, endVolume: number) {
+  console.log(`开始翻译第 ${startVolume}-${endVolume} 卷...\n`);
+  console.log(`开始时间: ${new Date().toLocaleString()}\n`);
 
-/**
- * 更新卷的翻译
- */
-async function updateTranslation(id: number, translation: string) {
-  await pool.query(
-    'UPDATE volumes SET modern_translation = $1, updated_at = NOW() WHERE id = $2',
-    [translation, id]
-  );
-}
+  let totalTranslated = 0;
+  let totalSkipped = 0;
+  let totalFailed = 0;
 
-async function main() {
-  try {
-    console.log('开始批量翻译...');
+  for (let volume = startVolume; volume <= endVolume; volume++) {
+    console.log(`\n========== 处理第 ${volume} 卷 ==========\n`);
+
+    // 获取该卷所有段落
+    const result = await pool.query(
+      `SELECT id, content, translation 
+       FROM zizhitongjian_paragraphs 
+       WHERE volume_number = $1 
+       ORDER BY id`,
+      [volume]
+    );
+
+    const paragraphs = result.rows;
     
-    const volumes = await getVolumesNeedingTranslation();
-    console.log(`找到 ${volumes.length} 卷需要翻译`);
+    if (paragraphs.length === 0) {
+      console.log(`第 ${volume} 卷没有数据，跳过\n`);
+      continue;
+    }
 
-    for (const volume of volumes) {
-      console.log(`正在翻译: 卷${volume.volume_number} - ${volume.title}`);
-      
+    console.log(`第 ${volume} 卷共 ${paragraphs.length} 个段落\n`);
+
+    let volumeTranslated = 0;
+    let volumeSkipped = 0;
+    let volumeFailed = 0;
+
+    for (let i = 0; i < paragraphs.length; i++) {
+      const p = paragraphs[i];
+
+      // 如果已有翻译，跳过
+      if (p.translation && p.translation.trim().length > 0) {
+        volumeSkipped++;
+        continue;
+      }
+
+      // 跳过空内容
+      if (!p.content || p.content.trim().length === 0) {
+        volumeSkipped++;
+        continue;
+      }
+
       try {
-        const translation = await translateToModern(
-          volume.original_text,
-          `《资治通鉴》卷${volume.volume_number}：${volume.title}`
+        const translation = await translateParagraph(p.content);
+
+        // 更新数据库
+        await pool.query(
+          'UPDATE zizhitongjian_paragraphs SET translation = $1 WHERE id = $2',
+          [translation, p.id]
         );
-        
-        await updateTranslation(volume.id, translation);
-        console.log(`✓ 完成: 卷${volume.volume_number}`);
-        
-        // 避免 API 限流
-        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        volumeTranslated++;
+        totalTranslated++;
+
+        // 每10个段落输出一次进度
+        if (volumeTranslated % 10 === 0) {
+          console.log(`[卷${volume}] 已翻译 ${volumeTranslated}/${paragraphs.length - volumeSkipped} 个段落`);
+        }
+
+        // 添加延迟，避免请求过快
+        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
-        console.error(`✗ 失败: 卷${volume.volume_number}`, error);
+        console.error(`[卷${volume}] 段落 ${p.id} 翻译失败:`, error);
+        volumeFailed++;
+        totalFailed++;
       }
     }
 
-    console.log('批量翻译完成！');
-  } catch (error) {
-    console.error('执行出错:', error);
-  } finally {
-    await pool.end();
+    console.log(`\n第 ${volume} 卷完成: 翻译 ${volumeTranslated}, 跳过 ${volumeSkipped}, 失败 ${volumeFailed}`);
   }
+
+  console.log('\n========== 全部翻译完成 ==========');
+  console.log(`结束时间: ${new Date().toLocaleString()}`);
+  console.log(`总计翻译: ${totalTranslated}`);
+  console.log(`总计跳过: ${totalSkipped}`);
+  console.log(`总计失败: ${totalFailed}`);
+
+  await pool.end();
 }
 
-main();
+/**
+ * 主函数
+ */
+async function main() {
+  const args = process.argv.slice(2);
+  
+  if (args.length < 2) {
+    console.log('使用方法: npx tsx scripts/translate_volumes.ts <开始卷号> <结束卷号>');
+    console.log('示例: npx tsx scripts/translate_volumes.ts 3 100');
+    process.exit(1);
+  }
+
+  const startVolume = parseInt(args[0], 10);
+  const endVolume = parseInt(args[1], 10);
+
+  if (isNaN(startVolume) || isNaN(endVolume) || startVolume < 1 || endVolume < startVolume) {
+    console.error('无效的卷号范围');
+    process.exit(1);
+  }
+
+  await translateVolumes(startVolume, endVolume);
+}
+
+main().catch(console.error);

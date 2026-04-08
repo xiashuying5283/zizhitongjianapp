@@ -1,29 +1,13 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
-import { createNotification } from './notifications';
+import { getSupabaseClient } from '../storage/database/supabase-client';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = Router();
 
-// 辅助：将评论行附加 user 信息
-function commentRowToObject(row: any) {
-  return {
-    id: row.id,
-    content: row.content,
-    like_count: row.like_count,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    parent_id: row.parent_id,
-    user: row.user_id_col ? {
-      id: row.user_id_col,
-      username: row.username,
-      nickname: row.nickname,
-    } : null,
-  };
-}
-
 /**
- * GET /api/v1/comments/post/:postId
+ * 服务端文件：server/src/routes/comments.ts
+ * 接口：GET /api/v1/comments/post/:postId
+ * Path 参数：postId: number
+ * Query 参数：page?: number, limit?: number
  */
 router.get('/post/:postId', async (req, res) => {
   try {
@@ -33,156 +17,193 @@ router.get('/post/:postId', async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 50));
     const offset = (pageNum - 1) * limitNum;
 
-    // 获取总数
-    const countResult = await pool.query(
-      'SELECT COUNT(*) FROM comments WHERE post_id = $1',
-      [parseInt(postId)]
-    );
-    const total = parseInt(countResult.rows[0].count);
+    const supabase = getSupabaseClient();
 
-    // 获取顶级评论
-    const result = await pool.query(
-      `SELECT c.id, c.content, c.like_count, c.created_at, c.updated_at, c.parent_id, c.user_id,
-              u.id as user_id_col, u.username, u.nickname
-       FROM comments c
-       LEFT JOIN users u ON c.user_id = u.id
-       WHERE c.post_id = $1 AND c.parent_id IS NULL
-       ORDER BY c.created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [parseInt(postId), limitNum, offset]
-    );
+    // 获取评论列表（只获取顶级评论，不获取回复）
+    const { data: comments, error } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        content,
+        like_count,
+        created_at,
+        updated_at,
+        parent_id,
+        user:users(id, username, nickname)
+      `)
+      .eq('post_id', parseInt(postId))
+      .is('parent_id', null)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limitNum - 1);
 
-    const comments = result.rows.map(commentRowToObject);
+    if (error) {
+      console.error('获取评论列表失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '获取评论列表失败',
+      });
+    }
 
     // 获取每个顶级评论的回复
     const commentsWithReplies = await Promise.all(
-      comments.map(async (comment) => {
-        const repliesResult = await pool.query(
-          `SELECT c.id, c.content, c.like_count, c.created_at, c.updated_at, c.parent_id, c.user_id,
-                  u.id as user_id_col, u.username, u.nickname
-           FROM comments c
-           LEFT JOIN users u ON c.user_id = u.id
-           WHERE c.parent_id = $1
-           ORDER BY c.created_at ASC`,
-          [comment.id]
-        );
+      (comments || []).map(async (comment) => {
+        const { data: replies } = await supabase
+          .from('comments')
+          .select(`
+            id,
+            content,
+            like_count,
+            created_at,
+            updated_at,
+            parent_id,
+            user:users(id, username, nickname)
+          `)
+          .eq('parent_id', comment.id)
+          .order('created_at', { ascending: true });
 
         return {
           ...comment,
-          replies: repliesResult.rows.map(commentRowToObject),
+          replies: replies || [],
         };
       })
     );
+
+    // 获取总数
+    const { count } = await supabase
+      .from('comments')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_id', parseInt(postId));
 
     res.json({
       success: true,
       data: {
         comments: commentsWithReplies,
-        total,
+        total: count || 0,
         page: pageNum,
         limit: limitNum,
       },
     });
   } catch (error) {
     console.error('获取评论列表失败:', error);
-    res.status(500).json({ success: false, message: '获取评论列表失败' });
+    res.status(500).json({
+      success: false,
+      message: '获取评论列表失败',
+    });
   }
 });
 
 /**
- * POST /api/v1/comments
+ * 服务端文件：server/src/routes/comments.ts
+ * 接口：POST /api/v1/comments
+ * Body 参数：postId: number, content: string, parentId?: number, userId: number
  */
 router.post('/', async (req, res) => {
   try {
     const { postId, content, parentId, userId } = req.body;
 
     if (!content || !content.trim()) {
-      return res.status(400).json({ success: false, message: '评论内容不能为空' });
+      return res.status(400).json({
+        success: false,
+        message: '评论内容不能为空',
+      });
     }
+
     if (!postId || !userId) {
-      return res.status(400).json({ success: false, message: '参数错误' });
+      return res.status(400).json({
+        success: false,
+        message: '参数错误',
+      });
     }
 
-    // 检查帖子是否存在，同时获取帖子作者
-    const postResult = await pool.query('SELECT id, user_id FROM posts WHERE id = $1', [postId]);
-    if (postResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '帖子不存在' });
-    }
-    const postAuthorId = postResult.rows[0].user_id;
+    const supabase = getSupabaseClient();
 
-    // 如果有父评论，检查是否存在并获取父评论作者
-    let parentCommentAuthorId: number | null = null;
+    // 检查帖子是否存在
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('id', postId)
+      .single();
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: '帖子不存在',
+      });
+    }
+
+    // 如果有父评论，检查父评论是否存在
     if (parentId) {
-      const parentResult = await pool.query('SELECT id, user_id FROM comments WHERE id = $1', [parentId]);
-      if (parentResult.rows.length === 0) {
-        return res.status(404).json({ success: false, message: '回复的评论不存在' });
+      const { data: parentComment } = await supabase
+        .from('comments')
+        .select('id')
+        .eq('id', parentId)
+        .single();
+
+      if (!parentComment) {
+        return res.status(404).json({
+          success: false,
+          message: '回复的评论不存在',
+        });
       }
-      parentCommentAuthorId = parentResult.rows[0].user_id;
     }
 
     // 创建评论
-    const result = await pool.query(
-      `INSERT INTO comments (post_id, content, parent_id, user_id)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, content, like_count, created_at, parent_id, user_id`,
-      [postId, content.trim(), parentId || null, userId]
-    );
+    const { data: comment, error } = await supabase
+      .from('comments')
+      .insert({
+        post_id: postId,
+        content: content.trim(),
+        parent_id: parentId || null,
+        user_id: userId,
+      })
+      .select(`
+        id,
+        content,
+        like_count,
+        created_at,
+        parent_id,
+        user:users(id, username, nickname)
+      `)
+      .single();
 
-    const commentRow = result.rows[0];
-    const userResult = await pool.query('SELECT id, username, nickname FROM users WHERE id = $1', [userId]);
-
-    const comment = {
-      id: commentRow.id,
-      content: commentRow.content,
-      like_count: commentRow.like_count,
-      created_at: commentRow.created_at,
-      parent_id: commentRow.parent_id,
-      user: userResult.rows[0] ? {
-        id: userResult.rows[0].id,
-        username: userResult.rows[0].username,
-        nickname: userResult.rows[0].nickname,
-      } : null,
-    };
-
-    // 更新帖子评论数
-    await pool.query(
-      'UPDATE posts SET comment_count = comment_count + 1 WHERE id = $1',
-      [postId]
-    );
-
-    // 创建通知
-    if (parentId && parentCommentAuthorId) {
-      // 回复评论：通知被回复的评论作者
-      await createNotification({
-        userId: parentCommentAuthorId,
-        type: 'comment_reply',
-        fromUserId: userId,
-        postId: postId,
-        commentId: commentRow.id,
-        content: content.trim().substring(0, 100),
-      });
-    } else if (postAuthorId && postAuthorId !== userId) {
-      // 评论帖子：通知帖子作者
-      await createNotification({
-        userId: postAuthorId,
-        type: 'post_comment',
-        fromUserId: userId,
-        postId: postId,
-        commentId: commentRow.id,
-        content: content.trim().substring(0, 100),
+    if (error) {
+      console.error('创建评论失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '创建评论失败',
       });
     }
 
-    res.json({ success: true, data: comment });
+    // 更新帖子评论数
+    const { data: postUpdate } = await supabase
+      .from('posts')
+      .select('comment_count')
+      .eq('id', postId)
+      .single();
+
+    await supabase
+      .from('posts')
+      .update({ comment_count: (postUpdate?.comment_count || 0) + 1 })
+      .eq('id', postId);
+
+    res.json({
+      success: true,
+      data: comment,
+    });
   } catch (error) {
     console.error('创建评论失败:', error);
-    res.status(500).json({ success: false, message: '创建评论失败' });
+    res.status(500).json({
+      success: false,
+      message: '创建评论失败',
+    });
   }
 });
 
 /**
- * DELETE /api/v1/comments/:id
- * 评论作者或帖子作者都可以删除评论
+ * 服务端文件：server/src/routes/comments.ts
+ * 接口：DELETE /api/v1/comments/:id
+ * Path 参数：id: number
+ * Body 参数：userId: number
  */
 router.delete('/:id', async (req, res) => {
   try {
@@ -190,44 +211,79 @@ router.delete('/:id', async (req, res) => {
     const { userId } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: '请先登录' });
+      return res.status(401).json({
+        success: false,
+        message: '请先登录',
+      });
     }
 
-    // 检查评论是否存在
-    const existResult = await pool.query(
-      'SELECT c.user_id, c.post_id, p.user_id as post_user_id FROM comments c JOIN posts p ON c.post_id = p.id WHERE c.id = $1',
-      [parseInt(id)]
-    );
+    const supabase = getSupabaseClient();
 
-    if (existResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '评论不存在' });
+    // 检查评论是否存在且属于当前用户
+    const { data: existingComment } = await supabase
+      .from('comments')
+      .select('user_id, post_id')
+      .eq('id', parseInt(id))
+      .single();
+
+    if (!existingComment) {
+      return res.status(404).json({
+        success: false,
+        message: '评论不存在',
+      });
     }
 
-    const { user_id: commentUserId, post_id: postId, post_user_id: postUserId } = existResult.rows[0];
-
-    // 评论作者或帖子作者可以删除
-    if (commentUserId !== userId && postUserId !== userId) {
-      return res.status(403).json({ success: false, message: '无权删除此评论' });
+    if (existingComment.user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: '无权删除此评论',
+      });
     }
 
-    // 删除评论
-    await pool.query('DELETE FROM comments WHERE id = $1', [parseInt(id)]);
+    // 删除评论（级联删除子评论）
+    const { error } = await supabase
+      .from('comments')
+      .delete()
+      .eq('id', parseInt(id));
+
+    if (error) {
+      console.error('删除评论失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '删除评论失败',
+      });
+    }
 
     // 更新帖子评论数
-    await pool.query(
-      'UPDATE posts SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = $1',
-      [postId]
-    );
+    const { data: postUpdate } = await supabase
+      .from('posts')
+      .select('comment_count')
+      .eq('id', existingComment.post_id)
+      .single();
 
-    res.json({ success: true, message: '删除成功' });
+    await supabase
+      .from('posts')
+      .update({ comment_count: Math.max(0, (postUpdate?.comment_count || 1) - 1) })
+      .eq('id', existingComment.post_id);
+
+    res.json({
+      success: true,
+      message: '删除成功',
+    });
   } catch (error) {
     console.error('删除评论失败:', error);
-    res.status(500).json({ success: false, message: '删除评论失败' });
+    res.status(500).json({
+      success: false,
+      message: '删除评论失败',
+    });
   }
 });
 
 /**
- * POST /api/v1/comments/:id/like
+ * 服务端文件：server/src/routes/comments.ts
+ * 接口：POST /api/v1/comments/:id/like
+ * Path 参数：id: number
+ * Body 参数：userId: number
  */
 router.post('/:id/like', async (req, res) => {
   try {
@@ -235,42 +291,74 @@ router.post('/:id/like', async (req, res) => {
     const { userId } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: '请先登录' });
+      return res.status(401).json({
+        success: false,
+        message: '请先登录',
+      });
     }
 
-    const commentId = parseInt(id);
+    const supabase = getSupabaseClient();
 
     // 检查是否已点赞
-    const existingResult = await pool.query(
-      'SELECT id FROM comment_likes WHERE comment_id = $1 AND user_id = $2',
-      [commentId, userId]
-    );
+    const { data: existingLike } = await supabase
+      .from('comment_likes')
+      .select('id')
+      .eq('comment_id', parseInt(id))
+      .eq('user_id', userId)
+      .single();
 
-    if (existingResult.rows.length > 0) {
+    if (existingLike) {
       // 取消点赞
-      await pool.query('DELETE FROM comment_likes WHERE id = $1', [existingResult.rows[0].id]);
-      await pool.query(
-        'UPDATE comments SET like_count = GREATEST(like_count - 1, 0) WHERE id = $1',
-        [commentId]
-      );
+      await supabase
+        .from('comment_likes')
+        .delete()
+        .eq('id', existingLike.id);
 
-      res.json({ success: true, data: { liked: false } });
+      // 减少点赞数
+      const { data: comment } = await supabase
+        .from('comments')
+        .select('like_count')
+        .eq('id', parseInt(id))
+        .single();
+
+      await supabase
+        .from('comments')
+        .update({ like_count: Math.max(0, (comment?.like_count || 1) - 1) })
+        .eq('id', parseInt(id));
+
+      res.json({
+        success: true,
+        data: { liked: false },
+      });
     } else {
       // 添加点赞
-      await pool.query(
-        'INSERT INTO comment_likes (comment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [commentId, userId]
-      );
-      await pool.query(
-        'UPDATE comments SET like_count = like_count + 1 WHERE id = $1',
-        [commentId]
-      );
+      await supabase
+        .from('comment_likes')
+        .insert({ comment_id: parseInt(id), user_id: userId });
 
-      res.json({ success: true, data: { liked: true } });
+      // 增加点赞数
+      const { data: comment } = await supabase
+        .from('comments')
+        .select('like_count')
+        .eq('id', parseInt(id))
+        .single();
+
+      await supabase
+        .from('comments')
+        .update({ like_count: (comment?.like_count || 0) + 1 })
+        .eq('id', parseInt(id));
+
+      res.json({
+        success: true,
+        data: { liked: true },
+      });
     }
   } catch (error) {
     console.error('点赞操作失败:', error);
-    res.status(500).json({ success: false, message: '点赞操作失败' });
+    res.status(500).json({
+      success: false,
+      message: '点赞操作失败',
+    });
   }
 });
 

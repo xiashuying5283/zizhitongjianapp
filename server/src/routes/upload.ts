@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import fs from 'fs';
-import path from 'path';
+import { S3Storage } from 'coze-coding-dev-sdk';
 
 const router = Router();
 
@@ -11,11 +10,14 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 限制 5MB
 });
 
-// 本地上传目录
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
+// 初始化 S3Storage
+const storage = new S3Storage({
+  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+  accessKey: '',
+  secretKey: '',
+  bucketName: process.env.COZE_BUCKET_NAME,
+  region: 'cn-beijing',
+});
 
 /**
  * 服务端文件：server/src/routes/upload.ts
@@ -54,63 +56,32 @@ router.post('/avatar', upload.single('file'), async (req, res) => {
     const ext = file.originalname.split('.').pop() || 'jpg';
     const fileName = `avatars/${userId}/${Date.now()}.${ext}`;
 
-    // 本地文件存储
-    const localPath = path.join(UPLOAD_DIR, fileName);
-    const dir = path.dirname(localPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(localPath, file.buffer);
+    // 使用 S3Storage 上传文件
+    const fileKey = await storage.uploadFile({
+      fileContent: file.buffer,
+      fileName,
+      contentType: file.mimetype,
+    });
 
-    res.json({ success: true, data: { url: `/uploads/${fileName}`, key: fileName } });
+    // 生成签名 URL（有效期 30 天）
+    const avatarUrl = await storage.generatePresignedUrl({
+      key: fileKey,
+      expireTime: 2592000, // 30 天
+    });
+
+    res.json({
+      success: true,
+      data: {
+        url: avatarUrl,
+        key: fileKey,
+      },
+    });
   } catch (error) {
     console.error('Upload avatar error:', error);
-    res.status(500).json({ success: false, message: '上传失败' });
-  }
-});
-
-/**
- * POST /api/v1/upload/image
- * 通用图片上传（用于帖子、评论）
- */
-router.post('/image', upload.single('file'), async (req, res) => {
-  try {
-    const { userId } = req.body;
-    const file = req.file;
-
-    if (!file) {
-      return res.status(400).json({ success: false, message: '未上传文件' });
-    }
-
-    if (!userId) {
-      return res.status(400).json({ success: false, message: '缺少用户ID' });
-    }
-
-    // 验证文件类型
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(file.mimetype || '')) {
-      return res.status(400).json({
-        success: false,
-        message: '不支持的文件类型，仅支持 jpg/png/gif/webp',
-      });
-    }
-
-    // 生成文件名
-    const ext = file.originalname.split('.').pop() || 'jpg';
-    const fileName = `community/${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-
-    // 本地文件存储
-    const localPath = path.join(UPLOAD_DIR, fileName);
-    const dir = path.dirname(localPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(localPath, file.buffer);
-
-    res.json({ success: true, data: { url: `/uploads/${fileName}` } });
-  } catch (error) {
-    console.error('Upload image error:', error);
-    res.status(500).json({ success: false, message: '上传失败' });
+    res.status(500).json({
+      success: false,
+      message: '上传失败',
+    });
   }
 });
 

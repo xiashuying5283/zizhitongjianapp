@@ -47,21 +47,6 @@ export const createStyles = (theme: Theme): any => {
       justifyContent: 'center',
       alignItems: 'center',
     },
-    // ==================== Edge Tap Areas (Horizontal Mode) ====================
-    edgeTapLeft: {
-      position: 'absolute',
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: 60,
-    },
-    edgeTapRight: {
-      position: 'absolute',
-      right: 0,
-      top: 0,
-      bottom: 0,
-      width: 60,
-    },
     // ==================== TTS Control Bar ====================
     ttsControlBar: {
       position: 'absolute',
@@ -197,7 +182,7 @@ export const createStyles = (theme: Theme): any => {
       bottom: 0,
       left: 0,
       right: 0,
-      maxHeight: '55%',
+      maxHeight: '60%',
       borderTopLeftRadius: BorderRadius.xl,
       borderTopRightRadius: BorderRadius.xl,
       shadowColor: '#000',
@@ -205,9 +190,6 @@ export const createStyles = (theme: Theme): any => {
       shadowOpacity: 0.15,
       shadowRadius: 12,
       elevation: 20,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderBottomWidth: 0,
-      borderColor: theme.border,
     },
     panelHeader: {
       flexDirection: 'row',
@@ -221,10 +203,7 @@ export const createStyles = (theme: Theme): any => {
     panelContent: {
       paddingHorizontal: Spacing["2xl"],
       paddingVertical: Spacing.lg,
-      maxHeight: 350,
-    },
-    panelScrollContent: {
-      paddingBottom: Spacing["3xl"],
+      maxHeight: 450,
     },
     // ==================== Catalog ====================
     emperorGroup: {
@@ -255,17 +234,6 @@ export const createStyles = (theme: Theme): any => {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.borderLight,
     },
-    yearItemVertical: {
-      flexDirection: 'row',
-      justifyContent: 'flex-start',
-      alignItems: 'flex-start',
-      gap: Spacing.sm,
-    },
-    yearItemVerticalContent: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: Spacing.xs,
-    },
     // ==================== Font Size ====================
     fontSizeList: {
       flexDirection: 'row',
@@ -284,19 +252,6 @@ export const createStyles = (theme: Theme): any => {
     },
     fontSizeName: {
       fontSize: 12,
-    },
-    fontFamilyList: {
-      gap: Spacing.sm,
-    },
-    fontFamilyItem: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: Spacing.md,
-      paddingHorizontal: Spacing.lg,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
-      backgroundColor: theme.backgroundTertiary,
     },
     // ==================== Background ====================
     backgroundList: {
@@ -454,10 +409,6 @@ export const createStyles = (theme: Theme): any => {
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
     },
-    closeButton: {
-      padding: Spacing.sm,
-      marginRight: -Spacing.sm,
-    },
     modalBody: {
       paddingHorizontal: Spacing.xl,
       paddingVertical: Spacing.lg,
@@ -495,214 +446,6 @@ export const createStyles = (theme: Theme): any => {
     },
     submitButton: {
       // backgroundColor is set dynamically
-    },
-    // ==================== Text Selection Menu ====================
-    selectionOverlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'transparent',
-      zIndex: 999,
-    },
-    selectionMenu: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: Spacing.xs,
-      backgroundColor: '#333333',
-      paddingVertical: Spacing.lg,
-      paddingBottom: Spacing['2xl'],
-      zIndex: 1000,
-    },
-    selectionMenuItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.xs,
-      paddingHorizontal: Spacing.xl,
-      paddingVertical: Spacing.md,
-      borderRadius: BorderRadius.md,
-    },
-    // ==================== Mark Menu ====================
-    markMenu: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      borderTopLeftRadius: BorderRadius.xl,
-      borderTopRightRadius: BorderRadius.xl,
-      paddingVertical: Spacing.lg,
-      paddingBottom: Spacing['2xl'],
-      zIndex: 1000,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-      elevation: 20,
-    },
-    markSectionLabel: {
-      paddingHorizontal: Spacing.xl,
-      marginBottom: Spacing.sm,
-    },
-    markTypeRow: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: Spacing.xl,
-      paddingHorizontal: Spacing.xl,
-    },
-    markTypeItem: {
-      alignItems: 'center',
-      gap: Spacing.xs,
-      paddingHorizontal: Spacing.md,
-      paddingVertical: Spacing.sm,
-      borderRadius: BorderRadius.md,
-    },
-    markTypeIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: BorderRadius.lg,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    markDivider: {
-      height: 1,
-      marginHorizontal: Spacing.xl,
-      marginVertical: Spacing.lg,
-    },
-    markColorRow: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: Spacing.md,
-      paddingHorizontal: Spacing.xl,
-    },
-    markColorItem: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      borderWidth: 2,
-      borderColor: 'rgba(0,0,0,0.1)',
-    },
-    markActionRow: {
-      flexDirection: 'row',
-      gap: Spacing.md,
-      paddingHorizontal: Spacing.xl,
-    },
-    markActionButton: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      paddingVertical: Spacing.lg,
-      borderRadius: BorderRadius.md,
-    },
-    addNoteButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.sm,
-      marginHorizontal: Spacing.xl,
-      paddingVertical: Spacing.lg,
-      borderRadius: BorderRadius.md,
-    },
-    markCancelButton: {
-      alignItems: 'center',
-      paddingVertical: Spacing.md,
-      marginTop: Spacing.sm,
-    },
-    // ==================== Note Modal ====================
-    noteModalContent: {
-      borderTopLeftRadius: BorderRadius.xl,
-      borderTopRightRadius: BorderRadius.xl,
-      paddingBottom: Spacing["3xl"],
-    },
-    selectedTextContainer: {
-      marginHorizontal: Spacing.xl,
-      marginTop: Spacing.lg,
-      padding: Spacing.lg,
-      borderRadius: BorderRadius.md,
-    },
-    selectedText: {
-      marginTop: Spacing.xs,
-      lineHeight: 22,
-    },
-    // ==================== Note Detail Modal ====================
-    noteDetailModal: {
-      borderTopLeftRadius: BorderRadius.xl,
-      borderTopRightRadius: BorderRadius.xl,
-      maxHeight: '60%',
-    },
-    noteDetailModalEditing: {
-      maxHeight: '80%',
-    },
-    noteDetailScrollContent: {
-      flexGrow: 1,
-    },
-    highlightedTextCompact: {
-      marginHorizontal: Spacing.xl,
-      marginTop: Spacing.md,
-      padding: Spacing.md,
-      borderRadius: BorderRadius.md,
-      borderLeftWidth: 3,
-      borderLeftColor: '#eab308',
-    },
-    textAreaLarge: {
-      minHeight: 150,
-      paddingTop: Spacing.md,
-    },
-    modalFooterFixed: {
-      paddingHorizontal: Spacing.xl,
-      paddingVertical: Spacing.lg,
-      paddingBottom: Spacing["2xl"],
-      borderTopWidth: 1,
-      borderTopColor: theme.border,
-    },
-    modalFooterButtons: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-      gap: Spacing.md,
-    },
-    deleteButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    noteContentBox: {
-      padding: Spacing.lg,
-      borderRadius: BorderRadius.md,
-      marginTop: Spacing.sm,
-    },
-    // ==================== Edit Note Styles ====================
-    editMarkTypeRow: {
-      flexDirection: 'row',
-      gap: Spacing.md,
-    },
-    editMarkTypeItem: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      paddingVertical: Spacing.md,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    editColorRow: {
-      flexDirection: 'row',
-      gap: Spacing.sm,
-    },
-    editColorItem: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      borderWidth: 2,
-      borderColor: 'transparent',
     },
   });
 };

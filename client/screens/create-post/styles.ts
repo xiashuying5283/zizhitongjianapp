@@ -82,45 +82,5 @@ export const createStyles = (theme: Theme) => {
       minHeight: 200,
       color: theme.textPrimary,
     },
-    imageGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: Spacing.sm,
-      marginBottom: Spacing.md,
-    },
-    imageWrapper: {
-      width: 80,
-      height: 80,
-      position: 'relative',
-    },
-    previewImage: {
-      width: 80,
-      height: 80,
-      borderRadius: BorderRadius.md,
-    },
-    removeImageButton: {
-      position: 'absolute',
-      top: -6,
-      right: -6,
-      width: 20,
-      height: 20,
-      borderRadius: 10,
-      backgroundColor: theme.error,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    imageButtons: {
-      flexDirection: 'row',
-      gap: Spacing.md,
-    },
-    imageButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.xs,
-      paddingHorizontal: Spacing.lg,
-      paddingVertical: Spacing.md,
-      backgroundColor: theme.backgroundTertiary,
-      borderRadius: BorderRadius.lg,
-    },
   });
 };

@@ -1,4 +1,4 @@
-import { pgTable, serial, bigSerial, timestamp, foreignKey, integer, smallint, numeric, text, varchar, unique, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core"
+import { pgTable, serial, timestamp, foreignKey, integer, text, varchar, unique, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -64,33 +64,6 @@ export const readingProgress = pgTable("reading_progress", {
 			foreignColumns: [users.id],
 			name: "reading_progress_user_id_fkey"
 		}),
-]);
-
-export const userReadProgress = pgTable("user_read_progress", {
-	id: bigSerial("id", { mode: "number" }).primaryKey(),
-	userId: integer("user_id").notNull(),
-	volumeId: integer("volume_id").notNull(),
-	yearId: integer("year_id").notNull().default(0),
-	itemId: integer("item_id").notNull().default(0),
-	paraId: integer("para_id").notNull().default(0),
-	charIndex: integer("char_index").notNull().default(0),
-	contentType: smallint("content_type").notNull().default(0),
-	updateTime: timestamp("update_time", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-	readPercent: numeric("read_percent", { precision: 5, scale: 2 }).notNull().default("0.00"),
-}, (table) => [
-	unique("uk_urp_user_volume").on(table.userId, table.volumeId),
-	index("idx_urp_update_time").using("btree", table.updateTime),
-	index("idx_urp_para").using("btree", table.paraId),
-	foreignKey({
-		columns: [table.userId],
-		foreignColumns: [users.id],
-		name: "fk_urp_user",
-	}).onDelete("cascade"),
-	foreignKey({
-		columns: [table.volumeId],
-		foreignColumns: [zizhitongjianVolumes.id],
-		name: "fk_urp_volume",
-	}).onDelete("cascade"),
 ]);
 
 export const users = pgTable("users", {
@@ -235,4 +208,35 @@ export const huNotes = pgTable("hu_notes", {
 			foreignColumns: [yearEntries.id],
 			name: "hu_notes_year_entry_id_fkey"
 		}).onDelete("cascade"),
+]);
+
+// 百科：人物表
+export const characters = pgTable("characters", {
+	id: serial().primaryKey().notNull(),
+	name: varchar("name", { length: 100 }).notNull(),
+	displayName: varchar("display_name", { length: 100 }),
+	dynasty: varchar("dynasty", { length: 50 }),
+	title: varchar("title", { length: 100 }),
+	description: text().notNull(),
+	aliases: jsonb("aliases").default([]), // 别名数组
+	birthYear: integer("birth_year"),
+	deathYear: integer("death_year"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+	unique("characters_name_key").on(table.name),
+	index("idx_characters_dynasty").using("btree", table.dynasty.asc().nullsLast().op("varchar_ops")),
+]);
+
+// 百科：官职表
+export const titles = pgTable("titles", {
+	id: serial().primaryKey().notNull(),
+	name: varchar("name", { length: 100 }).notNull(),
+	displayName: varchar("display_name", { length: 100 }),
+	description: text().notNull(),
+	dynasty: varchar("dynasty", { length: 50 }),
+	aliases: jsonb("aliases").default([]), // 别名数组
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+	unique("titles_name_key").on(table.name),
+	index("idx_titles_dynasty").using("btree", table.dynasty.asc().nullsLast().op("varchar_ops")),
 ]);

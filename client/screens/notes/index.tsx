@@ -9,7 +9,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
-import { getUserIdentity } from '@/utils/notes';
+import { getDeviceId } from '@/utils/deviceId';
 
 interface Note {
   id: number;
@@ -20,7 +20,6 @@ interface Note {
   highlightedText: string;
   noteContent: string | null;
   color: string;
-  markType: 'background' | 'underline' | 'wavy';
   createdAt: string;
   updatedAt: string;
   volumeInfo: {
@@ -50,16 +49,10 @@ export default function NotesScreen() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const identity = await getUserIdentity();
-      const queryParams = new URLSearchParams({ limit: '100' });
-      if (identity.userId) {
-        queryParams.append('userId', identity.userId.toString());
-      } else if (identity.deviceId) {
-        queryParams.append('deviceId', identity.deviceId);
-      }
+      const deviceId = await getDeviceId();
 
       const res = await fetch(
-        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes/list?${queryParams.toString()}`
+        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes/list?deviceId=${deviceId}&limit=100`
       );
 
       if (res.ok) {
@@ -104,16 +97,9 @@ export default function NotesScreen() {
           text: '删除',
           style: 'destructive',
           onPress: async () => {
-            const identity = await getUserIdentity();
-            const queryParams = new URLSearchParams();
-            if (identity.userId) {
-              queryParams.append('userId', identity.userId.toString());
-            } else if (identity.deviceId) {
-              queryParams.append('deviceId', identity.deviceId);
-            }
-
+            const deviceId = await getDeviceId();
             const res = await fetch(
-              `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes/${note.id}?${queryParams.toString()}`,
+              `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes/${note.id}?deviceId=${deviceId}`,
               { method: 'DELETE' }
             );
 
@@ -144,7 +130,7 @@ export default function NotesScreen() {
   }), [notes]);
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       {/* Header */}
       <ThemedView level="root" style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>

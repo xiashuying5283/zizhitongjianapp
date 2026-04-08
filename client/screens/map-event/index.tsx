@@ -247,7 +247,7 @@ export default function MapEventScreen() {
   };
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <ThemedView level="root" style={styles.header}>

@@ -49,73 +49,73 @@ export default function HistoricalMapsScreen() {
   };
 
   const renderSection = (section: MapSection) => (
-      <TouchableOpacity
-          key={section.id}
-          style={[styles.sectionCard, { borderColor: section.color }]}
-          onPress={() => handleSectionPress(section)}
-          activeOpacity={0.7}
-      >
-        <View style={[styles.iconContainer, { backgroundColor: `${section.color}15` }]}>
-          <FontAwesome6 name={section.icon as any} size={32} color={section.color} />
-        </View>
-        <View style={styles.contentContainer}>
-          <ThemedText variant="h3" color={theme.textPrimary} style={styles.sectionTitle}>
-            {section.title}
-          </ThemedText>
-          <ThemedText variant="body" color={theme.textSecondary} style={styles.sectionDescription}>
-            {section.description}
-          </ThemedText>
-          <View style={styles.footer}>
-            <View style={styles.countBadge}>
-              <ThemedText variant="caption" color={section.color}>
-                {section.count} 张地图
-              </ThemedText>
-            </View>
-            <FontAwesome6 name="arrow-right" size={16} color={section.color} />
+    <TouchableOpacity
+      key={section.id}
+      style={[styles.sectionCard, { borderColor: section.color }]}
+      onPress={() => handleSectionPress(section)}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.iconContainer, { backgroundColor: `${section.color}15` }]}>
+        <FontAwesome6 name={section.icon as any} size={32} color={section.color} />
+      </View>
+      <View style={styles.contentContainer}>
+        <ThemedText variant="h3" color={theme.textPrimary} style={styles.sectionTitle}>
+          {section.title}
+        </ThemedText>
+        <ThemedText variant="body" color={theme.textSecondary} style={styles.sectionDescription}>
+          {section.description}
+        </ThemedText>
+        <View style={styles.footer}>
+          <View style={styles.countBadge}>
+            <ThemedText variant="caption" color={section.color}>
+              {section.count} 张地图
+            </ThemedText>
           </View>
+          <FontAwesome6 name="arrow-right" size={16} color={section.color} />
         </View>
-      </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 
   return (
-      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Header */}
-          <ThemedView level="root" style={styles.header}>
-            <View style={styles.headerRow}>
-              <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                <FontAwesome6 name="arrow-left" size={20} color={theme.textPrimary} />
-              </TouchableOpacity>
-              <ThemedText variant="h2" color={theme.textPrimary}>
-                历史地图
-              </ThemedText>
-              <View style={styles.placeholder} />
-            </View>
-            <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
-              探索古代地理变迁
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
+        <ThemedView level="root" style={styles.header}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <FontAwesome6 name="arrow-left" size={20} color={theme.textPrimary} />
+            </TouchableOpacity>
+            <ThemedText variant="h2" color={theme.textPrimary}>
+              历史地图
             </ThemedText>
-          </ThemedView>
-
-          {/* Sections */}
-          <View style={styles.sectionsContainer}>
-            {sections.map(section => renderSection(section))}
+            <View style={styles.placeholder} />
           </View>
+          <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
+            探索古代地理变迁
+          </ThemedText>
+        </ThemedView>
 
-          {/* Info Card */}
-          <ThemedView level="default" style={styles.infoCard}>
-            <View style={styles.infoIconContainer}>
-              <FontAwesome6 name="circle-info" size={20} color={theme.primary} />
-            </View>
-            <View style={styles.infoContent}>
-              <ThemedText variant="smallMedium" color={theme.textPrimary} style={styles.infoTitle}>
-                使用说明
-              </ThemedText>
-              <ThemedText variant="caption" color={theme.textSecondary}>
-                点击上方板块查看不同类型的历史地图，支持缩放和拖动操作
-              </ThemedText>
-            </View>
-          </ThemedView>
-        </ScrollView>
-      </Screen>
+        {/* Sections */}
+        <View style={styles.sectionsContainer}>
+          {sections.map(section => renderSection(section))}
+        </View>
+
+        {/* Info Card */}
+        <ThemedView level="default" style={styles.infoCard}>
+          <View style={styles.infoIconContainer}>
+            <FontAwesome6 name="circle-info" size={20} color={theme.primary} />
+          </View>
+          <View style={styles.infoContent}>
+            <ThemedText variant="smallMedium" color={theme.textPrimary} style={styles.infoTitle}>
+              使用说明
+            </ThemedText>
+            <ThemedText variant="caption" color={theme.textSecondary}>
+              点击上方板块查看不同类型的历史地图，支持缩放和拖动操作
+            </ThemedText>
+          </View>
+        </ThemedView>
+      </ScrollView>
+    </Screen>
   );
 }

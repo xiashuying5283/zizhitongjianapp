@@ -1,17 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type ThemeMode = 'system' | 'light' | 'dark';
-export type ScriptMode = 'simplified' | 'traditional';
-export type ReadingMode = 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
-export type FontFamily = 'system' | 'serif' | 'kaiti' | 'lishu' | 'zhengkai';
+type ThemeMode = 'system' | 'light' | 'dark';
+type ScriptMode = 'simplified' | 'traditional';
+type ReadingMode = 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
 
 interface SettingsContextType {
   // 字体设置
   fontSize: number;
   setFontSize: (size: number) => void;
-  fontFamily: FontFamily;
-  setFontFamily: (family: FontFamily) => void;
   
   // 主题设置
   themeMode: ThemeMode;
@@ -30,7 +27,6 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 const STORAGE_KEYS = {
   FONT_SIZE: 'settings_font_size',
-  FONT_FAMILY: 'settings_font_family',
   THEME_MODE: 'settings_theme_mode',
   READING_MODE: 'settings_reading_mode',
   SCRIPT_MODE: 'settings_script_mode',
@@ -43,7 +39,6 @@ export const FONT_SIZE_DEFAULT = 18;
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [fontSize, setFontSizeState] = useState(FONT_SIZE_DEFAULT);
-  const [fontFamily, setFontFamilyState] = useState<FontFamily>('system');
   const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
   const [readingMode, setReadingModeState] = useState<ReadingMode>('original+annotation');
   const [scriptMode, setScriptModeState] = useState<ScriptMode>('simplified');
@@ -53,9 +48,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [savedFontSize, savedFontFamily, savedThemeMode, savedReadingMode, savedScriptMode] = await Promise.all([
+        const [savedFontSize, savedThemeMode, savedReadingMode, savedScriptMode] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.FONT_SIZE),
-          AsyncStorage.getItem(STORAGE_KEYS.FONT_FAMILY),
           AsyncStorage.getItem(STORAGE_KEYS.THEME_MODE),
           AsyncStorage.getItem(STORAGE_KEYS.READING_MODE),
           AsyncStorage.getItem(STORAGE_KEYS.SCRIPT_MODE),
@@ -63,9 +57,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
         if (savedFontSize) {
           setFontSizeState(Number(savedFontSize));
-        }
-        if (savedFontFamily) {
-          setFontFamilyState(savedFontFamily as FontFamily);
         }
         if (savedThemeMode) {
           setThemeModeState(savedThemeMode as ThemeMode);
@@ -93,15 +84,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem(STORAGE_KEYS.FONT_SIZE, String(clampedSize));
     } catch (error) {
       console.error('Failed to save font size:', error);
-    }
-  }, []);
-
-  const setFontFamily = useCallback(async (family: FontFamily) => {
-    setFontFamilyState(family);
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.FONT_FAMILY, family);
-    } catch (error) {
-      console.error('Failed to save font family:', error);
     }
   }, []);
 
@@ -142,8 +124,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       value={{
         fontSize,
         setFontSize,
-        fontFamily,
-        setFontFamily,
         themeMode,
         setThemeMode,
         readingMode,

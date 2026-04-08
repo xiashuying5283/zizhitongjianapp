@@ -14,21 +14,13 @@ export default function SettingsScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
-  const { fontSize, setFontSize, fontFamily, setFontFamily, themeMode, setThemeMode, readingMode, setReadingMode, scriptMode, setScriptMode } = useSettings();
+  const { fontSize, setFontSize, themeMode, setThemeMode, readingMode, setReadingMode, scriptMode, setScriptMode } = useSettings();
 
   const fontSizeOptions = [
     { label: '小', value: 14 },
     { label: '中', value: 18 },
     { label: '大', value: 22 },
     { label: '特大', value: 26 },
-  ];
-
-  const fontFamilyOptions = [
-    { label: '系统默认', value: 'system' as const, desc: '苹方/思源黑体' },
-    { label: '宋体', value: 'serif' as const, desc: '传统印刷风格' },
-    { label: '楷体', value: 'kaiti' as const, desc: '古典书法韵味' },
-    { label: '隶书', value: 'lishu' as const, desc: '典雅庄重风格' },
-    { label: '正楷', value: 'zhengkai' as const, desc: '规范楷书风格' },
   ];
 
   const themeOptions = [
@@ -51,7 +43,7 @@ export default function SettingsScreen() {
   ];
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <FontAwesome6 name="chevron-left" size={20} color={theme.textPrimary} />
@@ -103,35 +95,6 @@ export default function SettingsScreen() {
               <FontAwesome6 name="plus" size={20} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
-        </ThemedView>
-
-        {/* 字体风格 */}
-        <ThemedView level="root" style={styles.section}>
-          <ThemedText variant="title" color={theme.textPrimary} style={styles.sectionTitle}>
-            字体风格
-          </ThemedText>
-
-          {fontFamilyOptions.map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              style={styles.settingItem}
-              onPress={() => setFontFamily(option.value)}
-            >
-              <View style={styles.settingInfoWithDesc}>
-                <ThemedText variant="body" color={theme.textPrimary}>{option.label}</ThemedText>
-                <ThemedText variant="caption" color={theme.textMuted}>{option.desc}</ThemedText>
-              </View>
-              <View style={[
-                styles.radioButton,
-                { borderColor: fontFamily === option.value ? theme.primary : theme.border },
-                fontFamily === option.value && { backgroundColor: theme.primary }
-              ]}>
-                {fontFamily === option.value && (
-                  <FontAwesome6 name="check" size={12} color="#fff" />
-                )}
-              </View>
-            </TouchableOpacity>
-          ))}
         </ThemedView>
 
         {/* 主题设置 */}
@@ -242,7 +205,6 @@ export default function SettingsScreen() {
             style={styles.resetButton}
             onPress={() => {
               setFontSize(18);
-              setFontFamily('system');
               setThemeMode('system');
               setReadingMode('original+annotation');
               setScriptMode('simplified');

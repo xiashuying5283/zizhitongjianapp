@@ -1,9 +1,11 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getSupabaseClient } from '../storage/database/supabase-client';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = Router();
 
+/**
+ * 格式化年份范围（处理公元前年份）
+ */
 function formatYearRange(start: number | null, end: number | null): string {
   if (!start || !end) return '';
   const startStr = start < 0 ? `前${Math.abs(start)}` : `${start}`;
@@ -12,45 +14,73 @@ function formatYearRange(start: number | null, end: number | null): string {
 }
 
 /**
- * GET /api/v1/reading-progress/recent
- * 获取最近一条阅读记录
+ * 服务端文件：server/src/routes/reading-progress.ts
+ * 接口：GET /api/v1/reading-progress/recent
+ * Query 参数：userId?: number, deviceId?: string
+ * 优先使用userId，没有则使用deviceId
  */
 router.get('/recent', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId, deviceId } = req.query;
 
-    if (!userId) {
-      return res.json({ success: true, data: null });
+    if (!userId && !deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少用户ID或设备ID',
+      });
     }
 
-    const result = await pool.query(
-      `SELECT urp.id, urp.para_id, urp.read_percent, urp.update_time,
-              urp.char_index, urp.content_type,
-              zv.volume_number, zv.volume_name, zv.dynasty, zv.year_start, zv.year_end
-       FROM user_read_progress urp
-       JOIN zizhitongjian_volumes zv ON urp.volume_id = zv.id
-       WHERE urp.user_id = $1
-       ORDER BY urp.update_time DESC
-       LIMIT 1`,
-      [parseInt(userId as string)]
-    );
+    const supabase = getSupabaseClient();
 
-    const progress = result.rows[0];
+    let query = supabase
+      .from('reading_progress')
+      .select('*')
+      .order('last_read_at', { ascending: false })
+      .limit(1);
+
+    // 优先使用userId
+    if (userId) {
+      query = query.eq('user_id', parseInt(userId as string));
+    } else if (deviceId) {
+      query = query.eq('device_id', deviceId);
+    }
+
+    const { data: progress, error } = await query.single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('获取最近阅读失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '获取最近阅读失败',
+        error: error.message,
+      });
+    }
+
     if (!progress) {
-      return res.json({ success: true, data: null });
+      return res.json({
+        success: true,
+        data: null,
+      });
     }
+
+    // 获取对应的卷信息
+    const { data: volume } = await supabase
+      .from('zizhitongjian_volumes')
+      .select('*')
+      .eq('volume_number', progress.volume_number)
+      .single();
 
     res.json({
       success: true,
       data: {
         id: progress.id,
         volume: progress.volume_number,
-        name: progress.volume_name || '',
-        era: progress.dynasty || '',
-        year: formatYearRange(progress.year_start, progress.year_end),
-        progress: Number(progress.read_percent),
-        lastParagraphIndex: progress.para_id,
-        lastReadAt: progress.update_time,
+        name: volume?.volume_name || '',
+        era: volume?.dynasty || '',
+        year: formatYearRange(volume?.year_start, volume?.year_end),
+        progress: progress.progress,
+        lastParagraphIndex: progress.last_paragraph_index,
+        lastReadAt: progress.last_read_at,
       },
     });
   } catch (error) {
@@ -64,50 +94,79 @@ router.get('/recent', async (req, res) => {
 });
 
 /**
- * GET /api/v1/reading-progress
- * 获取全部阅读记录（含卷信息）
+ * 服务端文件：server/src/routes/reading-progress.ts
+ * 接口：GET /api/v1/reading-progress
+ * Query 参数：userId?: number, deviceId?: string
  */
 router.get('/', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId, deviceId } = req.query;
 
-    if (!userId) {
-      return res.json({ success: true, data: [] });
+    if (!userId && !deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少用户ID或设备ID',
+      });
     }
 
-    const result = await pool.query(
-      `SELECT urp.*, zv.volume_number, zv.volume_name, zv.dynasty, zv.year_start, zv.year_end
-       FROM user_read_progress urp
-       JOIN zizhitongjian_volumes zv ON urp.volume_id = zv.id
-       WHERE urp.user_id = $1
-       ORDER BY urp.update_time DESC`,
-      [parseInt(userId as string)]
-    );
+    const supabase = getSupabaseClient();
 
-    const records = result.rows.map((p: any) => {
+    let query = supabase
+      .from('reading_progress')
+      .select('*')
+      .order('last_read_at', { ascending: false });
+
+    if (userId) {
+      query = query.eq('user_id', parseInt(userId as string));
+    } else if (deviceId) {
+      query = query.eq('device_id', deviceId);
+    }
+
+    const { data: progressList, error } = await query;
+
+    if (error) {
+      console.error('获取阅读记录失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '获取阅读记录失败',
+        error: error.message,
+      });
+    }
+
+    // 获取所有卷信息
+    const volumeNumbers = progressList?.map(p => p.volume_number) || [];
+    const { data: volumes } = await supabase
+      .from('zizhitongjian_volumes')
+      .select('*')
+      .in('volume_number', volumeNumbers);
+
+    const volumeMap = new Map((volumes || []).map(v => [v.volume_number, v]));
+
+    const records = (progressList || []).map(p => {
+      const volume = volumeMap.get(p.volume_number);
       let status: 'unread' | 'reading' | 'read' = 'unread';
-      if (p.read_percent >= 100) status = 'read';
-      else if (p.read_percent > 0) status = 'reading';
+      if (p.progress >= 100) status = 'read';
+      else if (p.progress > 0) status = 'reading';
 
       return {
         volumeNumber: p.volume_number,
-        volumeId: p.volume_id,
-        paraId: p.para_id,
-        charIndex: p.char_index,
-        contentType: p.content_type,
-        readPercent: Number(p.read_percent),
-        updateTime: p.update_time,
+        progress: p.progress,
+        lastParagraphIndex: p.last_paragraph_index,
+        lastReadAt: p.last_read_at,
         status,
-        volumeInfo: {
-          id: p.volume_id,
-          name: p.volume_name,
-          era: p.dynasty,
-          year: formatYearRange(p.year_start, p.year_end),
-        },
+        volumeInfo: volume ? {
+          id: volume.id,
+          name: volume.volume_name,
+          era: volume.dynasty,
+          year: formatYearRange(volume.year_start, volume.year_end),
+        } : null,
       };
     });
 
-    res.json({ success: true, data: records });
+    res.json({
+      success: true,
+      data: records,
+    });
   } catch (error) {
     console.error('获取阅读记录失败:', error);
     res.status(500).json({
@@ -119,57 +178,101 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * POST /api/v1/reading-progress
- * 保存阅读进度（UPSERT：每用户每卷仅1条）
- * Body: { userId, volumeNumber, paraId, charIndex, contentType, readPercent }
+ * 服务端文件：server/src/routes/reading-progress.ts
+ * 接口：POST /api/v1/reading-progress
+ * Body 参数：userId?: number, deviceId?: string, volumeNumber: number, progress?: number, lastParagraphIndex?: number
  */
 router.post('/', async (req, res) => {
   try {
-    const { userId, volumeNumber, paraId = 0, charIndex = 0, contentType = 0, readPercent = 0 } = req.body;
+    const { userId, deviceId, volumeNumber, progress = 0, lastParagraphIndex = 0 } = req.body;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: '请先登录' });
+    if (!userId && !deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少用户ID或设备ID',
+      });
     }
+
     if (!volumeNumber) {
-      return res.status(400).json({ success: false, message: '缺少卷号' });
+      return res.status(400).json({
+        success: false,
+        message: '缺少卷号',
+      });
     }
 
-    const clampedPercent = Math.min(100, Math.max(0, readPercent));
+    const supabase = getSupabaseClient();
 
-    const result = await pool.query(
-      `WITH vol AS (
-        SELECT id FROM zizhitongjian_volumes WHERE volume_number = $1
-      )
-      INSERT INTO user_read_progress (user_id, volume_id, year_id, item_id, para_id, char_index, content_type, update_time, read_percent)
-      SELECT $2, vol.id, 0, 0, $3, $4, $5, NOW(), $6
-      FROM vol
-      ON CONFLICT (user_id, volume_id)
-      DO UPDATE SET
-        year_id = EXCLUDED.year_id,
-        item_id = EXCLUDED.item_id,
-        para_id = EXCLUDED.para_id,
-        char_index = EXCLUDED.char_index,
-        content_type = EXCLUDED.content_type,
-        update_time = NOW(),
-        read_percent = EXCLUDED.read_percent
-      RETURNING id, volume_id, para_id, char_index, content_type, read_percent, update_time`,
-      [volumeNumber, userId, paraId, charIndex, contentType, clampedPercent]
-    );
+    // 构建查询条件
+    let query = supabase
+      .from('reading_progress')
+      .select('id')
+      .eq('volume_number', volumeNumber);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '卷不存在' });
+    if (userId) {
+      query = query.eq('user_id', userId);
+    } else {
+      query = query.eq('device_id', deviceId);
+    }
+
+    // 查询是否存在
+    const { data: existing } = await query.single();
+
+    const recordData: any = {
+      progress: Math.min(100, Math.max(0, progress)),
+      last_paragraph_index: lastParagraphIndex,
+      last_read_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    let data, error;
+
+    if (existing) {
+      // 更新现有记录
+      const result = await supabase
+        .from('reading_progress')
+        .update(recordData)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      data = result.data;
+      error = result.error;
+    } else {
+      // 插入新记录
+      const insertData: any = {
+        ...recordData,
+        volume_number: volumeNumber,
+      };
+      if (userId) {
+        insertData.user_id = userId;
+      } else {
+        insertData.device_id = deviceId;
+      }
+      const result = await supabase
+        .from('reading_progress')
+        .insert(insertData)
+        .select()
+        .single();
+      data = result.data;
+      error = result.error;
+    }
+
+    if (error) {
+      console.error('更新阅读进度失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '更新阅读进度失败',
+        error: error.message,
+      });
     }
 
     res.json({
       success: true,
       data: {
-        id: result.rows[0].id,
-        volumeId: result.rows[0].volume_id,
-        paraId: result.rows[0].para_id,
-        charIndex: result.rows[0].char_index,
-        contentType: result.rows[0].content_type,
-        readPercent: Number(result.rows[0].read_percent),
-        updateTime: result.rows[0].update_time,
+        id: data.id,
+        volumeNumber: data.volume_number,
+        progress: data.progress,
+        lastParagraphIndex: data.last_paragraph_index,
+        lastReadAt: data.last_read_at,
       },
     });
   } catch (error) {
@@ -183,43 +286,70 @@ router.post('/', async (req, res) => {
 });
 
 /**
- * GET /api/v1/reading-progress/status
- * 批量获取指定卷的阅读状态
+ * 服务端文件：server/src/routes/reading-progress.ts
+ * 接口：GET /api/v1/reading-progress/status
+ * Query 参数：userId?: number, deviceId?: string, volumeNumbers: string
  */
 router.get('/status', async (req, res) => {
   try {
-    const { userId, volumeNumbers } = req.query;
+    const { userId, deviceId, volumeNumbers } = req.query;
 
-    if (!userId) {
-      return res.json({ success: true, data: {} });
+    if (!userId && !deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少用户ID或设备ID',
+      });
     }
+
     if (!volumeNumbers) {
-      return res.status(400).json({ success: false, message: '缺少卷号列表' });
+      return res.status(400).json({
+        success: false,
+        message: '缺少卷号列表',
+      });
     }
 
     const volumes = (volumeNumbers as string).split(',').map(Number).filter(n => !isNaN(n));
 
-    const result = await pool.query(
-      `SELECT zv.volume_number, urp.read_percent, urp.update_time
-       FROM user_read_progress urp
-       JOIN zizhitongjian_volumes zv ON urp.volume_id = zv.id
-       WHERE urp.user_id = $1 AND zv.volume_number = ANY($2)`,
-      [parseInt(userId as string), volumes]
-    );
+    const supabase = getSupabaseClient();
+
+    let query = supabase
+      .from('reading_progress')
+      .select('volume_number, progress, last_read_at')
+      .in('volume_number', volumes);
+
+    if (userId) {
+      query = query.eq('user_id', parseInt(userId as string));
+    } else {
+      query = query.eq('device_id', deviceId);
+    }
+
+    const { data: progressList, error } = await query;
+
+    if (error) {
+      console.error('获取阅读状态失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '获取阅读状态失败',
+        error: error.message,
+      });
+    }
 
     const statusMap: Record<number, { status: string; progress: number }> = {};
     volumes.forEach(v => {
       statusMap[v] = { status: 'unread', progress: 0 };
     });
 
-    for (const p of result.rows) {
+    progressList?.forEach(p => {
       let status = 'unread';
-      if (p.read_percent >= 100) status = 'read';
-      else if (p.read_percent > 0) status = 'reading';
-      statusMap[p.volume_number] = { status, progress: Number(p.read_percent) };
-    }
+      if (p.progress >= 100) status = 'read';
+      else if (p.progress > 0) status = 'reading';
+      statusMap[p.volume_number] = { status, progress: p.progress };
+    });
 
-    res.json({ success: true, data: statusMap });
+    res.json({
+      success: true,
+      data: statusMap,
+    });
   } catch (error) {
     console.error('获取阅读状态失败:', error);
     res.status(500).json({

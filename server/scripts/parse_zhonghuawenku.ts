@@ -23,7 +23,6 @@
  */
 
 import * as cheerio from 'cheerio';
-import type { Element, DataNode, AnyNode } from 'domhandler';
 import { Pool } from 'pg';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -360,19 +359,19 @@ interface ElementText {
   fullText: string;     // 正文+注解（用【】包裹）
 }
 
-function extractElementText($: cheerio.CheerioAPI, el: cheerio.Cheerio<Element>): ElementText {
+function extractElementText($: cheerio.CheerioAPI, el: cheerio.Cheerio<cheerio.Element>): ElementText {
   let mainText = '';
   const notes: string[] = [];
   let fullParts: string[] = [];
 
   // 递归遍历节点
-  function walk(node: Element | AnyNode) {
+  function walk(node: cheerio.Element | cheerio.AnyNode) {
     if (node.type === 'text') {
-      const text = (node as DataNode).data || '';
+      const text = (node as cheerio.TextNode).data || '';
       mainText += text;
       fullParts.push(text);
     } else if (node.type === 'tag') {
-      const tag = node as Element;
+      const tag = node as cheerio.Element;
       const tagName = tag.tagName?.toLowerCase();
 
       if (tagName === 'span' && tag.attribs?.style?.includes('color:transparent')) {
@@ -397,7 +396,7 @@ function extractElementText($: cheerio.CheerioAPI, el: cheerio.Cheerio<Element>)
       }
 
       // 递归处理子节点
-      for (const child of (node as Element).children || []) {
+      for (const child of (node as cheerio.Element).children || []) {
         walk(child);
       }
     }
@@ -796,7 +795,7 @@ function parseVolumeHtml(html: string, volumeNum: number): VolumeData | null {
   // ========== 处理无年份标记的卷 ==========
   // 如果没有找到年份段，但有content内容，创建一个默认年份段
   if (yearSections.length === 0) {
-    const allEvents: EventParagraph[] = [];
+    const allEvents: EventData[] = [];
     for (const block of blocks) {
       if (block.type === 'content' || block.type === 'chenguangyue') {
         const isChenguangyue = block.type === 'chenguangyue' ||

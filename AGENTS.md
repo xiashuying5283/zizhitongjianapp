@@ -1,4 +1,4 @@
-# 资治通鉴深度阅读 App
+# Expo App + Express.js
 
 ## 目录结构规范（严格遵循）
 
@@ -31,7 +31,8 @@
 │   ├── assets/                 # 静态资源
 |   └── package.json            # Expo 应用 package.json
 ├── package.json
-└── pnpm-workspace.yaml
+├── .cozeproj                   # 预置脚手架脚本（禁止修改）
+└── .coze                       # 配置文件（禁止修改）
 
 ## 依赖管理与模块导入规范
 
@@ -69,8 +70,8 @@ import { Screen } from '../../../components/Screen';
 
 ## 本地开发
 
-运行 pnpm dev 可以同时启动前端和后端服务：
+运行 coze dev 可以同时启动前端和后端服务，如果端口已占用，该命令会先杀掉占用端口的进程再启动，也可以用来重启前端和后端服务
 
 ```bash
-pnpm dev
+coze dev
 ```

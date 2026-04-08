@@ -12,7 +12,6 @@ export const Colors = {
     // === 背景层级 ===
     backgroundRoot: "#F8F6F2", // 根背景 - 米白/宣纸色
     backgroundDefault: "#FDFCFA", // 卡片背景 - 近白
-    backgroundSecondary: "#F5F3EF", // 二级背景 - 浅米灰
     backgroundTertiary: "#F2F0EC", // 三级背景 - 浅米灰
     // === 按钮 ===
     buttonPrimaryText: "#FFFFFF", // 主按钮文字 - 白色
@@ -23,7 +22,7 @@ export const Colors = {
     borderLight: "#F0EEE8", // 浅色边框
     // === 阅读区专用 ===
     textOriginal: "#1A1A1A", // 原文 - 纯黑粗体
-    textAnnotation: "#A84448", // 胡三省注 - 浅红（古注色）
+    textAnnotation: "#B44A4A", // 胡三省注 - 浅红（古注色）
     textTranslation: "#444444", // 译文 - 中灰
     backgroundAnnotation: "#F5F3EF", // 注文背景
     backgroundTranslation: "#FAF8F4", // 译文背景
@@ -45,7 +44,6 @@ export const Colors = {
     // === 背景层级 ===
     backgroundRoot: "#121212", // 根背景 - 深灰（护眼）
     backgroundDefault: "#1E1E1E", // 卡片背景
-    backgroundSecondary: "#1A1A1A", // 二级背景
     backgroundTertiary: "#2A2A2A", // 三级背景
     // === 按钮 ===
     buttonPrimaryText: "#121212", // 主按钮文字 - 深灰
@@ -56,7 +54,7 @@ export const Colors = {
     borderLight: "#1E1E1E", // 浅色边框
     // === 阅读区专用 ===
     textOriginal: "#FAFAF9", // 原文 - 纸张白
-    textAnnotation: "#D67878", // 胡三省注 - 浅红（古注色）
+    textAnnotation: "#D48888", // 胡三省注 - 浅红（古注色）
     textTranslation: "#999999", // 译文 - 浅灰
     backgroundAnnotation: "#1A1A1A", // 注文背景
     backgroundTranslation: "#161616", // 译文背景

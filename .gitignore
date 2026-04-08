@@ -10,8 +10,6 @@ expo-env.d.ts
 logs/
 *.tsbuildinfo
 node-compile-cache/
-.env
-.env.local
 
 # 爬虫数据缓存（HTML文件较大，不提交）
 server/data/

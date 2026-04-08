@@ -27,11 +27,10 @@ export const createStyles = (theme: Theme) => {
       paddingVertical: Spacing.sm,
       marginBottom: Spacing.lg,
       marginHorizontal: Spacing["2xl"],
+      gap: Spacing.md,
     },
     searchInput: {
       flex: 1,
-      marginLeft: Spacing.sm,
-      marginRight: Spacing.sm,
       fontSize: 16,
       color: theme.textPrimary,
     },
@@ -39,8 +38,8 @@ export const createStyles = (theme: Theme) => {
       flexDirection: 'row',
       flexWrap: 'wrap',
       marginBottom: Spacing.lg,
-      gap: Spacing.sm,
       paddingHorizontal: Spacing["2xl"],
+      gap: Spacing.sm,
     },
     categoryChip: {
       backgroundColor: theme.backgroundTertiary,
@@ -51,9 +50,9 @@ export const createStyles = (theme: Theme) => {
     categoryChipActive: {
       backgroundColor: '#10B981',
     },
-    scrollContent: {
-      paddingBottom: Spacing.xl,
+    listContent: {
       paddingHorizontal: Spacing["2xl"],
+      paddingBottom: Spacing["5xl"],
     },
     quoteGroup: {
       marginBottom: Spacing.xl,

@@ -42,7 +42,6 @@ async function loadEraYearsCache() {
  */
 export async function getEraNameByYear(bcYear: number | null): Promise<{
   eraName: string | null;
-  eraPhase: string | null;
   emperorName: string | null;
   emperorTitle: string | null;
   yearInEra: number | null;
@@ -51,7 +50,7 @@ export async function getEraNameByYear(bcYear: number | null): Promise<{
   note: string | null;
 }> {
   if (bcYear === null) {
-    return { eraName: null, eraPhase: null, emperorName: null, emperorTitle: null, yearInEra: null, ganZhi: null, displayName: null, note: null };
+    return { eraName: null, emperorName: null, emperorTitle: null, yearInEra: null, ganZhi: null, displayName: null, note: null };
   }
 
   const cache = await loadEraYearsCache();
@@ -63,7 +62,6 @@ export async function getEraNameByYear(bcYear: number | null): Promise<{
   if (record) {
     return {
       eraName: record.era_name,
-      eraPhase: record.era_phase,
       emperorName: record.emperor_name,
       emperorTitle: record.emperor_title,
       yearInEra: record.year_in_era,
@@ -73,7 +71,7 @@ export async function getEraNameByYear(bcYear: number | null): Promise<{
     };
   }
 
-  return { eraName: null, eraPhase: null, emperorName: null, emperorTitle: null, yearInEra: null, ganZhi: null, displayName: null, note: null };
+  return { eraName: null, emperorName: null, emperorTitle: null, yearInEra: null, ganZhi: null, displayName: null, note: null };
 }
 
 /**

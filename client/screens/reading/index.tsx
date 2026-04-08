@@ -19,7 +19,6 @@ import {
   getRecentReadCache,
   setRecentReadCache,
   DynastyGroup as CachedDynastyGroup,
-  clearRecentReadCache,
 } from '@/utils/readingCache';
 
 type ReadingStatus = 'unread' | 'reading' | 'read';
@@ -195,13 +194,12 @@ export default function ReadingScreen() {
   // 使用函数式更新，避免依赖外部变量
   useFocusEffect(
     useCallback(() => {
-      // 清除最近阅读缓存，确保每次进入首页都获取最新数据
-      clearRecentReadCache();
-
       // 在回调内部检查缓存
       const cached = getDynastyGroupsCache();
-
-      if (cached) {
+      const cachedRecent = getRecentReadCache();
+      const hasCache = cached || cachedRecent;
+      
+      if (hasCache) {
         // 有缓存：静默刷新（不阻塞 UI）
         fetchRecentRead(true);
         fetchDynastyGroups(true);
@@ -427,7 +425,7 @@ export default function ReadingScreen() {
 
   if (loading) {
     return (
-      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <ThemedText variant="body" color={theme.textMuted} style={{ marginTop: Spacing.md }}>
@@ -439,16 +437,13 @@ export default function ReadingScreen() {
   }
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <ThemedView level="root" style={styles.header}>
           <ThemedText variant="h1" color={theme.textPrimary}>资治通鉴</ThemedText>
           <ThemedText variant="caption" color={theme.textMuted} style={{ marginTop: Spacing.xs }}>
             司马光 · 编年体通史
-          </ThemedText>
-          <ThemedText variant="caption" color={theme.textMuted} style={{ marginTop: Spacing.xs }}>
-            胡三省 · 音注
           </ThemedText>
         </ThemedView>
 

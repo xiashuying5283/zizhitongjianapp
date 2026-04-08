@@ -262,7 +262,7 @@ export default function BrowseScreen() {
   };
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={

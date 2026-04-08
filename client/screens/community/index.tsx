@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
@@ -10,27 +10,9 @@ import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
-import { getPosts, deletePost, getNotifications, Post } from '@/utils/community';
+import { getPosts, Post } from '@/utils/community';
 
 type Category = 'all' | 'discussion' | 'question' | 'sharing' | 'notice';
-
-const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
-
-// 提取内容中的所有图片URL
-const extractImages = (content: string): string[] => {
-  const imgRegex = /\[img\](.*?)\[\/img\]/g;
-  const images: string[] = [];
-  let match;
-  while ((match = imgRegex.exec(content)) !== null) {
-    images.push(match[1]);
-  }
-  return images;
-};
-
-// 移除内容中的图片标记，返回纯文本
-const stripImages = (content: string): string => {
-  return content.replace(/\[img\].*?\[\/img\]/g, '').trim();
-};
 
 const CATEGORY_LABELS: Record<Category, string> = {
   all: '全部',
@@ -50,10 +32,9 @@ export default function CommunityScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState<Category>('all');
+  const [showMyPosts, setShowMyPosts] = useState(false); // 是否只显示我的帖子
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [showMyPosts, setShowMyPosts] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchPosts = useCallback(async (pageNum: number = 1, refresh: boolean = false) => {
     try {
@@ -63,7 +44,7 @@ export default function CommunityScreen() {
         setLoading(true);
       }
 
-      const params: { category?: string; page: number; limit: number; userId?: number } = {
+      const params: { category?: string; userId?: number; page: number; limit: number } = {
         page: pageNum,
         limit: 20,
       };
@@ -72,14 +53,15 @@ export default function CommunityScreen() {
         params.category = activeCategory;
       }
 
-      if (showMyPosts && user) {
+      // 如果开启了"我的帖子"且用户已登录，则只显示自己的帖子
+      if (showMyPosts && isAuthenticated && user) {
         params.userId = user.id;
       }
 
       /**
        * 服务端文件：server/src/routes/posts.ts
        * 接口：GET /api/v1/posts
-       * Query 参数：category?: string, page?: number, limit?: number
+       * Query 参数：category?: string, userId?: number, page?: number, limit?: number
        */
       const result = await getPosts(params);
 
@@ -98,20 +80,12 @@ export default function CommunityScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeCategory, showMyPosts, user]);
+  }, [activeCategory, showMyPosts, isAuthenticated, user]);
 
   useFocusEffect(
     useCallback(() => {
       fetchPosts(1);
-      // 获取未读通知数
-      if (user) {
-        getNotifications({ userId: user.id, limit: 1 }).then(result => {
-          if (result.success) {
-            setUnreadCount(result.data.unreadCount);
-          }
-        });
-      }
-    }, [fetchPosts, user])
+    }, [fetchPosts])
   );
 
   const handleRefresh = () => {
@@ -136,41 +110,10 @@ export default function CommunityScreen() {
       router.push('/login');
       return;
     }
-    setShowMyPosts(prev => !prev);
+    setShowMyPosts(!showMyPosts);
     setPage(1);
     setPosts([]);
     setHasMore(true);
-  };
-
-  const handleEditPost = (postId: number) => {
-    router.push('/edit-post', { id: postId });
-  };
-
-  const handleDeletePost = (post: Post) => {
-    if (!user) return;
-
-    Alert.alert(
-      '确认删除',
-      '删除后无法恢复，确定要删除这篇帖子吗？',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const result = await deletePost(post.id, user.id);
-              if (result.success) {
-                setPosts(prev => prev.filter(p => p.id !== post.id));
-              }
-            } catch (error) {
-              console.error('删除帖子失败:', error);
-              Alert.alert('错误', '删除失败，请重试');
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handlePostPress = (postId: number) => {
@@ -200,68 +143,7 @@ export default function CommunityScreen() {
     return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
   };
 
-  const isOwner = (post: Post) => user && post.user.id === user.id;
-
-  const renderImageGrid = (images: string[]) => {
-    if (images.length === 0) return null;
-    
-    const imageCount = images.length;
-    
-    // 单张图片：大图展示
-    if (imageCount === 1) {
-      return (
-        <Image
-          source={{ uri: images[0].startsWith('http') ? images[0] : `${BASE_URL}${images[0]}` }}
-          style={styles.singleImage}
-          resizeMode="cover"
-        />
-      );
-    }
-    
-    // 2张图片：并排显示
-    if (imageCount === 2) {
-      return (
-        <View style={styles.grid2}>
-          {images.map((img, index) => (
-            <Image
-              key={index}
-              source={{ uri: img.startsWith('http') ? img : `${BASE_URL}${img}` }}
-              style={styles.gridImage2}
-              resizeMode="cover"
-            />
-          ))}
-        </View>
-      );
-    }
-    
-    // 3张及以上：九宫格布局（最多显示9张）
-    const displayImages = images.slice(0, 9);
-    
-    return (
-      <View style={styles.imageGrid}>
-        {displayImages.map((img, index) => (
-          <View key={index} style={styles.gridItem}>
-            <Image
-              source={{ uri: img.startsWith('http') ? img : `${BASE_URL}${img}` }}
-              style={styles.gridImage}
-              resizeMode="cover"
-            />
-            {index === 8 && imageCount > 9 && (
-              <View style={styles.moreImagesOverlay}>
-                <ThemedText variant="bodyMedium" color="#fff">+{imageCount - 9}</ThemedText>
-              </View>
-            )}
-          </View>
-        ))}
-      </View>
-    );
-  };
-
-  const renderPost = ({ item }: { item: Post }) => {
-    const images = extractImages(item.content);
-    const textContent = stripImages(item.content);
-    
-    return (
+  const renderPost = ({ item }: { item: Post }) => (
     <TouchableOpacity
       style={styles.postCard}
       onPress={() => handlePostPress(item.id)}
@@ -287,39 +169,15 @@ export default function CommunityScreen() {
             <ThemedText variant="tiny" color={theme.buttonPrimaryText}>置顶</ThemedText>
           </View>
         )}
-        {/* 自己的帖子显示编辑删除按钮 */}
-        {isOwner(item) && (
-          <View style={styles.postActions}>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => handleEditPost(item.id)}
-            >
-              <FontAwesome6 name="pen" size={14} color={theme.textMuted} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => handleDeletePost(item)}
-            >
-              <FontAwesome6 name="trash" size={14} color={theme.error} />
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
 
       {/* 帖子内容 */}
       <ThemedText variant="h4" color={theme.textPrimary} style={styles.postTitle}>
         {item.title}
       </ThemedText>
-      
-      {/* 图片网格 */}
-      {renderImageGrid(images)}
-      
-      {/* 文字内容 */}
-      {textContent && (
-        <ThemedText variant="body" color={theme.textSecondary} numberOfLines={2} style={styles.postContent}>
-          {textContent}
-        </ThemedText>
-      )}
+      <ThemedText variant="body" color={theme.textSecondary} numberOfLines={2} style={styles.postContent}>
+        {item.content}
+      </ThemedText>
 
       {/* 底部统计 */}
       <View style={styles.postFooter}>
@@ -339,49 +197,17 @@ export default function CommunityScreen() {
       </View>
     </TouchableOpacity>
   );
-  };
 
   const categories: Category[] = ['all', 'discussion', 'question', 'sharing', 'notice'];
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       {/* 头部 */}
       <ThemedView level="root" style={styles.header}>
         <ThemedText variant="h2" color={theme.textPrimary}>读书社区</ThemedText>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={() => router.push('/notifications')}
-          >
-            <FontAwesome6 name="bell" size={20} color={theme.textPrimary} />
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </ThemedText>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.myPostsButton, showMyPosts && styles.myPostsButtonActive]}
-            onPress={handleToggleMyPosts}
-          >
-            <FontAwesome6
-              name="user"
-              size={16}
-              color={showMyPosts ? theme.buttonPrimaryText : theme.textMuted}
-            />
-            <ThemedText
-              variant="small"
-              color={showMyPosts ? theme.buttonPrimaryText : theme.textMuted}
-            >
-              我的
-            </ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.createButton} onPress={handleCreatePost}>
-            <FontAwesome6 name="pen-to-square" size={18} color={theme.buttonPrimaryText} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.createButton} onPress={handleCreatePost}>
+          <FontAwesome6 name="pen-to-square" size={18} color={theme.buttonPrimaryText} />
+        </TouchableOpacity>
       </ThemedView>
 
       {/* 分类筛选 */}
@@ -405,16 +231,45 @@ export default function CommunityScreen() {
         ))}
       </View>
 
+      {/* 我的帖子切换按钮 */}
+      <View style={styles.myPostsContainer}>
+        <TouchableOpacity
+          style={[
+            styles.myPostsButton,
+            showMyPosts && styles.myPostsButtonActive,
+          ]}
+          onPress={handleToggleMyPosts}
+        >
+          <FontAwesome6
+            name="user"
+            size={14}
+            color={showMyPosts ? theme.buttonPrimaryText : theme.textSecondary}
+          />
+          <ThemedText
+            variant="small"
+            color={showMyPosts ? theme.buttonPrimaryText : theme.textSecondary}
+            style={styles.myPostsButtonText}
+          >
+            {showMyPosts ? '我的帖子' : '全部帖子'}
+          </ThemedText>
+          {showMyPosts && (
+            <TouchableOpacity onPress={() => setShowMyPosts(false)}>
+              <FontAwesome6
+                name="xmark"
+                size={12}
+                color={theme.buttonPrimaryText}
+              />
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+      </View>
+
       {/* 帖子列表 */}
       <FlatList
         data={posts}
         renderItem={renderPost}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={5}
-        removeClippedSubviews={true}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -425,19 +280,15 @@ export default function CommunityScreen() {
         }
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.3}
-        ListFooterComponent={
-          hasMore && posts.length > 0 ? (
-            <View style={styles.loadingMore}>
-              <ActivityIndicator size="small" color={theme.primary} />
-            </View>
-          ) : null
-        }
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyContainer}>
               <FontAwesome6 name="comments" size={48} color={theme.textMuted} />
               <ThemedText variant="body" color={theme.textMuted} style={styles.emptyText}>
-                暂无帖子，快来发表你的见解吧
+                {showMyPosts
+                  ? '你还没有发表过帖子，快去发表吧'
+                  : '暂无帖子，快来发表你的见解吧'
+                }
               </ThemedText>
             </View>
           ) : null

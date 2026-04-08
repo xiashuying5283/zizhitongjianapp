@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import { FetchClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 const router = Router();
 
 /**
+ * 服务端文件：server/src/routes/fetch-reference.ts
  * 接口：POST /api/v1/fetch-reference
  * Body 参数：url: string
  */
@@ -19,35 +19,18 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const response = await axios.get(url, {
-      timeout: 15000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-      responseType: 'arraybuffer',
-    });
+    const customHeaders = HeaderUtils.extractForwardHeaders(req.headers as Record<string, string>);
+    const config = new Config();
+    const client = new FetchClient(config, customHeaders);
 
-    const iconvLite = await import('iconv-lite').catch(() => null);
-    let html: string;
-    if (iconvLite) {
-      const buffer = Buffer.from(response.data);
-      const charsetMatch = buffer.toString('binary').match(/charset=["']?([^"'\s>]+)/i);
-      const charset = charsetMatch ? charsetMatch[1] : 'utf-8';
-      html = iconvLite.decode(buffer, charset);
-    } else {
-      html = Buffer.from(response.data).toString('utf-8');
-    }
-
-    const $ = cheerio.load(html);
-    const title = $('title').text().trim();
-    const textContent = $('body').text().replace(/\s+/g, ' ').trim();
+    const response = await client.fetch(url);
 
     res.json({
       success: true,
       data: {
-        title,
-        url,
-        content: [{ type: 'text', text: textContent }],
+        title: response.title,
+        url: response.url,
+        content: response.content,
       },
     });
   } catch (error) {

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getSupabaseClient } from '../storage/database/supabase-client';
 import { Pool } from 'pg';
 import { formatYearDisplay } from '../utils/formatYearDisplay';
 
@@ -83,8 +84,6 @@ router.get('/dynasty-groups', async (req, res) => {
         id: number;
         volume: number;
         name: string;
-        year_start: number | null;
-        year_end: number | null;
         status: string;
         progress: number;
       }>;
@@ -227,7 +226,7 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // 转换数据格式
+    // 转换数据格式（异步格式化年份显示）
     const formattedVolumes = await Promise.all(volumes.map(async v => {
       const firstParagraph = firstParagraphMap.get(v.volume_number);
       const readingStatus = readingStatusMap.get(v.volume_number);
@@ -278,11 +277,22 @@ router.get('/', async (req, res) => {
  */
 router.get('/emperor-groups', async (req, res) => {
   try {
+    const supabase = getSupabaseClient();
+
     // 获取所有卷信息
-    const volumesResult = await pool.query(
-      'SELECT id, volume_number, volume_name, era_name, dynasty, year_start, year_end FROM zizhitongjian_volumes ORDER BY volume_number ASC'
-    );
-    const volumes = volumesResult.rows;
+    const { data: volumes, error: volumesError } = await supabase
+      .from('zizhitongjian_volumes')
+      .select('id, volume_number, volume_name, era_name, dynasty, year_start, year_end')
+      .order('volume_number', { ascending: true });
+
+    if (volumesError) {
+      console.error('获取卷列表失败:', volumesError);
+      return res.status(500).json({
+        success: false,
+        message: '获取卷列表失败',
+        error: volumesError.message,
+      });
+    }
 
     // 按朝代分组
     const dynastyGroups = new Map<string, {
@@ -298,7 +308,7 @@ router.get('/emperor-groups', async (req, res) => {
       }>;
     }>();
 
-    for (const volume of volumes) {
+    for (const volume of volumes || []) {
       const dynasty = volume.dynasty || '未知';
       if (!dynastyGroups.has(dynasty)) {
         dynastyGroups.set(dynasty, {
@@ -375,32 +385,35 @@ router.get('/search', async (req, res) => {
       });
     }
 
+    const supabase = getSupabaseClient();
     const searchTerm = keyword.trim();
-    const limitNum = parseInt(limit as string);
-    const offsetNum = parseInt(offset as string);
 
     // 搜索 zizhitongjian_paragraphs 表
-    const paragraphsResult = await pool.query(
-      `SELECT id, volume_number, volume_name, year_mark, emperor, bc_year, content, translation
-       FROM zizhitongjian_paragraphs
-       WHERE content ILIKE $1 OR translation ILIKE $1
-       ORDER BY volume_number ASC, id ASC
-       LIMIT $2 OFFSET $3`,
-      [`%${searchTerm}%`, limitNum, offsetNum]
-    );
+    const { data: paragraphs, error: paragraphsError } = await supabase
+      .from('zizhitongjian_paragraphs')
+      .select('id, volume_number, volume_name, year_mark, emperor, bc_year, content, translation')
+      .or(`content.ilike.%${searchTerm}%,translation.ilike.%${searchTerm}%`)
+      .order('volume_number', { ascending: true })
+      .order('id', { ascending: true })
+      .range(parseInt(offset as string), parseInt(offset as string) + parseInt(limit as string) - 1);
 
-    const paragraphs = paragraphsResult.rows;
+    if (paragraphsError) {
+      console.error('搜索失败:', paragraphsError);
+      return res.status(500).json({
+        success: false,
+        message: '搜索失败',
+        error: paragraphsError.message,
+      });
+    }
 
     // 获取卷信息用于显示朝代
-    const volumeNumbers = [...new Set(paragraphs.map((p: any) => p.volume_number))];
-    let volumeMap = new Map<any, any>();
-    if (volumeNumbers.length > 0) {
-      const volResult = await pool.query(
-        'SELECT volume_number, dynasty FROM zizhitongjian_volumes WHERE volume_number = ANY($1)',
-        [volumeNumbers]
-      );
-      volumeMap = new Map(volResult.rows.map((v: any) => [v.volume_number, v]));
-    }
+    const volumeNumbers = [...new Set(paragraphs?.map(p => p.volume_number) || [])];
+    const { data: volumes } = await supabase
+      .from('zizhitongjian_volumes')
+      .select('volume_number, dynasty')
+      .in('volume_number', volumeNumbers);
+
+    const volumeMap = new Map(volumes?.map(v => [v.volume_number, v]));
 
     // 高亮关键词
     const highlightText = (text: string | null) => {
@@ -409,7 +422,7 @@ router.get('/search', async (req, res) => {
     };
 
     // 格式化搜索结果
-    const results = paragraphs.map((p: any) => {
+    const results = (paragraphs || []).map(p => {
       const volume = volumeMap.get(p.volume_number);
 
       return {
@@ -427,15 +440,15 @@ router.get('/search', async (req, res) => {
     });
 
     // 获取总数
-    const countResult = await pool.query(
-      'SELECT COUNT(*) FROM zizhitongjian_paragraphs WHERE content ILIKE $1 OR translation ILIKE $1',
-      [`%${searchTerm}%`]
-    );
+    const { count } = await supabase
+      .from('zizhitongjian_paragraphs')
+      .select('*', { count: 'exact', head: true })
+      .or(`content.ilike.%${searchTerm}%,translation.ilike.%${searchTerm}%`);
 
     res.json({
       success: true,
       data: results,
-      total: parseInt(countResult.rows[0].count),
+      total: count || 0,
       keyword: searchTerm,
     });
   } catch (error) {
@@ -465,19 +478,23 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    const result = await pool.query(
-      'SELECT * FROM zizhitongjian_volumes WHERE volume_number = $1',
-      [volumeId]
-    );
+    const supabase = getSupabaseClient();
 
-    if (result.rows.length === 0) {
+    // 获取卷信息 - 使用卷号查询
+    const { data: volume, error: volumeError } = await supabase
+      .from('zizhitongjian_volumes')
+      .select('*')
+      .eq('volume_number', volumeId)
+      .single();
+
+    if (volumeError || !volume) {
       return res.status(404).json({
         success: false,
         message: '卷不存在',
       });
     }
 
-    const volume = result.rows[0];
+    // 转换数据格式
     const volumeDetail = {
       id: volume.id,
       volume_number: volume.volume_number,
@@ -523,25 +540,37 @@ router.get('/:id/catalog', async (req, res) => {
       });
     }
 
-    const volResult = await pool.query(
-      'SELECT * FROM zizhitongjian_volumes WHERE volume_number = $1',
-      [volumeNumber]
-    );
+    const supabase = getSupabaseClient();
 
-    if (volResult.rows.length === 0) {
+    // 获取卷信息
+    const { data: volume, error: volumeError } = await supabase
+      .from('zizhitongjian_volumes')
+      .select('*')
+      .eq('volume_number', volumeNumber)
+      .single();
+
+    if (volumeError || !volume) {
       return res.status(404).json({
         success: false,
         message: '卷不存在',
       });
     }
-    const volume = volResult.rows[0];
 
     // 从 zizhitongjian_paragraphs 表获取目录数据（按年份和帝王分组）
-    const paragraphsResult = await pool.query(
-      'SELECT id, year_mark, emperor, bc_year FROM zizhitongjian_paragraphs WHERE volume_number = $1 ORDER BY bc_year ASC',
-      [volumeNumber]
-    );
-    const paragraphs = paragraphsResult.rows;
+    const { data: paragraphs, error: paragraphsError } = await supabase
+      .from('zizhitongjian_paragraphs')
+      .select('id, year_mark, emperor, bc_year')
+      .eq('volume_number', volumeNumber)
+      .order('bc_year', { ascending: true });
+
+    if (paragraphsError) {
+      console.error('获取目录数据失败:', paragraphsError);
+      return res.status(500).json({
+        success: false,
+        message: '获取目录数据失败',
+        error: paragraphsError.message,
+      });
+    }
 
     // 按帝王和年份分组（去重）
     // 注意：同一个帝王下可能有相同的年份标记（如"四年"），但属于不同年号
@@ -553,10 +582,9 @@ router.get('/:id/catalog', async (req, res) => {
     }>();
 
     let emperorOrder = 0;
-    for (const p of paragraphs) {
-      // 使用 emperor + year_mark + bc_year 作为唯一标识
-      // 这样可以区分同一帝王下不同年号的相同年份标记
-      const key = `${p.emperor}|${p.year_mark}|${p.bc_year}`;
+    for (const p of paragraphs || []) {
+      // 使用 bc_year 作为唯一标识，避免同一年号下的相同年份标记被去重
+      const key = `${p.emperor}_${p.bc_year}`;
       if (yearSet.has(key)) continue;
       yearSet.add(key);
 
@@ -569,13 +597,14 @@ router.get('/:id/catalog', async (req, res) => {
 
       // 解析年份数字（如"二十三年" -> 23）
       const yearNum = parseChineseYear(p.year_mark);
+      const bcYear = p.bc_year || 0;
 
       emperorMap.get(p.emperor)!.years.push({
         id: p.id,
         year_name: p.year_mark,
         year_num: yearNum || 0,
         year_display: `${p.emperor} ${p.year_mark}`,  // 默认值，后面会覆盖
-        bc_year: p.bc_year,  // 保持原值，可能是 null
+        bc_year: bcYear,
       });
     }
 

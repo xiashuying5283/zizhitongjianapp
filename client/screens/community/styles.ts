@@ -25,54 +25,6 @@ export const createStyles = (theme: Theme) => {
       justifyContent: 'center',
       alignItems: 'center',
     },
-    headerActions: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-    },
-    myPostsButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.xs,
-      paddingHorizontal: Spacing.md,
-      paddingVertical: Spacing.sm,
-      borderRadius: BorderRadius.full,
-      backgroundColor: theme.backgroundTertiary,
-    },
-    myPostsButtonActive: {
-      backgroundColor: theme.primary,
-    },
-    notificationButton: {
-      width: 40,
-      height: 40,
-      justifyContent: 'center',
-      alignItems: 'center',
-      position: 'relative',
-    },
-    badge: {
-      position: 'absolute',
-      top: 2,
-      right: 2,
-      minWidth: 18,
-      height: 18,
-      borderRadius: 9,
-      backgroundColor: theme.error,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 4,
-    },
-    postActions: {
-      flexDirection: 'row',
-      gap: Spacing.xs,
-    },
-    actionBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: BorderRadius.full,
-      backgroundColor: theme.backgroundTertiary,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
     categoryContainer: {
       flexDirection: 'row',
       paddingHorizontal: Spacing["2xl"],
@@ -88,6 +40,26 @@ export const createStyles = (theme: Theme) => {
     },
     categoryTabActive: {
       backgroundColor: theme.primary,
+    },
+    myPostsContainer: {
+      paddingHorizontal: Spacing["2xl"],
+      marginBottom: Spacing.md,
+    },
+    myPostsButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      backgroundColor: theme.backgroundTertiary,
+      borderRadius: BorderRadius.full,
+      alignSelf: 'flex-start',
+    },
+    myPostsButtonActive: {
+      backgroundColor: theme.primary,
+    },
+    myPostsButtonText: {
+      fontSize: 14,
     },
     listContent: {
       paddingHorizontal: Spacing["2xl"],
@@ -128,50 +100,7 @@ export const createStyles = (theme: Theme) => {
     },
     postContent: {
       lineHeight: 22,
-      marginBottom: Spacing.sm,
-    },
-    singleImage: {
-      width: '100%',
-      height: 200,
-      borderRadius: BorderRadius.md,
       marginBottom: Spacing.md,
-    },
-    grid2: {
-      flexDirection: 'row',
-      gap: Spacing.xs,
-      marginBottom: Spacing.md,
-    },
-    gridImage2: {
-      flex: 1,
-      height: 120,
-      borderRadius: BorderRadius.md,
-    },
-    imageGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: Spacing.xs,
-      marginBottom: Spacing.md,
-    },
-    gridItem: {
-      width: '32%',
-      aspectRatio: 1,
-      position: 'relative',
-    },
-    gridImage: {
-      width: '100%',
-      height: '100%',
-      borderRadius: BorderRadius.md,
-    },
-    moreImagesOverlay: {
-      position: 'absolute',
-      right: 0,
-      bottom: 0,
-      width: '100%',
-      height: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      borderRadius: BorderRadius.md,
-      justifyContent: 'center',
-      alignItems: 'center',
     },
     postFooter: {
       flexDirection: 'row',
@@ -198,10 +127,6 @@ export const createStyles = (theme: Theme) => {
     },
     emptyText: {
       marginTop: Spacing.lg,
-    },
-    loadingMore: {
-      paddingVertical: Spacing.lg,
-      alignItems: 'center',
     },
   });
 };

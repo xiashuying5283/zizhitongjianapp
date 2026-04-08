@@ -4,20 +4,17 @@ const STORAGE_KEYS = {
   fontSize: '@reading_font_size',
   backgroundTheme: '@reading_background_theme',
   viewMode: '@reading_view_mode',
-  textLayout: '@reading_text_layout',
   ttsVoice: '@reading_tts_voice',
   ttsSpeed: '@reading_tts_speed',
 };
 
 type BackgroundTheme = 'light' | 'dark' | 'sepia';
 type ViewMode = 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
-type TextLayout = 'horizontal' | 'vertical';
 
 interface ReadingSettings {
   fontSize: number;
   backgroundTheme: BackgroundTheme;
   viewMode: ViewMode;
-  textLayout: TextLayout;
   ttsVoice: string;
   ttsSpeed: number;
 }
@@ -31,7 +28,6 @@ const DEFAULT_SETTINGS: ReadingSettings = {
   fontSize: 18,
   backgroundTheme: 'light',
   viewMode: 'original+annotation',
-  textLayout: 'horizontal',
   ttsVoice: 'audiobook',
   ttsSpeed: 0,
 };
@@ -45,11 +41,10 @@ export async function loadReadingSettings(): Promise<ReadingSettings> {
   }
 
   try {
-    const [fontSize, backgroundTheme, viewMode, textLayout, ttsVoice, ttsSpeed] = await Promise.all([
+    const [fontSize, backgroundTheme, viewMode, ttsVoice, ttsSpeed] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEYS.fontSize),
       AsyncStorage.getItem(STORAGE_KEYS.backgroundTheme),
       AsyncStorage.getItem(STORAGE_KEYS.viewMode),
-      AsyncStorage.getItem(STORAGE_KEYS.textLayout),
       AsyncStorage.getItem(STORAGE_KEYS.ttsVoice),
       AsyncStorage.getItem(STORAGE_KEYS.ttsSpeed),
     ]);
@@ -58,7 +53,6 @@ export async function loadReadingSettings(): Promise<ReadingSettings> {
       fontSize: fontSize ? parseInt(fontSize) : DEFAULT_SETTINGS.fontSize,
       backgroundTheme: (backgroundTheme as BackgroundTheme) || DEFAULT_SETTINGS.backgroundTheme,
       viewMode: (viewMode as ViewMode) || DEFAULT_SETTINGS.viewMode,
-      textLayout: (textLayout as TextLayout) || DEFAULT_SETTINGS.textLayout,
       ttsVoice: ttsVoice || DEFAULT_SETTINGS.ttsVoice,
       ttsSpeed: ttsSpeed ? parseInt(ttsSpeed) : DEFAULT_SETTINGS.ttsSpeed,
     };
@@ -126,15 +120,3 @@ export async function saveTtsSpeed(speed: number): Promise<void> {
   }
   await AsyncStorage.setItem(STORAGE_KEYS.ttsSpeed, String(speed));
 }
-
-/**
- * 保存文字排版方向
- */
-export async function saveTextLayout(layout: TextLayout): Promise<void> {
-  if (cachedSettings) {
-    cachedSettings.textLayout = layout;
-  }
-  await AsyncStorage.setItem(STORAGE_KEYS.textLayout, layout);
-}
-
-export type { ViewMode, BackgroundTheme, TextLayout };

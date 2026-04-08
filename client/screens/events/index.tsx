@@ -146,7 +146,7 @@ export default function EventsScreen() {
   );
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       {/* Header */}
       <ThemedView level="root" style={styles.header}>
         <View style={styles.headerRow}>
@@ -197,7 +197,7 @@ export default function EventsScreen() {
       </View>
 
       {/* Events List */}
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.listContent}>
         {eventGroups.length > 0 ? (
           eventGroups.map(renderEventGroup)
         ) : (
