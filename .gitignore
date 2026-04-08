@@ -13,3 +13,4 @@ node-compile-cache/
 
 # 爬虫数据缓存（HTML文件较大，不提交）
 server/data/
+.idea
