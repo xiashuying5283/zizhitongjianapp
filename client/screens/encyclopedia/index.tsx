@@ -85,6 +85,24 @@ export default function EncyclopediaScreen() {
       gradient: ['#F87171', '#EF4444'],
       route: '/era-names',
     },
+    {
+      id: 'group-chat',
+      title: '历史群聊',
+      description: '与历史人物对话',
+      icon: 'message',
+      color: '#8B5CF6',
+      gradient: ['#A78BFA', '#8B5CF6'],
+      route: '/group-chat',
+    },
+    {
+      id: 'chat-rooms',
+      title: '我的群聊',
+      description: '查看历史群聊记录',
+      icon: 'comments',
+      color: '#F59E0B',
+      gradient: ['#FBBF24', '#F59E0B'],
+      route: '/chat-rooms',
+    },
   ];
 
   const handleCategoryPress = (category: CategoryItem) => {

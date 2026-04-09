@@ -670,7 +670,7 @@ export const GeoJsonMap = ({ geoJson, width = SCREEN_WIDTH, height = 400, style,
             )}
         </View>
     );
-});
+};
 
 // 全屏地图组件
 export function FullscreenGeoJsonMap({ geoJson, onClose }: { geoJson: GeoJSONData; onClose: () => void }) {
