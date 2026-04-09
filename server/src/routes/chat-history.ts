@@ -7,6 +7,15 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false },
 });
 
+// 场景状态接口
+interface SceneState {
+    sceneId: string;
+    sceneName: string;
+    sequence: number;
+    totalScenes: number;
+    isLastScene: boolean;
+}
+
 // ==================== 群聊记录接口 ====================
 
 /**
@@ -19,7 +28,7 @@ router.get('/', async (req, res) => {
         const deviceId = req.headers['x-device-id'] as string || 'anonymous';
 
         const result = await pool.query(
-            `SELECT id, topic_id, topic_title, character_ids, status, created_at, updated_at,
+            `SELECT id, topic_id, topic_title, character_ids, status, scene_state, created_at, updated_at,
               (SELECT COUNT(*) FROM chat_messages WHERE room_id = chat_rooms.id) as message_count
        FROM chat_rooms 
        WHERE device_id = $1 
@@ -36,6 +45,7 @@ router.get('/', async (req, res) => {
                 topicTitle: row.topic_title,
                 characterIds: row.character_ids || [],
                 status: row.status,
+                sceneState: row.scene_state || null,
                 messageCount: parseInt(row.message_count),
                 createdAt: row.created_at,
                 updatedAt: row.updated_at,
@@ -55,13 +65,13 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
     try {
         const deviceId = req.headers['x-device-id'] as string || 'anonymous';
-        const { topicId, topicTitle, characterIds } = req.body;
+        const { topicId, topicTitle, characterIds, sceneState } = req.body;
 
         const result = await pool.query(
-            `INSERT INTO chat_rooms (device_id, topic_id, topic_title, character_ids)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, topic_id, topic_title, character_ids, status, created_at`,
-            [deviceId, topicId, topicTitle, characterIds]
+            `INSERT INTO chat_rooms (device_id, topic_id, topic_title, character_ids, scene_state)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, topic_id, topic_title, character_ids, status, scene_state, created_at`,
+            [deviceId, topicId, topicTitle, characterIds, sceneState ? JSON.stringify(sceneState) : null]
         );
 
         const row = result.rows[0];
@@ -73,6 +83,7 @@ router.post('/', async (req, res) => {
                 topicTitle: row.topic_title,
                 characterIds: row.character_ids || [],
                 status: row.status,
+                sceneState: row.scene_state || null,
                 createdAt: row.created_at,
             },
         });
@@ -117,6 +128,7 @@ router.get('/:roomId', async (req, res) => {
                     topicTitle: room.topic_title,
                     characterIds: room.character_ids || [],
                     status: room.status,
+                    sceneState: room.scene_state || null,
                     createdAt: room.created_at,
                 },
                 messages: messagesResult.rows.map(msg => ({
@@ -137,6 +149,28 @@ router.get('/:roomId', async (req, res) => {
 
 /**
  * 服务端文件：server/src/routes/chat-history.ts
+ * 接口：PUT /api/v1/chat-history/:roomId/scene
+ * 更新会话的场景状态
+ */
+router.put('/:roomId/scene', async (req, res) => {
+    try {
+        const { roomId } = req.params;
+        const { sceneState } = req.body;
+
+        await pool.query(
+            `UPDATE chat_rooms SET scene_state = $1, updated_at = NOW() WHERE id = $2`,
+            [sceneState ? JSON.stringify(sceneState) : null, roomId]
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('更新场景状态失败:', error);
+        res.status(500).json({ success: false, message: '更新失败' });
+    }
+});
+
+/**
+ * 服务端文件：server/src/routes/chat-history.ts
  * 接口：POST /api/v1/chat-history/:roomId/messages
  * 添加消息到会话
  */
@@ -147,8 +181,8 @@ router.post('/:roomId/messages', async (req, res) => {
 
         const result = await pool.query(
             `INSERT INTO chat_messages (room_id, character_id, character_name, content, is_user)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
+             VALUES ($1, $2, $3, $4, $5)
+                 RETURNING *`,
             [roomId, characterId, characterName, content, isUser || false]
         );
 

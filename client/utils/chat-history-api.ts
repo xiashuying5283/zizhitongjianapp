@@ -23,9 +23,39 @@ export interface ChatRoom {
     topicTitle: string;
     characterIds: string[];
     status: string;
+    sceneState?: {
+        sceneId: string;
+        sceneName: string;
+        sequence: number;
+        totalScenes: number;
+        isLastScene: boolean;
+    } | null;
     messageCount: number;
     createdAt: string;
     updatedAt: string;
+}
+
+// 更新场景状态
+export async function updateSceneState(
+    roomId: string,
+    sceneState: ChatRoom['sceneState']
+): Promise<boolean> {
+    try {
+        const deviceId = await getDeviceId();
+        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/chat-history/${roomId}/scene`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-device-id': deviceId,
+            },
+            body: JSON.stringify({ sceneState }),
+        });
+        const result = await response.json();
+        return result.success;
+    } catch (error) {
+        console.error('更新场景状态失败:', error);
+        return false;
+    }
 }
 
 export interface ChatMessage {

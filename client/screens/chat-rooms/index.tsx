@@ -5,6 +5,7 @@ import {
     TouchableOpacity,
     Alert,
     RefreshControl,
+    Image,
 } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
@@ -85,11 +86,21 @@ export default function ChatRoomsScreen() {
         router.push('/group-chat');
     };
 
-    // 获取人物头像
+    // 判断是否是图片URL
+    const isImageUrl = (avatar: string): "" | boolean => {
+        return avatar && (avatar.startsWith('http://') || avatar.startsWith('https://'));
+    };
+
+    // 获取人物头像（优先图片URL，否则显示名字最后一个字）
     const getCharacterAvatars = (characterIds: string[]) => {
         return characterIds.slice(0, 4).map(id => {
             const char = characters.find(c => c.id === id);
-            return char?.avatar || '👤';
+            if (!char) return '?';
+            // 如果有图片URL则返回URL，否则返回名字最后一个字
+            if (char.avatar && isImageUrl(char.avatar)) {
+                return char.avatar;
+            }
+            return char.name ? char.name.charAt(char.name.length - 1) : '?';
         });
     };
 
@@ -133,7 +144,7 @@ export default function ChatRoomsScreen() {
         return (
             <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
                 <View style={styles.emptyState}>
-                    <ThemedText variant="h1" style={styles.emptyIcon}>💬</ThemedText>
+                    <FontAwesome6 name="comments" size={48} color={theme.textMuted} style={styles.emptyIcon} />
                     <ThemedText variant="h4" color={theme.textPrimary} style={styles.emptyTitle}>
                         暂无群聊记录
                     </ThemedText>
@@ -214,9 +225,13 @@ export default function ChatRoomsScreen() {
                                                         key={index}
                                                         style={[styles.characterAvatar, { backgroundColor: theme.backgroundTertiary }]}
                                                     >
-                                                        <ThemedText variant="caption" color={theme.textPrimary} style={styles.characterAvatarText}>
-                                                            {avatar}
-                                                        </ThemedText>
+                                                        {isImageUrl(avatar) ? (
+                                                            <Image source={{ uri: avatar }} style={styles.characterAvatarImage} />
+                                                        ) : (
+                                                            <ThemedText variant="caption" color={theme.textPrimary} style={styles.characterAvatarText}>
+                                                                {avatar}
+                                                            </ThemedText>
+                                                        )}
                                                     </View>
                                                 ))}
                                             </View>

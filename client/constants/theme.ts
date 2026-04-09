@@ -2,17 +2,20 @@ export const Colors = {
   light: {
     // === 文字层级（灰度区分） ===
     textPrimary: "#1A1A1A", // 原文 - 纯黑（最高优先级）
-    textSecondary: "#444444", // 译文/次要 - 中灰
-    textMuted: "#666666", // 辅助文字 - 浅灰
+    textSecondary: "#333333", // 译文/次要 - 深灰
+    textMuted: "#555555", // 辅助文字 - 中灰（提高对比度）
+    text: "#1A1A1A", // 通用文字 - 纯黑
     // === 主题色 ===
     primary: "#1A1A1A", // 主色 - 纯黑
+    primaryLight: "#E8E6E2", // 主色浅底
     accent: "#1A365D", // 辅色 - 低饱和藏蓝（链接/交互）
     success: "#2D5A3D", // 成功 - 低饱和绿
     error: "#8B3A3A", // 错误 - 低饱和红
+    warning: "#B45309", // 警告 - 琥珀色
     // === 背景层级 ===
     backgroundRoot: "#F8F6F2", // 根背景 - 米白/宣纸色
     backgroundDefault: "#FDFCFA", // 卡片背景 - 近白
-    backgroundSecondary: "#F5F3EF", // 二级背景 - 浅米灰
+    backgroundSecondary: "#FFFFFF", // 次级背景 - 纯白
     backgroundTertiary: "#F2F0EC", // 三级背景 - 浅米灰
     // === 按钮 ===
     buttonPrimaryText: "#FFFFFF", // 主按钮文字 - 白色
@@ -23,7 +26,7 @@ export const Colors = {
     borderLight: "#F0EEE8", // 浅色边框
     // === 阅读区专用 ===
     textOriginal: "#1A1A1A", // 原文 - 纯黑粗体
-    textAnnotation: "#A84448", // 胡三省注 - 浅红（古注色）
+    textAnnotation: "#B44A4A", // 胡三省注 - 浅红（古注色）
     textTranslation: "#444444", // 译文 - 中灰
     backgroundAnnotation: "#F5F3EF", // 注文背景
     backgroundTranslation: "#FAF8F4", // 译文背景
@@ -35,29 +38,32 @@ export const Colors = {
   dark: {
     // === 文字层级（深色模式） ===
     textPrimary: "#FAFAF9", // 主要文字 - 纸张白
-    textSecondary: "#B8B8B8", // 次要文字 - 中灰
-    textMuted: "#78716C", // 辅助文字 - 深灰
+    textSecondary: "#D4D4D4", // 次要文字 - 浅灰（提高对比度）
+    textMuted: "#A3A3A3", // 辅助文字 - 中灰（提高对比度）
+    text: "#FAFAF9", // 通用文字 - 纸张白
     // === 主题色 ===
     primary: "#FAFAF9", // 主色 - 纸张白
+    primaryLight: "#2A2A2A", // 主色浅底
     accent: "#A3B8CC", // 辅色 - 浅藏蓝
     success: "#6EE7B7", // 成功 - 浅绿
     error: "#FCA5A5", // 错误 - 浅红
+    warning: "#FBBF24", // 警告 - 琥珀色
     // === 背景层级 ===
     backgroundRoot: "#121212", // 根背景 - 深灰（护眼）
     backgroundDefault: "#1E1E1E", // 卡片背景
-    backgroundSecondary: "#1A1A1A", // 二级背景
+    backgroundSecondary: "#252525", // 次级背景
     backgroundTertiary: "#2A2A2A", // 三级背景
     // === 按钮 ===
     buttonPrimaryText: "#121212", // 主按钮文字 - 深灰
     // === Tab ===
     tabIconSelected: "#FAFAF9", // Tab 选中图标 - 纸张白
     // === 边框 ===
-    border: "#2A2A2A", // 边框
-    borderLight: "#1E1E1E", // 浅色边框
+    border: "#3A3A3A", // 边框（提高对比度）
+    borderLight: "#2A2A2A", // 浅色边框
     // === 阅读区专用 ===
     textOriginal: "#FAFAF9", // 原文 - 纸张白
-    textAnnotation: "#D67878", // 胡三省注 - 浅红（古注色）
-    textTranslation: "#999999", // 译文 - 浅灰
+    textAnnotation: "#D48888", // 胡三省注 - 浅红（古注色）
+    textTranslation: "#CCCCCC", // 译文 - 浅灰
     backgroundAnnotation: "#1A1A1A", // 注文背景
     backgroundTranslation: "#161616", // 译文背景
     // === 状态色 ===

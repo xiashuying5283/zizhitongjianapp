@@ -48,7 +48,6 @@ export const createStyles = (theme: Theme) => {
             paddingVertical: Spacing["5xl"],
         },
         emptyIcon: {
-            fontSize: 64,
             marginBottom: Spacing.md,
         },
         emptyTitle: {
@@ -140,12 +139,17 @@ export const createStyles = (theme: Theme) => {
             alignItems: 'center',
             justifyContent: 'center',
             marginRight: -8,
-            borderWidth: 2,
-            borderColor: theme.backgroundSecondary,
+            borderWidth: 3,
+            borderColor: '#FFFFFF',
         },
         characterAvatarText: {
             fontSize: 12,
             textAlign: 'center',
+        },
+        characterAvatarImage: {
+            width: 28,
+            height: 28,
+            borderRadius: 14,
         },
         moreCharacters: {
             fontSize: 11,

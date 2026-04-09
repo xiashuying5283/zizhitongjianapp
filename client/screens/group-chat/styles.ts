@@ -319,46 +319,124 @@ export const createStyles = (theme: Theme) => {
             color: theme.textMuted,
             textAlign: 'center',
         },
+        // 输入区域容器
+        inputContainer: {
+            backgroundColor: '#F5F4F1',
+            borderTopWidth: 1,
+            borderTopColor: '#E6E4E0',
+        },
+        // 悬浮的自动推演按钮
+        floatingAutoButton: {
+            position: 'absolute',
+            top: -50,
+            left: 0,
+            right: 0,
+            alignItems: 'center',
+        },
+        floatingAutoButtonInner: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(255,255,255,0.9)',
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: '#DCDCDC',
+            gap: 6,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.1,
+            shadowRadius: 2,
+            elevation: 2,
+        },
         // 输入区域
         inputSection: {
             flexDirection: 'row',
             alignItems: 'flex-end',
-            paddingHorizontal: Spacing.md,
-            paddingVertical: Spacing.sm,
-            paddingBottom: Spacing.xl,
-            backgroundColor: '#F5F5F5',
-            gap: Spacing.sm,
-            borderTopWidth: 1,
-            borderTopColor: '#D9D9D9',
+            paddingHorizontal: 12,
+            paddingTop: 8,
+            paddingBottom: 8,
+            gap: 8,
+        },
+        // 输入框容器（包含@按钮和输入框）
+        inputWrapper: {
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            backgroundColor: '#FFFFFF',
+            borderRadius: 16,
+            minHeight: 40,
+            borderWidth: 1,
+            borderColor: '#DCDCDC',
+            paddingLeft: 4,
+            paddingRight: 8,
+        },
+        inputWrapperFocused: {
+            borderColor: '#A3E653',
+            borderWidth: 2,
+        },
+        // 嵌入输入框的@按钮
+        atButtonInline: {
+            padding: 8,
         },
         textInput: {
             flex: 1,
-            minHeight: 36,
+            minHeight: 24,
             maxHeight: 100,
-            backgroundColor: '#FFFFFF',
-            borderRadius: BorderRadius.md,
-            paddingHorizontal: Spacing.md,
-            paddingVertical: Spacing.xs,
+            paddingVertical: 8,
             color: theme.textPrimary,
-            fontSize: 16,
-            borderWidth: 1,
-            borderColor: '#D9D9D9',
+            fontSize: 15,
         },
-        sendButton: {
-            width: 60,
+        // 圆形发送/更多按钮
+        circleButton: {
+            width: 36,
             height: 36,
-            backgroundColor: theme.primary,
-            borderRadius: BorderRadius.md,
+            borderRadius: 18,
             alignItems: 'center',
             justifyContent: 'center',
+            marginBottom: 2,
         },
-        sendButtonDisabled: {
-            backgroundColor: '#C8C8C8',
+        sendButton: {
+            backgroundColor: '#A3E653',
         },
-        sendButtonText: {
-            color: '#FFFFFF',
-            fontSize: 14,
-            fontWeight: '600',
+        moreButton: {
+            backgroundColor: '#FFFFFF',
+            borderWidth: 1,
+            borderColor: '#DCDCDC',
+        },
+        moreButtonActive: {
+            transform: [{ rotate: '45deg' }],
+            backgroundColor: '#EBEBEB',
+        },
+        // 展开的更多面板
+        morePanel: {
+            overflow: 'hidden',
+            backgroundColor: '#F5F4F1',
+        },
+        morePanelContent: {
+            paddingHorizontal: 24,
+            paddingTop: 8,
+            paddingBottom: 32,
+            flexDirection: 'row',
+            gap: 16,
+        },
+        morePanelItem: {
+            alignItems: 'center',
+            gap: 8,
+        },
+        morePanelButton: {
+            width: 60,
+            height: 60,
+            backgroundColor: '#FFFFFF',
+            borderRadius: 16,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: '#E6E6E6',
+        },
+        morePanelButtonText: {
+            fontSize: 12,
+            color: '#787878',
         },
         // 加载状态
         loadingContainer: {
@@ -370,7 +448,7 @@ export const createStyles = (theme: Theme) => {
             color: theme.textMuted,
             fontSize: 14,
         },
-        // 底部操作栏
+        // 底部操作栏（保留用于自动推演激活状态）
         bottomActions: {
             flexDirection: 'row',
             padding: Spacing.md,
@@ -388,16 +466,14 @@ export const createStyles = (theme: Theme) => {
             borderRadius: BorderRadius.md,
             gap: Spacing.xs,
         },
+        autoModeActive: {
+            backgroundColor: theme.primary,
+        },
         actionButtonText: {
             fontSize: 14,
             color: theme.textSecondary,
         },
-        // 自动推演激活状态 - 使用醒目的深色背景
-        autoModeActive: {
-            backgroundColor: theme.primary,
-            borderWidth: 0,
-        },
-        // @按钮
+        // @按钮（保留旧样式兼容）
         atButton: {
             width: 40,
             height: 36,

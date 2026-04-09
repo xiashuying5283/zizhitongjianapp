@@ -208,11 +208,86 @@ export const ZHENGUAN_SCENES: SceneNode[] = [
     }
 ];
 
+// 三家分晋场景节点
+export const SANJIAFENJIN_SCENES: SceneNode[] = [
+    {
+        id: 'sanjia-1',
+        topicId: 'sanjiafenjin',
+        sequence: 1,
+        name: '智伯索地',
+        description: '智伯（智瑶）仗着智氏最强，向韩、魏两家索要土地。韩康子、魏桓子被迫献地。智伯又向赵氏索地，赵襄子断然拒绝。',
+        keyCharacters: ['zhibo', 'hanhuzi', 'weiju', 'zhaowuxu'],
+        atmosphere: '强权欺压，暗流涌动',
+        suggestedActions: [
+            '智伯傲慢索地，不把三家放在眼里',
+            '韩康子、魏桓子被迫屈服，但心怀怨恨',
+            '赵襄子据理力争，拒绝献地'
+        ]
+    },
+    {
+        id: 'sanjia-2',
+        topicId: 'sanjiafenjin',
+        sequence: 2,
+        name: '晋阳之围',
+        description: '智伯以赵氏不献地为由，联合韩、魏两家攻打赵氏。赵襄子退守晋阳城，三家联军围城。',
+        keyCharacters: ['zhibo', 'zhaowuxu', 'hanhuzi', 'weiju'],
+        atmosphere: '大军压境，危在旦夕',
+        suggestedActions: [
+            '智伯统领三家联军围攻晋阳',
+            '赵襄子坚守城池',
+            '韩、魏两家心存疑虑'
+        ]
+    },
+    {
+        id: 'sanjia-3',
+        topicId: 'sanjiafenjin',
+        sequence: 3,
+        name: '水灌晋阳',
+        description: '智伯引汾水灌晋阳城，城墙不浸者仅三版。赵氏危在旦夕，赵襄子派谋臣张孟谈夜出求援。',
+        keyCharacters: ['zhibo', 'zhaowuxu', 'zhangmengtan'],
+        atmosphere: '洪水滔天，生死存亡',
+        suggestedActions: [
+            '智伯得意洋洋，以为胜券在握',
+            '赵襄子在城头望水叹息',
+            '张孟谈夜见韩、魏，陈述利害'
+        ]
+    },
+    {
+        id: 'sanjia-4',
+        topicId: 'sanjiafenjin',
+        sequence: 4,
+        name: '三家灭智',
+        description: '韩、魏两家被张孟谈说服，决意反水。三家联手决堤反灌智伯军营，智伯兵败被杀，智氏一族尽灭。',
+        keyCharacters: ['hanhuzi', 'weiju', 'zhaowuxu', 'zhibo'],
+        atmosphere: '惊天逆转，灭门之祸',
+        suggestedActions: [
+            '韩、魏密谋反戈',
+            '夜决堤坝，水淹智军',
+            '智伯兵败被杀，智氏灭族'
+        ]
+    },
+    {
+        id: 'sanjia-5',
+        topicId: 'sanjiafenjin',
+        sequence: 5,
+        name: '三家分晋',
+        description: '韩、赵、魏三家瓜分智氏土地，并逐渐蚕分晋国。周威烈王正式册封三家为诸侯，晋国名存实亡。',
+        keyCharacters: ['hanhuzi', 'weiju', 'zhaowuxu', 'zhouweilie'],
+        atmosphere: '诸侯崛起，礼崩乐坏',
+        suggestedActions: [
+            '三家瓜分智氏土地',
+            '周威烈王无奈册封三家为诸侯',
+            '事件结束，可由司马光做总结'
+        ]
+    }
+];
+
 // 所有场景节点的映射
 export const SCENE_NODES: Record<string, SceneNode[]> = {
     'hongmen': HONGMENYAN_SCENES,
     'yiling': YILING_SCENES,
     'zhenguan': ZHENGUAN_SCENES,
+    'sanjiafenjin': SANJIAFENJIN_SCENES,
 };
 
 // 根据话题ID获取场景节点

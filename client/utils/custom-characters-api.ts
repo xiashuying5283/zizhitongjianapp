@@ -1,6 +1,7 @@
 /**
  * 自定义角色 API
  */
+import { Character } from './characters-api';
 
 const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
 
@@ -120,18 +121,7 @@ export async function deleteCustomCharacter(id: string): Promise<boolean> {
 }
 
 // 将自定义角色转换为群聊格式
-export function convertToChatCharacter(customChar: CustomCharacter): {
-    id: string;
-    name: string;
-    dynasty: string;
-    title: string;
-    personality: string;
-    speakingStyle: string;
-    avatar: string;
-    skillData: {
-        constraints: string[];
-    };
-} {
+export function convertToChatCharacter(customChar: CustomCharacter): Character {
     return {
         id: customChar.id,
         name: customChar.name,
@@ -140,6 +130,7 @@ export function convertToChatCharacter(customChar: CustomCharacter): {
         personality: customChar.personality || '性格随和',
         speakingStyle: customChar.speaking_style || '说话直率',
         avatar: customChar.avatar,
+        relatedTopics: [],
         skillData: {
             constraints: customChar.personality ? [] : ['积极参与讨论'],
         },

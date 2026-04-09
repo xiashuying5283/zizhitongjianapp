@@ -6,6 +6,7 @@ import {
     TextInput,
     FlatList,
     KeyboardAvoidingView,
+    Keyboard,
     Platform,
     Alert,
     ActivityIndicator,
@@ -29,6 +30,7 @@ import {
     addChatMessage,
     clearChatMessages,
     fetchChatRoomDetail,
+    updateSceneState,
     ChatMessage as DbChatMessage,
 } from '@/utils/chat-history-api';
 
@@ -42,10 +44,10 @@ const AVATAR_COLORS = [
     '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
 ];
 
-// 获取名字首字
+// 获取名字最后一个字作为头像文字
 const getInitials = (name: string): string => {
     if (!name) return '?';
-    return name.charAt(0);
+    return name.charAt(name.length - 1);
 };
 
 // 获取预设颜色
@@ -60,7 +62,7 @@ const getAvatarColor = (name: string): string => {
 
 // 判断是否是图片URL
 const isImageUrl = (avatar: string): boolean => {
-    return avatar && (avatar.startsWith('http://') || avatar.startsWith('https://'));
+    return !!(avatar && (avatar.startsWith('http://') || avatar.startsWith('https://')));
 };
 
 export default function GroupChatScreen() {
@@ -94,10 +96,18 @@ export default function GroupChatScreen() {
         isLastScene: boolean;
     } | null>(null);
     const [eventEnded, setEventEnded] = useState(false);
+    const [showSceneSelector, setShowSceneSelector] = useState(false); // 场景选择器
+    const [sceneList, setSceneList] = useState<Array<{
+        id: string;
+        name: string;
+        sequence: number;
+    }>>([]); // 场景列表
 
     // @功能相关
     const [showAtPicker, setShowAtPicker] = useState(false);
     const [atCharacter, setAtCharacter] = useState<Character | null>(null);
+    const [showMorePanel, setShowMorePanel] = useState(false); // 更多面板
+    const [inputFocused, setInputFocused] = useState(false); // 输入框焦点状态
 
     const flatListRef = useRef<FlatList>(null);
     const isGeneratingRef = useRef(false);
@@ -114,6 +124,17 @@ export default function GroupChatScreen() {
             resumeChat(params.roomId);
         }
     }, [params.roomId]);
+
+    // 键盘弹出时滚动到底部（提前响应，无动画）
+    useEffect(() => {
+        const keyboardWillShow = Keyboard.addListener('keyboardWillShow', () => {
+            // 立即滚动，不等键盘动画完成
+            requestAnimationFrame(() => {
+                flatListRef.current?.scrollToEnd({ animated: false });
+            });
+        });
+        return () => keyboardWillShow.remove();
+    }, []);
 
     // 加载所有人物
     const loadAllCharacters = async () => {
@@ -141,6 +162,18 @@ export default function GroupChatScreen() {
                 setSelectedCharacters(new Set(data.room.characterIds));
                 setMessages(data.messages);
                 setCurrentRoomId(cleanRoomId);
+
+                // 恢复场景状态
+                if (data.room.sceneState) {
+                    setCurrentScene({
+                        sceneId: data.room.sceneState.sceneId,
+                        sceneName: data.room.sceneState.sceneName,
+                        sequence: data.room.sceneState.sequence,
+                        totalScenes: data.room.sceneState.totalScenes,
+                        isLastScene: data.room.sceneState.isLastScene,
+                    });
+                }
+
                 setPhase('chatting');
             } else {
                 Alert.alert('错误', '无法加载该房间');
@@ -197,13 +230,56 @@ export default function GroupChatScreen() {
     const getFinalCharacters = useMemo(() => {
         const presetChars = allCharacters.filter(c => selectedCharacters.has(c.id));
         const customChars = customCharacters.filter(c => selectedCharacters.has(c.id));
-        return [...presetChars.map(c => ({
-            ...c,
-            personality: c.personality,
-            speakingStyle: c.speakingStyle,
-            skillData: c.skillData,
-        })), ...customChars.map(c => convertToChatCharacter(c))];
+        return [
+            ...presetChars.map(c => ({
+                id: c.id,
+                name: c.name,
+                dynasty: c.dynasty,
+                title: c.title,
+                personality: c.personality,
+                speakingStyle: c.speakingStyle,
+                avatar: c.avatar,
+                relatedTopics: c.relatedTopics || [],
+                skillData: c.skillData ?? { constraints: [] },
+            })),
+            ...customChars.map(c => convertToChatCharacter(c))
+        ] as Character[];
     }, [allCharacters, customCharacters, selectedCharacters]);
+
+    // 同步场景状态到后端
+    useEffect(() => {
+        if (currentRoomId && currentScene) {
+            updateSceneState(currentRoomId, currentScene);
+        }
+    }, [currentScene, currentRoomId]);
+
+    // 获取话题对应的场景列表
+    const fetchSceneList = async (topicId: string) => {
+        try {
+            const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/scenes/${topicId}`);
+            const result = await response.json();
+            if (result.success && result.data) {
+                setSceneList(result.data);
+            }
+        } catch (error) {
+            console.error('获取场景列表失败:', error);
+        }
+    };
+
+    // 打开场景选择器时获取场景列表
+    useEffect(() => {
+        if (showSceneSelector && selectedTopicId) {
+            // 将话题名称转换为 topicId
+            const topicIdMap: Record<string, string> = {
+                '鸿门宴': 'hongmen',
+                '鸿门宴对峙': 'hongmen',
+                '贞观之治': 'zhenguan',
+                '夷陵之战': 'yiling',
+            };
+            const topicId = topicIdMap[currentTopic] || selectedTopicId;
+            fetchSceneList(topicId);
+        }
+    }, [showSceneSelector, selectedTopicId, currentTopic]);
 
     // 可选人物列表（混入自定义角色）
     const availableCharacters = useMemo(() => {
@@ -223,8 +299,9 @@ export default function GroupChatScreen() {
                     personality: custom.personality,
                     speakingStyle: custom.speaking_style,
                     avatar: custom.avatar,
-                    skillData: { constraints: [] },
-                } as Character);
+                    relatedTopics: [],
+                    skillData: { constraints: [] as string[] },
+                });
             }
         });
 
@@ -286,7 +363,7 @@ export default function GroupChatScreen() {
             const MAX_REPLIES = 2; // 手动模式：最多2条回复
 
             // 用局部变量追踪消息列表
-            let localMessages = [...messages];
+            const localMessages = [...messages];
 
             // 加入用户消息
             localMessages.push({
@@ -332,6 +409,23 @@ export default function GroupChatScreen() {
                 });
 
                 const result = await response.json();
+
+                // 处理司马光控场消息（即使 done=true 也要显示）
+                if (result.success && result.data?.isControlMessage && result.data.content) {
+                    const { speakerId, speakerName, content } = result.data;
+                    const controlMsg: DbChatMessage = {
+                        id: 'control-' + Date.now(),
+                        characterId: speakerId || 'simaguang',
+                        characterName: speakerName || '司马光',
+                        content: content,
+                        isUser: false,
+                        createdAt: new Date().toISOString(),
+                    };
+                    localMessages.push(controlMsg);
+                    setMessages(prev => [...prev, controlMsg]);
+                    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+                    break; // 控场后暂停
+                }
 
                 // done=true 表示结束
                 if (result.success && result.data?.done) {
@@ -451,9 +545,11 @@ export default function GroupChatScreen() {
 
         const MAX_AUTO_ROUNDS = 5; // 最多5轮
         let round = 0;
+        let sceneChanged = false; // 追踪场景是否切换过
+        const initialSceneId = currentScene?.sceneId; // 记录初始场景ID
 
         // 用局部变量追踪消息列表（解决闭包问题）
-        let localMessages = [...messages];
+        const localMessages = [...messages];
 
         while (round < MAX_AUTO_ROUNDS && autoModeRef.current) {  // 使用 ref 检查
             round++;
@@ -491,14 +587,86 @@ export default function GroupChatScreen() {
                         messages: currentMessages,
                         replyCount: i,
                         autoMode: true,
+                        currentSceneId: currentScene?.sceneId,
+                        currentSequence: currentScene?.sequence,
+                        forceAdvance: round === MAX_AUTO_ROUNDS && !sceneChanged, // 最后一轮且场景未切换，强制推进
                     }),
                 });
 
                 const result = await response.json();
 
-                if (result.success && result.data && !result.data.done) {
-                    const { speakerId, speakerName, content } = result.data;
+                // 处理暂停提示
+                if (result.success && result.data?.needPause) {
+                    // 添加暂停提示消息
+                    const pauseMsg: DbChatMessage = {
+                        id: 'pause-' + Date.now(),
+                        characterId: 'system',
+                        characterName: '系统',
+                        content: '自动推演已进行3轮，请点击"继续推演"按钮继续',
+                        isUser: false,
+                        createdAt: new Date().toISOString(),
+                    };
+                    setMessages(prev => [...prev, pauseMsg]);
+                    break; // 退出自动推演循环
+                }
 
+                // 处理司马光控场消息（即使 done=true 也要显示）
+                if (result.success && result.data?.isControlMessage && result.data.content) {
+                    const { speakerId, speakerName, content } = result.data;
+                    const controlMsg: DbChatMessage = {
+                        id: 'control-' + Date.now(),
+                        characterId: speakerId || 'simaguang',
+                        characterName: speakerName || '司马光',
+                        content: content,
+                        isUser: false,
+                        createdAt: new Date().toISOString(),
+                    };
+                    localMessages.push(controlMsg);
+                    setMessages(prev => [...prev, controlMsg]);
+                    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+                    break; // 控场后暂停，等待用户发言
+                }
+
+                // done=true 表示结束
+                if (result.success && result.data?.done) {
+                    console.log(`[自动推演] 回复结束: ${result.data.message}`);
+                    break;
+                }
+
+                if (result.success && result.data && !result.data.done) {
+                    const { speakerId, speakerName, content, sceneUpdate, eventEnded, chenGuangYueMessage } = result.data;
+
+                    // 处理场景更新
+                    if (sceneUpdate) {
+                        sceneChanged = true;
+                        setCurrentScene({
+                            sceneId: sceneUpdate.currentSceneId,
+                            sceneName: sceneUpdate.currentSceneName,
+                            sequence: sceneUpdate.currentSequence,
+                            totalScenes: sceneUpdate.totalScenes,
+                            isLastScene: sceneUpdate.isLastScene,
+                        });
+
+                        // 添加场景切换提示
+                        const sceneMsg: DbChatMessage = {
+                            id: 'scene-' + Date.now(),
+                            characterId: 'system',
+                            characterName: '系统',
+                            content: `【场景推进】${sceneUpdate.currentSceneName}`,
+                            isUser: false,
+                            createdAt: new Date().toISOString(),
+                        };
+                        localMessages.push(sceneMsg);
+                        setMessages(prev => [...prev, sceneMsg]);
+                    }
+
+                    // 处理事件结束
+                    if (eventEnded) {
+                        setEventEnded(true);
+                        console.log('[自动推演] 事件已结束，终止推演');
+                    }
+
+                    // 保存并显示消息
                     const savedMsg = await addChatMessage(currentRoomId, speakerId, speakerName, content, false);
 
                     if (savedMsg) {
@@ -515,6 +683,33 @@ export default function GroupChatScreen() {
                         setMessages(prev => [...prev, savedMsg]);
                         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
                     }
+
+                    // 处理臣光曰消息
+                    if (chenGuangYueMessage) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+
+                        const chenGuangMsg: DbChatMessage = {
+                            id: chenGuangYueMessage.id || 'chenguangyue-' + Date.now(),
+                            characterId: chenGuangYueMessage.speakerId || 'simaguang',
+                            characterName: chenGuangYueMessage.speakerName || '司马光',
+                            content: chenGuangYueMessage.content,
+                            isUser: false,
+                            createdAt: new Date().toISOString(),
+                        };
+
+                        localMessages.push(chenGuangMsg);
+                        setMessages(prev => [...prev, chenGuangMsg]);
+                        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+                        // 臣光曰发表后，终止自动推演
+                        console.log('[自动推演] 臣光曰已发表，终止推演');
+                        break;
+                    }
+
+                    // 事件结束后，终止自动推演
+                    if (eventEnded) {
+                        break;
+                    }
                 }
 
                 // 每条消息间隔1.5秒
@@ -525,12 +720,46 @@ export default function GroupChatScreen() {
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
+        // 5轮结束后场景仍未切换，强制推进
+        if (!sceneChanged && initialSceneId) {
+            const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/advance-scene`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topic: currentTopic,
+                    currentSceneId: initialSceneId,
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success && result.data?.sceneUpdate) {
+                const sceneUpdate = result.data.sceneUpdate;
+                setCurrentScene({
+                    sceneId: sceneUpdate.currentSceneId,
+                    sceneName: sceneUpdate.currentSceneName,
+                    sequence: sceneUpdate.currentSequence,
+                    totalScenes: sceneUpdate.totalScenes,
+                    isLastScene: sceneUpdate.isLastScene,
+                });
+
+                const sceneMsg: DbChatMessage = {
+                    id: 'scene-force-' + Date.now(),
+                    characterId: 'system',
+                    characterName: '系统',
+                    content: `【场景推进】${sceneUpdate.currentSceneName}`,
+                    isUser: false,
+                    createdAt: new Date().toISOString(),
+                };
+                setMessages(prev => [...prev, sceneMsg]);
+            }
+        }
+
         setAutoMode(false);
         autoModeRef.current = false;  // 同步更新 ref
         setRoundInfo(null);  // 清除轮次信息
         isGeneratingRef.current = false;
         setIsLoading(false);
-    }, [currentRoomId, messages, getFinalCharacters, currentTopic]);
+    }, [currentRoomId, messages, getFinalCharacters, currentTopic, currentScene]);
 
     // 停止自动推演
     const stopAutoMode = useCallback(() => {
@@ -582,7 +811,7 @@ export default function GroupChatScreen() {
                 if (result.success && result.data) {
                     const msgs: DbChatMessage[] = [];
 
-                    // 系统公告
+                    // 系统公告（包含引导提示）
                     if (result.data.systemMessage) {
                         const sysMsg = result.data.systemMessage;
                         msgs.push({
@@ -595,21 +824,8 @@ export default function GroupChatScreen() {
                         });
                     }
 
-                    // 核心人物开场
-                    if (result.data.openingMessage) {
-                        const openMsg = result.data.openingMessage;
-                        msgs.push({
-                            id: openMsg.id || 'open-' + Date.now(),
-                            characterId: openMsg.characterId,
-                            characterName: openMsg.characterName,
-                            content: openMsg.content,
-                            isUser: false,
-                            createdAt: openMsg.createdAt || new Date().toISOString(),
-                        });
-
-                        // 保存开场消息到数据库
-                        await addChatMessage(room.id, openMsg.characterId, openMsg.characterName, openMsg.content, false);
-                    }
+                    // 不再有AI自动开场白，等待用户提问
+                    // 这样确保"用户是群聊的绝对主导者"
 
                     setMessages(msgs);
 
@@ -634,6 +850,154 @@ export default function GroupChatScreen() {
             Alert.alert('错误', '创建会话失败');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // 手动切换场景并触发AI回复
+    const handleSceneChange = async (scene: { id: string; name: string; sequence: number }) => {
+        if (!currentRoomId || isGeneratingRef.current) return;
+        if (currentScene?.sceneId === scene.id) {
+            setShowSceneSelector(false);
+            return;
+        }
+
+        // 更新场景状态
+        const newSceneState = {
+            sceneId: scene.id,
+            sceneName: scene.name,
+            sequence: scene.sequence,
+            totalScenes: sceneList.length,
+            isLastScene: scene.sequence === sceneList.length,
+        };
+        setCurrentScene(newSceneState);
+        setShowSceneSelector(false);
+
+        // 添加场景切换的系统消息
+        const sceneMsg: DbChatMessage = {
+            id: 'scene-' + Date.now(),
+            characterId: 'system',
+            characterName: '系统',
+            content: `【场景推进】${scene.name}`,
+            isUser: false,
+            createdAt: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, sceneMsg]);
+
+        // 同步场景状态到后端
+        try {
+            await updateSceneState(currentRoomId, newSceneState);
+        } catch (e) {
+            console.warn('场景状态同步失败，继续处理:', e);
+        }
+
+        // 触发AI根据新场景说话
+        setIsLoading(true);
+        isGeneratingRef.current = true;
+
+        try {
+            const finalCharacters = getFinalCharacters;
+            if (finalCharacters.length < 2) {
+                console.warn('角色数量不足，跳过AI回复');
+                return;
+            }
+
+            // 构建消息（包含刚添加的场景切换消息）
+            const currentMessages = [
+                ...messages.slice(-10).map(m => ({
+                    role: m.isUser ? 'user' : 'assistant',
+                    characterName: m.characterName,
+                    content: m.content,
+                })),
+                {
+                    role: 'assistant' as const,
+                    characterName: '系统',
+                    content: sceneMsg.content,
+                },
+            ];
+
+            const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/generate-next`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topic: currentTopic,
+                    characters: finalCharacters.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        dynasty: c.dynasty,
+                        title: c.title,
+                        personality: c.personality,
+                        speakingStyle: c.speakingStyle,
+                        constraints: c.skillData?.constraints || [],
+                        avatar: c.avatar,
+                    })),
+                    messages: currentMessages,
+                    currentSceneId: scene.id,
+                    currentSequence: scene.sequence,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                const { speakerId, speakerName, content, eventEnded, chenGuangYueMessage, done, isControlMessage } = result.data;
+
+                // 处理司马光控场消息（即使 done=true 也要显示）
+                if (isControlMessage && content) {
+                    const controlMsg: DbChatMessage = {
+                        id: 'control-' + Date.now(),
+                        characterId: speakerId || 'simaguang',
+                        characterName: speakerName || '司马光',
+                        content: content,
+                        isUser: false,
+                        createdAt: new Date().toISOString(),
+                    };
+                    setMessages(prev => [...prev, controlMsg]);
+                    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+                    return;
+                }
+
+                // done: true 且无内容 表示没有AI回复（可能是校验不通过或限制）
+                if (done && !content) {
+                    console.log('[场景切换] 后端返回 done=true，无AI回复');
+                    return;
+                }
+
+                // 保存并显示AI消息
+                if (content && speakerId && speakerName) {
+                    const savedMsg = await addChatMessage(currentRoomId, speakerId, speakerName, content, false);
+                    if (savedMsg) {
+                        setMessages(prev => [...prev, savedMsg]);
+                        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+                    }
+                }
+
+                // 处理事件结束
+                if (eventEnded) {
+                    setEventEnded(true);
+                }
+
+                // 处理臣光曰消息
+                if (chenGuangYueMessage) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const chenGuangMsg: DbChatMessage = {
+                        id: chenGuangYueMessage.id || 'chenguangyue-' + Date.now(),
+                        characterId: chenGuangYueMessage.speakerId || 'simaguang',
+                        characterName: chenGuangYueMessage.speakerName || '司马光',
+                        content: chenGuangYueMessage.content,
+                        isUser: false,
+                        createdAt: new Date().toISOString(),
+                    };
+                    setMessages(prev => [...prev, chenGuangMsg]);
+                    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+                }
+            } else {
+                console.warn('[场景切换] 后端返回失败:', result.message);
+            }
+        } catch (error) {
+            console.error('[场景切换] AI回复请求失败:', error);
+        } finally {
+            setIsLoading(false);
+            isGeneratingRef.current = false;
         }
     };
 
@@ -697,10 +1061,21 @@ export default function GroupChatScreen() {
         const characterName = getCharacterName(item.characterId);
         const showAvatar = isUser || item.characterId;
 
+        // 长按头像@该角色
+        const handleLongPressAvatar = () => {
+            if (!isUser && item.characterId && characterName) {
+                setUserInput(prev => prev + `@${characterName} `);
+            }
+        };
+
         return (
             <View style={[styles.messageRow, isUser && styles.messageRowUser]}>
                 {showAvatar && (
-                    <View style={[styles.avatar, isUser ? styles.avatarUser : styles.avatarAI]}>
+                    <TouchableOpacity
+                        style={[styles.avatar, isUser ? styles.avatarUser : styles.avatarAI]}
+                        onLongPress={handleLongPressAvatar}
+                        delayLongPress={500}
+                    >
                         {isUser ? (
                             <View style={[styles.avatar, { backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center' }]}>
                                 <ThemedText variant="h4" color="#FFFFFF">我</ThemedText>
@@ -712,7 +1087,7 @@ export default function GroupChatScreen() {
                                 <ThemedText variant="h4" color="#FFFFFF">{getInitials(characterName)}</ThemedText>
                             </View>
                         )}
-                    </View>
+                    </TouchableOpacity>
                 )}
 
                 <View style={styles.messageContentArea}>
@@ -916,18 +1291,18 @@ export default function GroupChatScreen() {
 
     // ==================== 聊天阶段 ====================
     return (
-        <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark" noPadding>
+        <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
             <KeyboardAvoidingView
                 style={styles.container}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={90}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
             >
                 {/* 聊天头部 */}
                 <View style={styles.chatHeader}>
                     <TouchableOpacity onPress={handleEndChat} style={{ position: 'absolute', left: Spacing.md }}>
                         <FontAwesome6 name="chevron-left" size={20} color={theme.textPrimary} />
                     </TouchableOpacity>
-                    <ThemedText variant="medium" color={theme.textPrimary} style={styles.chatTitleText}>
+                    <ThemedText variant="bodyMedium" color={theme.textPrimary} style={styles.chatTitleText}>
                         {currentTopic}
                     </ThemedText>
                     {isLoading && (
@@ -938,15 +1313,15 @@ export default function GroupChatScreen() {
                 {/* 自动推演轮次信息 */}
                 {autoMode && roundInfo && (
                     <View style={{
-                        backgroundColor: theme.primaryLight || `${theme.primary}15`,
-                        paddingVertical: Spacing.xs,
+                        backgroundColor: theme.primaryLight || (theme.primary === '#FAFAF9' ? '#2A2A2A' : '#F0EEE8'),
+                        paddingVertical: Spacing.sm,
                         paddingHorizontal: Spacing.md,
                         flexDirection: 'row',
                         alignItems: 'center',
                         justifyContent: 'center',
                     }}>
-                        <FontAwesome6 name="robot" size={12} color={theme.primary} style={{ marginRight: Spacing.xs }} />
-                        <ThemedText variant="small" color={theme.primary}>
+                        <FontAwesome6 name="robot" size={14} color={theme.primary} style={{ marginRight: Spacing.sm }} />
+                        <ThemedText variant="body" color={theme.text} style={{ fontWeight: '500' }}>
                             自动推演 · 第 {roundInfo.round} 轮 · 第 {roundInfo.speaker}/3 人
                         </ThemedText>
                     </View>
@@ -954,27 +1329,133 @@ export default function GroupChatScreen() {
 
                 {/* 场景推演状态 */}
                 {currentScene && (
-                    <View style={{
-                        backgroundColor: theme.backgroundSecondary,
-                        paddingVertical: Spacing.sm,
-                        paddingHorizontal: Spacing.md,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        borderBottomWidth: 1,
-                        borderBottomColor: theme.border,
-                    }}>
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: theme.primaryLight || (theme.primary === '#FAFAF9' ? '#2A2A2A' : '#F0EEE8'),
+                            paddingVertical: Spacing.sm + 2,
+                            paddingHorizontal: Spacing.md,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            borderBottomWidth: 1,
+                            borderBottomColor: theme.border,
+                        }}
+                        onPress={() => setShowSceneSelector(true)}
+                    >
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <FontAwesome6 name="film" size={14} color={theme.primary} style={{ marginRight: Spacing.sm }} />
-                            <ThemedText variant="small" color={theme.text}>
+                            <FontAwesome6 name="film" size={16} color={theme.primary} style={{ marginRight: Spacing.sm }} />
+                            <ThemedText variant="body" color={theme.text} style={{ fontWeight: '500' }}>
                                 {currentScene.sceneName}
                             </ThemedText>
                         </View>
-                        <ThemedText variant="small" color={theme.textMuted}>
-                            {currentScene.sequence}/{currentScene.totalScenes}
-                        </ThemedText>
-                    </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <ThemedText variant="body" color={theme.text} style={{ marginRight: Spacing.sm, fontWeight: '500' }}>
+                                {currentScene.sequence}/{currentScene.totalScenes}
+                            </ThemedText>
+                            <FontAwesome6 name="chevron-down" size={14} color={theme.text} />
+                        </View>
+                    </TouchableOpacity>
                 )}
+
+                {/* 场景选择器 Modal */}
+                <Modal
+                    visible={showSceneSelector}
+                    transparent
+                    animationType="slide"
+                    onRequestClose={() => setShowSceneSelector(false)}
+                >
+                    <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
+                        activeOpacity={1}
+                        onPress={() => setShowSceneSelector(false)}
+                    >
+                        <View style={{
+                            backgroundColor: theme.backgroundDefault,
+                            borderTopLeftRadius: BorderRadius.xl,
+                            borderTopRightRadius: BorderRadius.xl,
+                            maxHeight: '70%',
+                            paddingBottom: Spacing.xl,
+                        }}>
+                            {/* 标题 */}
+                            <View style={{
+                                padding: Spacing.md,
+                                borderBottomWidth: 1,
+                                borderBottomColor: theme.border,
+                                alignItems: 'center',
+                            }}>
+                                <ThemedText variant="h4" color={theme.text}>场景流程</ThemedText>
+                                <ThemedText variant="small" color={theme.textSecondary}>点击切换到任意场景</ThemedText>
+                            </View>
+
+                            {/* 场景列表 */}
+                            <ScrollView style={{ padding: Spacing.md }}>
+                                {sceneList.length > 0 ? (
+                                    sceneList.map((scene) => {
+                                        const isActive = currentScene?.sceneId === scene.id;
+                                        return (
+                                            <TouchableOpacity
+                                                key={scene.id}
+                                                style={{
+                                                    padding: Spacing.md,
+                                                    borderRadius: BorderRadius.md,
+                                                    backgroundColor: isActive
+                                                        ? (theme.primary === '#FAFAF9' ? '#3A3A3A' : '#E0E0E0')
+                                                        : theme.backgroundSecondary,
+                                                    marginBottom: Spacing.sm,
+                                                    borderWidth: isActive ? 2 : 1,
+                                                    borderColor: isActive ? theme.primary : theme.border,
+                                                }}
+                                                onPress={() => handleSceneChange(scene)}
+                                            >
+                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                    <View style={{
+                                                        width: 32,
+                                                        height: 32,
+                                                        borderRadius: 16,
+                                                        backgroundColor: isActive ? theme.primary : theme.border,
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        marginRight: Spacing.md,
+                                                    }}>
+                                                        <ThemedText variant="body" color={isActive ? (theme.primary === '#FAFAF9' ? '#121212' : '#FFFFFF') : theme.textSecondary} style={{ fontWeight: '600' }}>
+                                                            {scene.sequence}
+                                                        </ThemedText>
+                                                    </View>
+                                                    <ThemedText
+                                                        variant="body"
+                                                        color={isActive ? theme.primary : theme.text}
+                                                        style={{ fontWeight: isActive ? '600' : 'normal', fontSize: 16 }}
+                                                    >
+                                                        {scene.name}
+                                                    </ThemedText>
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    })
+                                ) : (
+                                    <ThemedText variant="body" color={theme.textSecondary} style={{ textAlign: 'center', padding: Spacing.lg }}>
+                                        该话题暂无场景数据
+                                    </ThemedText>
+                                )}
+                            </ScrollView>
+
+                            {/* 关闭按钮 */}
+                            <TouchableOpacity
+                                style={{
+                                    marginHorizontal: Spacing.md,
+                                    marginTop: Spacing.sm,
+                                    padding: Spacing.md,
+                                    borderRadius: BorderRadius.md,
+                                    backgroundColor: theme.backgroundSecondary,
+                                    alignItems: 'center',
+                                }}
+                                onPress={() => setShowSceneSelector(false)}
+                            >
+                                <ThemedText variant="body" color={theme.text}>关闭</ThemedText>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
 
                 {/* 事件结束提示 */}
                 {eventEnded && (
@@ -1010,73 +1491,118 @@ export default function GroupChatScreen() {
                             keyExtractor={item => item.id}
                             contentContainerStyle={styles.messageList}
                             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                            onScrollBeginDrag={() => Keyboard.dismiss()}
                         />
                     )}
                 </View>
 
-                {/* 输入区域 */}
-                <View style={styles.inputSection}>
-                    {/* @按钮 */}
-                    <TouchableOpacity
-                        style={styles.atButton}
-                        onPress={() => setShowAtPicker(true)}
-                    >
-                        <FontAwesome6 name="at" size={22} color={theme.primary} />
-                    </TouchableOpacity>
-
-                    <TextInput
-                        style={styles.textInput}
-                        placeholder="输入消息，可@角色..."
-                        placeholderTextColor="#999999"
-                        value={userInput}
-                        onChangeText={setUserInput}
-                        multiline
-                        maxLength={200}
-                        editable={!isLoading}
-                    />
-                    <TouchableOpacity
-                        style={[styles.sendButton, (isLoading || !userInput.trim()) && styles.sendButtonDisabled]}
-                        onPress={handleSendMessage}
-                        disabled={isLoading || !userInput.trim()}
-                    >
-                        <ThemedText variant="small" color="#FFFFFF" style={styles.sendButtonText}>
-                            发送
-                        </ThemedText>
-                    </TouchableOpacity>
-                </View>
-
-                {/* 底部操作 */}
-                <View style={styles.bottomActions}>
-                    {/* 自动推演模式按钮 */}
-                    {autoMode ? (
-                        <TouchableOpacity
-                            style={[styles.actionButton, styles.autoModeActive]}
-                            onPress={stopAutoMode}
-                        >
-                            <FontAwesome6 name="pause" size={14} color="#FFFFFF" />
-                            <ThemedText variant="small" color="#FFFFFF">
-                                暂停推演 ({autoRound}/5)
-                            </ThemedText>
-                        </TouchableOpacity>
-                    ) : (
-                        <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={startAutoMode}
-                            disabled={isLoading || isGeneratingRef.current}
-                        >
-                            <FontAwesome6 name="play" size={14} color={theme.textSecondary} />
-                            <ThemedText variant="small" color={theme.textSecondary}>自动推演</ThemedText>
-                        </TouchableOpacity>
+                {/* 输入区域容器 */}
+                <View style={styles.inputContainer}>
+                    {/* 悬浮的自动推演按钮 */}
+                    {!autoMode && (
+                        <View style={styles.floatingAutoButton}>
+                            <TouchableOpacity
+                                style={styles.floatingAutoButtonInner}
+                                onPress={startAutoMode}
+                                disabled={isLoading || isGeneratingRef.current}
+                            >
+                                <FontAwesome6 name="play" size={14} color="#505050" />
+                                <ThemedText variant="small" color="#505050" style={{ fontWeight: '500' }}>自动推演</ThemedText>
+                            </TouchableOpacity>
+                        </View>
                     )}
 
-                    <TouchableOpacity style={styles.actionButton} onPress={handleClearChat}>
-                        <FontAwesome6 name="trash" size={14} color={theme.textSecondary} />
-                        <ThemedText variant="small" color={theme.textSecondary}>清空</ThemedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton} onPress={handleEndChat}>
-                        <FontAwesome6 name="door-open" size={14} color={theme.textSecondary} />
-                        <ThemedText variant="small" color={theme.textSecondary}>结束</ThemedText>
-                    </TouchableOpacity>
+                    {/* 自动推演激活时的状态栏 */}
+                    {autoMode && (
+                        <View style={styles.bottomActions}>
+                            <TouchableOpacity
+                                style={[styles.actionButton, styles.autoModeActive]}
+                                onPress={stopAutoMode}
+                            >
+                                <FontAwesome6 name="pause" size={14} color="#FFFFFF" />
+                                <ThemedText variant="small" color="#FFFFFF">
+                                    暂停推演 ({autoRound}/5)
+                                </ThemedText>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* 输入区域 */}
+                    <View style={styles.inputSection}>
+                        <View style={[styles.inputWrapper, inputFocused && styles.inputWrapperFocused]}>
+                            {/* 嵌入输入框的@按钮 */}
+                            <TouchableOpacity
+                                style={styles.atButtonInline}
+                                onPress={() => setShowAtPicker(true)}
+                            >
+                                <FontAwesome6 name="at" size={20} color={inputFocused ? '#505050' : '#969696'} />
+                            </TouchableOpacity>
+
+                            <TextInput
+                                style={styles.textInput}
+                                placeholder="回复角色..."
+                                placeholderTextColor="#B4B4B4"
+                                value={userInput}
+                                onChangeText={(text) => {
+                                    setUserInput(text);
+                                    // 输入@时自动弹出选择人物
+                                    if (text.endsWith('@') && !showAtPicker) {
+                                        setShowAtPicker(true);
+                                    }
+                                    // 输入内容时关闭更多面板
+                                    if (showMorePanel && text.trim()) {
+                                        setShowMorePanel(false);
+                                    }
+                                }}
+                                onFocus={() => {
+                                    setInputFocused(true);
+                                    setShowMorePanel(false);
+                                }}
+                                onBlur={() => setInputFocused(false)}
+                                multiline
+                                maxLength={200}
+                                editable={!isLoading}
+                            />
+                        </View>
+
+                        {/* 发送按钮或更多按钮 */}
+                        <TouchableOpacity
+                            style={[
+                                styles.circleButton,
+                                userInput.trim() ? styles.sendButton : styles.moreButton,
+                                showMorePanel && !userInput.trim() && styles.moreButtonActive,
+                            ]}
+                            onPress={userInput.trim() ? handleSendMessage : () => setShowMorePanel(!showMorePanel)}
+                            disabled={isLoading && !!userInput.trim()}
+                        >
+                            <FontAwesome6
+                                name={userInput.trim() ? 'arrow-up' : 'plus'}
+                                size={userInput.trim() ? 18 : 22}
+                                color={userInput.trim() ? '#1E1E1E' : '#646464'}
+                            />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* 展开的更多面板 */}
+                    <View style={[styles.morePanel, showMorePanel ? { maxHeight: 180, opacity: 1 } : { maxHeight: 0, opacity: 0 }]}>
+                        <View style={styles.morePanelContent}>
+                            {/* 清空记录 */}
+                            <TouchableOpacity style={styles.morePanelItem} onPress={() => { setShowMorePanel(false); handleClearChat(); }}>
+                                <View style={styles.morePanelButton}>
+                                    <FontAwesome6 name="trash" size={24} color="#646464" />
+                                </View>
+                                <ThemedText variant="tiny" color="#787878">清空记录</ThemedText>
+                            </TouchableOpacity>
+
+                            {/* 结束推演 */}
+                            <TouchableOpacity style={styles.morePanelItem} onPress={() => { setShowMorePanel(false); handleEndChat(); }}>
+                                <View style={styles.morePanelButton}>
+                                    <FontAwesome6 name="door-open" size={24} color="#646464" />
+                                </View>
+                                <ThemedText variant="tiny" color="#787878">结束推演</ThemedText>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 </View>
 
                 {/* @角色选择弹窗 */}
@@ -1089,18 +1615,18 @@ export default function GroupChatScreen() {
                     <TouchableWithoutFeedback onPress={() => setShowAtPicker(false)}>
                         <View style={styles.atPickerOverlay}>
                             <TouchableWithoutFeedback>
-                                <View style={[styles.atPickerContent, { backgroundColor: theme.backgroundSecondary }]}>
-                                    <View style={styles.atPickerHeader}>
-                                        <ThemedText variant="medium" color={theme.textPrimary}>@选择角色</ThemedText>
+                                <View style={[styles.atPickerContent, { backgroundColor: theme.backgroundDefault }]}>
+                                    <View style={[styles.atPickerHeader, { borderBottomColor: theme.border }]}>
+                                        <ThemedText variant="h4" color={theme.text}>@选择角色</ThemedText>
                                         <TouchableOpacity onPress={() => setShowAtPicker(false)}>
-                                            <FontAwesome6 name="xmark" size={18} color={theme.textSecondary} />
+                                            <FontAwesome6 name="xmark" size={20} color={theme.text} />
                                         </TouchableOpacity>
                                     </View>
                                     <ScrollView style={styles.atPickerList}>
                                         {getFinalCharacters.map(character => (
                                             <TouchableOpacity
                                                 key={character.id}
-                                                style={[styles.atPickerItem, { borderBottomColor: theme.borderLight }]}
+                                                style={[styles.atPickerItem, { borderBottomColor: theme.border }]}
                                                 onPress={() => handleAtCharacter(character)}
                                             >
                                                 {isImageUrl(character.avatar) ? (
@@ -1111,10 +1637,10 @@ export default function GroupChatScreen() {
                                                     </View>
                                                 )}
                                                 <View style={styles.atPickerInfo}>
-                                                    <ThemedText variant="smallMedium" color={theme.textPrimary}>
+                                                    <ThemedText variant="body" color={theme.text} style={{ fontWeight: '500' }}>
                                                         @{character.name}
                                                     </ThemedText>
-                                                    <ThemedText variant="tiny" color={theme.textMuted}>
+                                                    <ThemedText variant="small" color={theme.textSecondary}>
                                                         {character.dynasty} · {character.title}
                                                     </ThemedText>
                                                 </View>
