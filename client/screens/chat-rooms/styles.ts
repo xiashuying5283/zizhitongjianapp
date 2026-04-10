@@ -20,9 +20,10 @@ export const createStyles = (theme: Theme) => {
             paddingBottom: Spacing.lg,
         },
         headerTitle: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: Spacing.sm,
+            alignItems: 'flex-start',
+        },
+        headerSubtitle: {
+            marginTop: Spacing.xs,
         },
         // 新建按钮
         newButton: {

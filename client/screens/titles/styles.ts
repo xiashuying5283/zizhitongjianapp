@@ -4,8 +4,9 @@ import { Spacing, BorderRadius, Theme } from '@/constants/theme';
 export const createStyles = (theme: Theme) => {
   return StyleSheet.create({
     header: {
-      marginBottom: Spacing.lg,
       paddingHorizontal: Spacing["2xl"],
+      paddingTop: Spacing["2xl"],
+      paddingBottom: Spacing.lg,
     },
     headerRow: {
       flexDirection: 'row',

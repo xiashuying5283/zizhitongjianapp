@@ -5,6 +5,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { styles, COLORS } from './styles';
+import {ThemedView} from "@/components/ThemedView";
+import {ThemedText} from "@/components/ThemedText";
 
 interface EraItem {
   era_name: string;
@@ -171,12 +173,12 @@ export default function EraNamesScreen() {
   return (
       <Screen backgroundColor={COLORS.background} statusBarStyle="dark">
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>年號對照</Text>
-            <Text style={styles.headerSubtitle}>帝王年號與紀年轉換</Text>
-          </View>
-        </View>
+        <ThemedView level="root" style={styles.header}>
+          <ThemedText variant="h2" color={theme.textPrimary}>年号对照</ThemedText>
+          <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
+            帝王年号与纪年大事
+          </ThemedText>
+        </ThemedView>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>

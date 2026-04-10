@@ -175,6 +175,9 @@ export default function ChatRoomsScreen() {
                         <ThemedText variant="h2" color={theme.textPrimary}>
                             我的群聊
                         </ThemedText>
+                        <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
+                            管理您的群聊记录
+                        </ThemedText>
                     </View>
                     <TouchableOpacity style={styles.newButton} onPress={handleNew}>
                         <FontAwesome6 name="plus" size={14} color="#FFFFFF" />
@@ -200,7 +203,7 @@ export default function ChatRoomsScreen() {
                                 >
                                     <View style={styles.roomHeader}>
                                         <View style={styles.roomTitle}>
-                                            <ThemedText variant="medium" color={theme.textPrimary} style={styles.roomTitleText}>
+                                            <ThemedText variant="bodyMedium" color={theme.textPrimary} style={styles.roomTitleText}>
                                                 {room.topicTitle}
                                             </ThemedText>
                                             <View style={styles.roomMeta}>

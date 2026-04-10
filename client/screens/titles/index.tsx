@@ -163,12 +163,7 @@ export default function TitlesScreen() {
       <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
         {/* Header */}
         <ThemedView level="root" style={styles.header}>
-          <View style={styles.headerRow}>
-            <ThemedText variant="h2" color={theme.textPrimary}>官职</ThemedText>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <FontAwesome6 name="arrow-left" size={20} color={theme.textPrimary} />
-            </TouchableOpacity>
-          </View>
+          <ThemedText variant="h2" color={theme.textPrimary}>官职列表</ThemedText>
           <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
             历代官职与品级制度
           </ThemedText>

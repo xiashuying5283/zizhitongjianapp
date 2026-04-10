@@ -13,7 +13,7 @@ export const createStyles = (theme: Theme) => {
         // Header
         header: {
             paddingHorizontal: Spacing["2xl"],
-            paddingTop: Spacing.xl,
+            paddingTop: Spacing["2xl"],
             paddingBottom: Spacing.lg,
         },
         headerTitle: {

@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import {Spacing} from "@/constants/theme";
 
 // 设计稿配色
 export const COLORS = {
@@ -19,10 +20,9 @@ export const COLORS = {
 
 export const styles = StyleSheet.create({
   header: {
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: COLORS.background,
+    paddingHorizontal: Spacing["2xl"],
+    paddingTop: Spacing["2xl"],
+    paddingBottom: Spacing.lg,
   },
   headerTitle: {
     fontSize: 24,
