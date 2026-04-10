@@ -10,7 +10,7 @@ export const createStyles = (theme: Theme) => {
       paddingBottom: Spacing["5xl"],
     },
     header: {
-      marginBottom: Spacing["2xl"],
+      marginBottom: Spacing.xl,
     },
     headerRow: {
       flexDirection: 'row',

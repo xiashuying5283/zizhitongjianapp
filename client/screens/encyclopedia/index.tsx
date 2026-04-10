@@ -49,25 +49,6 @@ export default function EncyclopediaScreen() {
       count: 87,
     },
     {
-      id: 'events',
-      title: '大事记',
-      description: '重大历史事件时间线',
-      icon: 'clock-rotate-left',
-      color: '#F59E0B',
-      gradient: ['#FBBF24', '#F59E0B'],
-      route: '/events',
-    },
-    {
-      id: 'historical-maps',
-      title: '历史地图',
-      description: '历朝地图与专题地图',
-      icon: 'map',
-      color: '#0891B2',
-      gradient: ['#06B6D4', '#0891B2'],
-      route: '/historical-maps',
-      count: 20,
-    },
-    {
       id: 'quotes',
       title: '典著名句',
       description: '资治通鉴经典语录',
@@ -150,7 +131,7 @@ export default function EncyclopediaScreen() {
           {/* Header */}
           <ThemedView level="root" style={styles.header}>
             <ThemedText variant="h2" color={theme.textPrimary}>
-              资治通鉴百科
+              通鉴百科
             </ThemedText>
             <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
               探索历史的智慧
