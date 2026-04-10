@@ -30,7 +30,7 @@ export default function EncyclopediaScreen() {
   const categories: CategoryItem[] = [
     {
       id: 'characters',
-      title: '人物',
+      title: '人物列表',
       description: '历史人物与关系图谱',
       icon: 'users',
       color: theme.primary,
@@ -40,7 +40,7 @@ export default function EncyclopediaScreen() {
     },
     {
       id: 'titles',
-      title: '官职',
+      title: '官职列表',
       description: '历代官职与品级制度',
       icon: 'scroll',
       color: theme.accent,
