@@ -14,6 +14,7 @@ import {
     Modal,
     TouchableWithoutFeedback,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
@@ -25,6 +26,8 @@ import { createStyles } from './styles';
 import { PRESET_TOPICS, MAX_CONTEXT_MESSAGES } from '@/constants/character-skills';
 import { fetchCharacters, Character, fetchCharactersByTopic } from '@/utils/characters-api';
 import { fetchCustomCharacters, CustomCharacter, convertToChatCharacter } from '@/utils/custom-characters-api';
+import { uploadImage } from '@/utils/upload-api';
+import { getDeviceId } from '@/utils/deviceId';
 import {
     createChatRoom,
     addChatMessage,
@@ -105,9 +108,11 @@ export default function GroupChatScreen() {
 
     // @功能相关
     const [showAtPicker, setShowAtPicker] = useState(false);
-    const [atCharacter, setAtCharacter] = useState<Character | null>(null);
     const [showMorePanel, setShowMorePanel] = useState(false); // 更多面板
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false); // emoji选择器
     const [inputFocused, setInputFocused] = useState(false); // 输入框焦点状态
+    const prevInputRef = useRef(''); // 追踪上一次输入内容
+    const completedMentionsRef = useRef<Set<string>>(new Set()); // 已完成的@提及
 
     const flatListRef = useRef<FlatList>(null);
     const isGeneratingRef = useRef(false);
@@ -328,8 +333,13 @@ export default function GroupChatScreen() {
 
     // 处理@选择
     const handleAtCharacter = (character: Character) => {
-        setAtCharacter(character);
-        setUserInput(prev => prev + `@${character.name} `);
+        // 移除末尾的@，替换为@人物名
+        const mention = `@${character.name}`;
+        const newText = userInput.replace(/@([^@\s]*)$/, mention);
+        // 记录已完成的提及
+        completedMentionsRef.current.add(mention);
+        setUserInput(newText);
+        prevInputRef.current = newText;
         setShowAtPicker(false);
     };
 
@@ -1033,7 +1043,8 @@ export default function GroupChatScreen() {
         }
 
         setUserInput('');
-        setAtCharacter(null);
+        prevInputRef.current = '';
+        completedMentionsRef.current.clear();
         flatListRef.current?.scrollToEnd({ animated: true });
 
         // 让AI角色们回应（最多2条）
@@ -1054,6 +1065,66 @@ export default function GroupChatScreen() {
         setPhase('setup');
     };
 
+    // 选择图片
+    const handlePickImage = async () => {
+        setShowMorePanel(false);
+
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permissionResult.granted) {
+            Alert.alert('提示', '需要相册权限才能选择图片');
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets[0]) {
+            const imageUri = result.assets[0].uri;
+
+            // 获取设备ID作为用户标识
+            const userId = await getDeviceId();
+
+            // 上传图片
+            const uploadResult = await uploadImage(imageUri, userId);
+
+            if (uploadResult.success && uploadResult.data?.url) {
+                // 发送图片消息
+                if (currentRoomId && !isGeneratingRef.current) {
+                    const imageUrl = uploadResult.data.url;
+
+                    // 用户打断自动推演模式
+                    if (autoModeRef.current) {
+                        stopAutoMode();
+                    }
+
+                    // 添加用户图片消息
+                    const userMsg: DbChatMessage = {
+                        id: Date.now().toString(),
+                        characterId: null,
+                        characterName: '我',
+                        content: `[图片] ${imageUrl}`,
+                        isUser: true,
+                        createdAt: new Date().toISOString(),
+                    };
+                    setMessages(prev => [...prev, userMsg]);
+
+                    // 保存到数据库
+                    const cleanRoomId = currentRoomId.split('?')[0].trim();
+                    await addChatMessage(cleanRoomId, null, '我', `[图片] ${imageUrl}`, true);
+
+                    flatListRef.current?.scrollToEnd({ animated: true });
+
+                    // 让AI角色们回应
+                    await generateAndDisplayMessages('[用户发送了一张图片]', undefined);
+                }
+            } else {
+                Alert.alert('上传失败', uploadResult.message || '图片上传失败，请重试');
+            }
+        }
+    };
+
     // 渲染消息
     const renderMessage = ({ item }: { item: DbChatMessage }) => {
         const isUser = item.isUser;
@@ -1064,7 +1135,11 @@ export default function GroupChatScreen() {
         // 长按头像@该角色
         const handleLongPressAvatar = () => {
             if (!isUser && item.characterId && characterName) {
-                setUserInput(prev => prev + `@${characterName} `);
+                const mention = `@${characterName}`;
+                const newText = userInput + mention;
+                completedMentionsRef.current.add(mention);
+                setUserInput(newText);
+                prevInputRef.current = newText;
             }
         };
 
@@ -1097,9 +1172,17 @@ export default function GroupChatScreen() {
                         </ThemedText>
                     )}
                     <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}>
-                        <ThemedText variant="body" style={[styles.messageText, isUser && styles.messageTextUser]}>
-                            {item.content}
-                        </ThemedText>
+                        {item.content.startsWith('[图片] ') ? (
+                            <Image
+                                source={{ uri: item.content.replace('[图片] ', '') }}
+                                style={styles.messageImage}
+                                resizeMode="cover"
+                            />
+                        ) : (
+                            <ThemedText variant="body" style={[styles.messageText, isUser && styles.messageTextUser]}>
+                                {item.content}
+                            </ThemedText>
+                        )}
                     </View>
                 </View>
             </View>
@@ -1529,26 +1612,75 @@ export default function GroupChatScreen() {
 
                     {/* 输入区域 */}
                     <View style={styles.inputSection}>
-                        <View style={[styles.inputWrapper, inputFocused && styles.inputWrapperFocused]}>
-                            {/* 嵌入输入框的@按钮 */}
-                            <TouchableOpacity
-                                style={styles.atButtonInline}
-                                onPress={() => setShowAtPicker(true)}
-                            >
-                                <FontAwesome6 name="at" size={20} color={inputFocused ? '#505050' : '#969696'} />
-                            </TouchableOpacity>
+                        {/* 语音按钮 */}
+                        <TouchableOpacity style={styles.iconButton}>
+                            <FontAwesome6 name="microphone" size={20} color="#646464" />
+                        </TouchableOpacity>
 
+                        <View style={[styles.inputWrapper, inputFocused && styles.inputWrapperFocused]}>
                             <TextInput
                                 style={styles.textInput}
                                 placeholder="回复角色..."
                                 placeholderTextColor="#B4B4B4"
                                 value={userInput}
                                 onChangeText={(text) => {
-                                    setUserInput(text);
-                                    // 输入@时自动弹出选择人物
-                                    if (text.endsWith('@') && !showAtPicker) {
-                                        setShowAtPicker(true);
+                                    const prevText = prevInputRef.current;
+
+                                    // 检测删除操作
+                                    if (text.length < prevText.length) {
+                                        // 检查是否有已完成的提及被部分删除
+                                        for (const mention of completedMentionsRef.current) {
+                                            // 如果文本中包含提及的一部分（但不是完整的提及）
+                                            if (text.includes(mention) || text.includes(mention.slice(0, -1))) {
+                                                const fullMatch = text.includes(mention);
+                                                const partialMatch = !fullMatch && mention.startsWith(text.slice(-mention.length + 1));
+
+                                                // 检查是否在删除提及的过程中
+                                                const mentionIndex = text.indexOf(mention);
+                                                if (mentionIndex !== -1) {
+                                                    // 文本中还有完整的提及，跳过
+                                                    continue;
+                                                }
+
+                                                // 检查是否有部分提及
+                                                for (let i = 1; i < mention.length; i++) {
+                                                    const partial = mention.slice(0, mention.length - i);
+                                                    if (text.endsWith(partial)) {
+                                                        // 整体删除这个部分提及和后面的空格
+                                                        text = text.slice(0, text.length - partial.length).replace(/\s+$/, '');
+                                                        completedMentionsRef.current.delete(mention);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
+
+                                    prevInputRef.current = text;
+                                    setUserInput(text);
+
+                                    // 只有新输入的@才弹出选择器（不在已完成提及中的@）
+                                    const atMatches = text.match(/@[^\s@]*/g) || [];
+                                    const lastAtMatch = text.match(/@([^@\s]*)$/);
+
+                                    if (lastAtMatch) {
+                                        const potentialMention = '@' + lastAtMatch[1];
+                                        // 检查这个@是否是已完成的提及的一部分
+                                        let isCompletedMention = false;
+                                        for (const mention of completedMentionsRef.current) {
+                                            if (mention.startsWith(potentialMention)) {
+                                                isCompletedMention = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if (!isCompletedMention && !showAtPicker) {
+                                            setShowAtPicker(true);
+                                        }
+                                    } else if (showAtPicker) {
+                                        setShowAtPicker(false);
+                                    }
+
                                     // 输入内容时关闭更多面板
                                     if (showMorePanel && text.trim()) {
                                         setShowMorePanel(false);
@@ -1557,6 +1689,7 @@ export default function GroupChatScreen() {
                                 onFocus={() => {
                                     setInputFocused(true);
                                     setShowMorePanel(false);
+                                    setShowEmojiPicker(false);
                                 }}
                                 onBlur={() => setInputFocused(false)}
                                 multiline
@@ -1564,6 +1697,21 @@ export default function GroupChatScreen() {
                                 editable={!isLoading}
                             />
                         </View>
+
+                        {/* emoji按钮 */}
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={() => {
+                                Keyboard.dismiss();
+                                setShowEmojiPicker(!showEmojiPicker);
+                            }}
+                        >
+                            <FontAwesome6
+                                name="face-smile"
+                                size={20}
+                                color={showEmojiPicker ? theme.primary : '#646464'}
+                            />
+                        </TouchableOpacity>
 
                         {/* 发送按钮或更多按钮 */}
                         <TouchableOpacity
@@ -1586,6 +1734,14 @@ export default function GroupChatScreen() {
                     {/* 展开的更多面板 */}
                     <View style={[styles.morePanel, showMorePanel ? { maxHeight: 180, opacity: 1 } : { maxHeight: 0, opacity: 0 }]}>
                         <View style={styles.morePanelContent}>
+                            {/* 发送图片 */}
+                            <TouchableOpacity style={styles.morePanelItem} onPress={handlePickImage}>
+                                <View style={styles.morePanelButton}>
+                                    <FontAwesome6 name="image" size={24} color="#646464" />
+                                </View>
+                                <ThemedText variant="tiny" color="#787878">发送图片</ThemedText>
+                            </TouchableOpacity>
+
                             {/* 清空记录 */}
                             <TouchableOpacity style={styles.morePanelItem} onPress={() => { setShowMorePanel(false); handleClearChat(); }}>
                                 <View style={styles.morePanelButton}>
@@ -1603,6 +1759,29 @@ export default function GroupChatScreen() {
                             </TouchableOpacity>
                         </View>
                     </View>
+
+                    {/* emoji选择器面板 */}
+                    {showEmojiPicker && (
+                        <View style={[styles.emojiPicker, { backgroundColor: theme.backgroundDefault }]}>
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                <View style={styles.emojiGrid}>
+                                    {['😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😜', '🤔', '😅', '😭', '😱', '😈', '👻', '👍', '👎', '👏', '🙏', '💪', '❤️', '💔', '💯', '🔥', '⭐', '🌟', '✨', '🎉', '🎊', '🎁', '🏆', '👑', '💐', '🌹', '☀️', '🌙', '⚡', '🌈', '🍎', '🍕', '🍦', '🎂', '🏠', '🚗', '✈️', '🎵', '🎸', '🎮', '📱', '💻'].map((emoji, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={styles.emojiItem}
+                                            onPress={() => {
+                                                Keyboard.dismiss();
+                                                setUserInput(prev => prev + emoji);
+                                                prevInputRef.current = userInput + emoji;
+                                            }}
+                                        >
+                                            <ThemedText variant="h2">{emoji}</ThemedText>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                        </View>
+                    )}
                 </View>
 
                 {/* @角色选择弹窗 */}

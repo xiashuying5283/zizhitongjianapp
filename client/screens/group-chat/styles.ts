@@ -297,6 +297,11 @@ export const createStyles = (theme: Theme) => {
         messageTextUser: {
             color: '#1A1A1A',
         },
+        messageImage: {
+            width: 150,
+            height: 150,
+            borderRadius: BorderRadius.sm,
+        },
         // 空状态
         emptyState: {
             paddingVertical: Spacing.xl,
@@ -358,6 +363,32 @@ export const createStyles = (theme: Theme) => {
             paddingBottom: 8,
             gap: 8,
         },
+        // 图标按钮（语音、emoji）
+        iconButton: {
+            width: 36,
+            height: 36,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 2,
+        },
+        // emoji选择器
+        emojiPicker: {
+            maxHeight: 200,
+            paddingVertical: 8,
+            paddingHorizontal: 8,
+            borderTopWidth: 1,
+            borderTopColor: theme.border,
+        },
+        emojiGrid: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+        },
+        emojiItem: {
+            width: '12.5%',
+            height: 44,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
         // 输入框容器（包含@按钮和输入框）
         inputWrapper: {
             flex: 1,
@@ -374,10 +405,6 @@ export const createStyles = (theme: Theme) => {
         inputWrapperFocused: {
             borderColor: '#A3E653',
             borderWidth: 2,
-        },
-        // 嵌入输入框的@按钮
-        atButtonInline: {
-            padding: 8,
         },
         textInput: {
             flex: 1,
