@@ -19,7 +19,7 @@ export const COLORS = {
 
 export const styles = StyleSheet.create({
   header: {
-    paddingTop: 56,
+    paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: COLORS.background,
@@ -174,5 +174,34 @@ export const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 14,
     color: COLORS.textHint,
+  },
+  // 朝代分割线
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 20,
+    marginBottom: 8,
+  },
+  sectionDividerLeft: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.divider,
+    marginRight: 12,
+  },
+  sectionDividerRight: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.divider,
+    marginLeft: 12,
+  },
+  sectionLabel: {
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 4,
+  },
+  sectionLabelText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+    letterSpacing: 2,
   },
 });

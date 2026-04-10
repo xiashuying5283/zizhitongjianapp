@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, FlatList, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, RefreshControl, Text } from 'react-native';
+import { View, SectionList, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, RefreshControl, Text } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { styles, COLORS } from './styles';
 
-interface EraGroup {
+interface EraItem {
+  era_name: string;
+  emperor_name: string;
   dynasty: string;
-  eras: {
-    era_name: string;
-    emperor_name: string;
-    dynasty: string;
-    startYear: number;
-    endYear: number;
-    yearCount: number;
-  }[];
+  startYear: number;
+  endYear: number;
+  yearCount: number;
+}
+
+interface EraSection {
+  dynasty: string;
+  data: EraItem[];
 }
 
 const MAIN_DYNASTIES = ['全部', '周秦', '兩漢', '三國兩晉', '南北朝', '隋唐', '五代'];
@@ -26,7 +28,7 @@ export default function EraNamesScreen() {
 
   const [searchText, setSearchText] = useState('');
   const [selectedDynasty, setSelectedDynasty] = useState('周秦');
-  const [eraGroups, setEraGroups] = useState<EraGroup[]>([]);
+  const [eraGroups, setEraGroups] = useState<EraSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -47,7 +49,12 @@ export default function EraNamesScreen() {
       const response = await fetch(url);
       const result = await response.json();
       if (result.success && result.data) {
-        setEraGroups(result.data);
+        // 转换为 SectionList 格式
+        const sections: EraSection[] = result.data.map((group: any) => ({
+          dynasty: group.dynasty,
+          data: group.eras.sort((a: EraItem, b: EraItem) => a.startYear - b.startYear)
+        }));
+        setEraGroups(sections);
       }
     } catch (error) {
       console.error('加载年号数据失败:', error);
@@ -79,28 +86,38 @@ export default function EraNamesScreen() {
     return `公元${year}年`;
   };
 
-  // 搜索过滤
-  const filteredGroups = useMemo(() => {
-    let allEras: EraGroup['eras'] = [];
+  // 搜索过滤后的 sections
+  const filteredSections = useMemo(() => {
+    if (!searchText.trim()) {
+      return eraGroups;
+    }
 
-    eraGroups.forEach(group => {
-      allEras = allEras.concat(group.eras);
-    });
+    const search = searchText.toLowerCase();
+    const filtered: EraSection[] = [];
 
-    if (searchText.trim()) {
-      const search = searchText.toLowerCase();
-      allEras = allEras.filter(era =>
+    eraGroups.forEach(section => {
+      const matchingEras = section.data.filter(era =>
           era.era_name.toLowerCase().includes(search) ||
           era.emperor_name.toLowerCase().includes(search)
       );
-    }
 
-    allEras.sort((a, b) => a.startYear - b.startYear);
+      if (matchingEras.length > 0) {
+        filtered.push({
+          dynasty: section.dynasty,
+          data: matchingEras
+        });
+      }
+    });
 
-    return allEras;
+    return filtered;
   }, [eraGroups, searchText]);
 
-  const renderEraItem = ({ item }: { item: EraGroup['eras'][0] }) => (
+  // 是否显示朝代分割线（有多个朝代分组时显示）
+  const showDynastyDividers = useMemo(() => {
+    return filteredSections.length > 1;
+  }, [filteredSections]);
+
+  const renderEraItem = ({ item }: { item: EraItem }) => (
       <TouchableOpacity
           style={styles.card}
           onPress={() => router.push('/era-detail', {
@@ -136,6 +153,20 @@ export default function EraNamesScreen() {
         </View>
       </TouchableOpacity>
   );
+
+  const renderSectionHeader = ({ section }: { section: EraSection }) => {
+    if (!showDynastyDividers) return null;
+
+    return (
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionDividerLeft} />
+          <View style={styles.sectionLabel}>
+            <Text style={styles.sectionLabelText}>{section.dynasty}</Text>
+          </View>
+          <View style={styles.sectionDividerRight} />
+        </View>
+    );
+  };
 
   return (
       <Screen backgroundColor={COLORS.background} statusBarStyle="dark">
@@ -196,12 +227,14 @@ export default function EraNamesScreen() {
               <Text style={styles.loadingText}>加载中...</Text>
             </View>
         ) : (
-            <FlatList
-                data={filteredGroups}
+            <SectionList
+                sections={filteredSections}
                 renderItem={renderEraItem}
+                renderSectionHeader={renderSectionHeader}
                 keyExtractor={(item, index) => `${item.era_name}_${item.emperor_name}_${index}`}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
+                stickySectionHeadersEnabled={false}
                 refreshControl={
                   <RefreshControl
                       refreshing={refreshing}

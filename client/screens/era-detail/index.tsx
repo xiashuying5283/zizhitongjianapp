@@ -35,35 +35,68 @@ export default function EraDetailScreen() {
     const params = useSafeSearchParams();
 
     const [loading, setLoading] = useState(true);
-    const [detail, setDetail] = useState<typeof MOCK_YUANFENG | null>(null);
+    const [detail, setDetail] = useState<EraDetail | null>(null);
 
     // 从URL参数获取基本信息
     const eraName = (params as any).eraName || '';
     const emperorName = (params as any).emperorName || '';
-    const dynasty = (params as any).dynasty || '';
-    const startYear = parseInt((params as any).startYear || '0');
-    const endYear = parseInt((params as any).endYear || '0');
-    const yearCount = parseInt((params as any).yearCount || '0');
 
     useEffect(() => {
-        setTimeout(() => {
-            if (eraName === '元封') {
-                setDetail(MOCK_YUANFENG);
-            } else {
+        const fetchDetail = async () => {
+            if (!eraName) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                /**
+                 * 服务端文件：server/src/routes/encyclopedia.ts
+                 * 接口：GET /api/v1/encyclopedia/era-years/detail
+                 * Query参数：eraName: string, emperorName?: string
+                 */
+                let url = `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/era-years/detail?eraName=${encodeURIComponent(eraName)}`;
+                if (emperorName) {
+                    url += `&emperorName=${encodeURIComponent(emperorName)}`;
+                }
+
+                const response = await fetch(url);
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    setDetail(result.data);
+                } else {
+                    // API 返回失败时，使用基本信息构造
+                    setDetail({
+                        era_name: eraName,
+                        emperor_name: emperorName || (params as any).emperorName || '',
+                        dynasty: (params as any).dynasty || '',
+                        startYear: parseInt((params as any).startYear || '0'),
+                        endYear: parseInt((params as any).endYear || '0'),
+                        yearCount: parseInt((params as any).yearCount || '0'),
+                        background: `${eraName}是${(params as any).dynasty || ''}${emperorName || ''}時期的年號。`,
+                        events: []
+                    });
+                }
+            } catch (error) {
+                console.error('获取年号详情失败:', error);
+                // 网络错误时，使用基本信息构造
                 setDetail({
                     era_name: eraName,
-                    emperor_name: emperorName,
-                    dynasty: dynasty,
-                    startYear: startYear,
-                    endYear: endYear,
-                    yearCount: yearCount,
-                    background: `${eraName}是${dynasty}${emperorName}時期的年號，共使用${yearCount}年。`,
+                    emperor_name: emperorName || '',
+                    dynasty: (params as any).dynasty || '',
+                    startYear: parseInt((params as any).startYear || '0'),
+                    endYear: parseInt((params as any).endYear || '0'),
+                    yearCount: parseInt((params as any).yearCount || '0'),
+                    background: `${eraName}是${(params as any).dynasty || ''}${emperorName || ''}時期的年號。`,
                     events: []
                 });
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
-        }, 300);
-    }, [eraName, emperorName, dynasty, startYear, endYear, yearCount]);
+        };
+
+        fetchDetail();
+    }, [eraName, emperorName]);
 
     if (loading) {
         return (

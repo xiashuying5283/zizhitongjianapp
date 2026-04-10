@@ -33,7 +33,7 @@ export const styles = StyleSheet.create({
         color: COLORS.textHint,
     },
     header: {
-        paddingTop: 56,
+        paddingTop: 20,
         paddingHorizontal: 16,
         paddingBottom: 8,
         backgroundColor: COLORS.background,

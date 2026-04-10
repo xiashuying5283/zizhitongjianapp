@@ -234,230 +234,12 @@ router.post('/batch', async (req, res) => {
     }
 });
 
-/**
- * 获取所有朝代列表
- * GET /api/v1/encyclopedia/dynasties
- */
-router.get('/dynasties', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT DISTINCT dynasty FROM era_years ORDER BY dynasty');
-        const dynasties = result.rows.map((row: any) => row.dynasty);
-
-        res.json({
-            success: true,
-            data: dynasties
-        });
-    } catch (error) {
-        console.error('获取朝代列表失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
-    }
-});
-
-/**
- * 获取年号列表
- * GET /api/v1/encyclopedia/era-years
- * Query参数：dynasty（可选）、search（可选）、limit（默认100）、offset（默认0）
- */
-router.get('/era-years', async (req, res) => {
-    try {
-        const { dynasty, search, limit = 100, offset = 0 } = req.query;
-
-        let query = 'SELECT * FROM era_years';
-        let countQuery = 'SELECT COUNT(*) FROM era_years';
-        const params: unknown[] = [];
-        const conditions: string[] = [];
-
-        if (dynasty && dynasty !== '全部') {
-            conditions.push(`dynasty = $${params.length + 1}`);
-            params.push(dynasty);
-        }
-
-        if (search) {
-            const searchParam = `%${search}%`;
-            conditions.push(`(era_name ILIKE $${params.length + 1} OR emperor_name ILIKE $${params.length + 1} OR display_name ILIKE $${params.length + 1})`);
-            params.push(searchParam);
-        }
-
-        if (conditions.length > 0) {
-            const whereClause = ' WHERE ' + conditions.join(' AND ');
-            query += whereClause;
-            countQuery += whereClause;
-        }
-
-        query += ` ORDER BY gregorian_year ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-        params.push(Number(limit), Number(offset));
-
-        const [dataResult, countResult] = await Promise.all([
-            pool.query(query, params),
-            pool.query(countQuery, params.slice(0, -2)) // count不需要limit和offset参数
-        ]);
-
-        const total = parseInt(countResult.rows[0].count, 10);
-
-        res.json({
-            success: true,
-            data: {
-                list: dataResult.rows,
-                total,
-                hasMore: total > Number(offset) + Number(limit)
-            }
-        });
-    } catch (error) {
-        console.error('获取年号列表失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
-    }
-});
-
-/**
- * 获取年号详情
- * GET /api/v1/encyclopedia/era-years/:id
- */
-router.get('/era-years/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        const result = await pool.query('SELECT * FROM era_years WHERE id = $1 LIMIT 1', [id]);
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: '年号未找到'
-            });
-        }
-
-        res.json({
-            success: true,
-            data: result.rows[0]
-        });
-    } catch (error) {
-        console.error('获取年号详情失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
-    }
-});
-
-/**
- * 按年号名称分组获取（用于展示年号起止年份）
- * GET /api/v1/encyclopedia/era-groups
- * Query参数：dynasty（支持历史时期分组，如"周秦"、"兩漢"等）
- */
-router.get('/era-groups', async (req, res) => {
-    try {
-        const { dynasty } = req.query;
-
-        // 历史时期与具体朝代的映射（支持繁简两种形式）
-        const PERIOD_DYNASTY_MAP: Record<string, string[]> = {
-            // 繁体
-            '周秦': ['周', '秦'],
-            '兩漢': ['西汉', '新', '玄汉', '东汉'],
-            '三國兩晉': ['魏', '西晋', '东晋'],
-            '南北朝': ['宋', '齐', '梁', '陈'],
-            '隋唐': ['隋', '唐'],
-            '五代': ['后梁', '后唐', '后晋', '后汉', '后周'],
-            // 简体
-            '两汉': ['西汉', '新', '玄汉', '东汉'],
-            '三国两晋': ['魏', '西晋', '东晋'],
-        };
-
-        let query = 'SELECT era_name, emperor_name, dynasty, gregorian_year FROM era_years';
-        const params: unknown[] = [];
-
-        // 处理历史时期分组查询
-        if (dynasty && dynasty !== '全部') {
-            const dynastyStr = dynasty as string;
-            // 检查是否是历史时期分组
-            if (PERIOD_DYNASTY_MAP[dynastyStr]) {
-                const placeholders = PERIOD_DYNASTY_MAP[dynastyStr].map((_, i) => `$${i + 1}`).join(', ');
-                query += ` WHERE dynasty IN (${placeholders})`;
-                params.push(...PERIOD_DYNASTY_MAP[dynastyStr]);
-            } else {
-                // 单一朝代查询
-                query += ' WHERE dynasty = $1';
-                params.push(dynastyStr);
-            }
-        }
-
-        query += ' ORDER BY gregorian_year ASC';
-
-        const result = await pool.query(query, params);
-        const data = result.rows;
-
-        // 按年号名称分组，计算起止年份
-        const eraMap = new Map<string, {
-            era_name: string;
-            emperor_name: string;
-            dynasty: string;
-            startYear: number;
-            endYear: number;
-            yearCount: number;
-        }>();
-
-        data.forEach((item: any) => {
-            const key = `${item.era_name}_${item.emperor_name}`;
-            if (!eraMap.has(key)) {
-                eraMap.set(key, {
-                    era_name: item.era_name,
-                    emperor_name: item.emperor_name,
-                    dynasty: item.dynasty,
-                    startYear: item.gregorian_year,
-                    endYear: item.gregorian_year,
-                    yearCount: 1
-                });
-            } else {
-                const existing = eraMap.get(key)!;
-                existing.endYear = Math.max(existing.endYear, item.gregorian_year);
-                existing.startYear = Math.min(existing.startYear, item.gregorian_year);
-                existing.yearCount++;
-            }
-        });
-
-        // 转换为数组并按朝代分组
-        const eraList = Array.from(eraMap.values());
-
-        // 按朝代分组
-        const dynastyGroups = new Map<string, typeof eraList>();
-        eraList.forEach(era => {
-            if (!dynastyGroups.has(era.dynasty)) {
-                dynastyGroups.set(era.dynasty, []);
-            }
-            dynastyGroups.get(era.dynasty)!.push(era);
-        });
-
-        // 转换为数组格式
-        const groups = Array.from(dynastyGroups.entries()).map(([dynasty, eras]) => ({
-            dynasty,
-            eras: eras.sort((a, b) => a.startYear - b.startYear)
-        })).sort((a, b) => {
-            const minYearA = Math.min(...a.eras.map(e => e.startYear));
-            const minYearB = Math.min(...b.eras.map(e => e.startYear));
-            return minYearA - minYearB;
-        });
-
-        res.json({
-            success: true,
-            data: groups
-        });
-    } catch (error) {
-        console.error('获取年号分组失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
-    }
-});
 
 /**
  * 获取年号详情（含背景简述和重大纪事）
  * GET /api/v1/encyclopedia/era-years/detail
  * Query参数：eraName, emperorName
+ * 注意：此路由必须在 /era-years/:id 之前定义，否则 detail 会被当作 :id 参数
  */
 router.get('/era-years/detail', async (req, res) => {
     try {
@@ -500,17 +282,17 @@ router.get('/era-years/detail', async (req, res) => {
         const startYear = Math.min(...data.map((d: any) => d.gregorian_year));
         const endYear = Math.max(...data.map((d: any) => d.gregorian_year));
 
-        // 构建背景简述（如果有note字段）
-        const background = firstRecord.note || null;
+        // 构建背景简述
+        const background = firstRecord.note || `${firstRecord.era_name}是${firstRecord.dynasty}${firstRecord.emperor_name}時期的年號，共使用${data.length}年。`;
 
-        // 构建重大纪事（根据每年记录生成）
+        // 构建重大纪事（从 event 字段获取）
         const events = data
-            .filter((d: any) => d.display_name || d.note)
+            .filter((d: any) => d.event)
             .map((d: any) => ({
-                year: d.display_name || `${firstRecord.era_name}${d.gregorian_year - startYear + 1}年`,
-                event: d.note || ''
-            }))
-            .filter((e: any) => e.event); // 只保留有事件的记录
+                eraYear: d.display_name || `${firstRecord.era_name}${d.gregorian_year - startYear + 1}年`,
+                year: d.gregorian_year < 0 ? `公元前${Math.abs(d.gregorian_year)}年` : `公元${d.gregorian_year}年`,
+                desc: d.event
+            }));
 
         res.json({
             success: true,
@@ -527,6 +309,178 @@ router.get('/era-years/detail', async (req, res) => {
         });
     } catch (error) {
         console.error('获取年号详情失败:', error);
+        res.status(500).json({
+            success: false,
+            error: '服务器错误'
+        });
+    }
+});
+
+
+/**
+ * 按年号名称分组获取（用于展示年号起止年份）
+ * GET /api/v1/encyclopedia/era-groups
+ * Query参数：dynasty（支持历史时期分组，如"周秦"、"兩漢"等）
+ */
+router.get('/era-groups', async (req, res) => {
+    try {
+        const { dynasty } = req.query;
+
+        // 历史时期与具体朝代的映射（支持繁简两种形式）
+        const PERIOD_DYNASTY_MAP: Record<string, string[]> = {
+            // 繁体
+            '周秦': ['周', '秦'],
+            '兩漢': ['西汉', '新', '玄汉', '东汉'],
+            '三國兩晉': ['魏', '西晋', '东晋'],
+            '南北朝': ['宋', '齐', '梁', '陈'],
+            '隋唐': ['隋', '唐'],
+            '五代': ['后梁', '后唐', '后晋', '后汉', '后周'],
+            // 简体
+            '两汉': ['西汉', '新', '玄汉', '东汉'],
+            '三国两晋': ['魏', '西晋', '东晋'],
+        };
+
+        // 处理历史时期分组查询
+        const dynastyStr = dynasty as string | undefined;
+        let allData: any[] = [];
+
+        if (!dynastyStr || dynastyStr === '全部') {
+            // 查询全部时，分批查询各时期
+            const periods = ['周秦', '兩漢', '三國兩晉', '南北朝', '隋唐', '五代'];
+            for (const period of periods) {
+                const dynasties = PERIOD_DYNASTY_MAP[period];
+                if (dynasties) {
+                    const result = await pool.query(
+                        `SELECT era_name, emperor_name, dynasty, gregorian_year 
+                         FROM era_years 
+                         WHERE dynasty = ANY($1) 
+                         ORDER BY gregorian_year ASC`,
+                        [dynasties]
+                    );
+                    let periodData = result.rows;
+                    
+                    // 周秦时期排除武则天
+                    if (period === '周秦') {
+                        periodData = periodData.filter(d => d.emperor_name !== '武则天');
+                    }
+                    allData = allData.concat(periodData);
+                    
+                    // 隋唐时期额外查询武则天
+                    if (period === '隋唐') {
+                        const wuzetianResult = await pool.query(
+                            `SELECT era_name, emperor_name, dynasty, gregorian_year 
+                             FROM era_years 
+                             WHERE emperor_name = $1`,
+                            ['武则天']
+                        );
+                        allData = allData.concat(wuzetianResult.rows);
+                    }
+                }
+            }
+        } else if (PERIOD_DYNASTY_MAP[dynastyStr]) {
+            // 历史时期分组查询
+            const dynasties = PERIOD_DYNASTY_MAP[dynastyStr];
+            let query = `SELECT era_name, emperor_name, dynasty, gregorian_year FROM era_years WHERE dynasty = ANY($1)`;
+            const params: unknown[] = [dynasties];
+
+            // 武则天的周（武周）特殊处理：归入隋唐而非周秦
+            if (dynastyStr === '周秦') {
+                query += ' AND emperor_name != $2';
+                params.push('武则天');
+            }
+
+            query += ' ORDER BY gregorian_year ASC LIMIT 2000';
+            const result = await pool.query(query, params);
+            allData = result.rows;
+
+            // 如果是隋唐时期，额外查询武则天的年号
+            if (dynastyStr === '隋唐') {
+                const wuzetianResult = await pool.query(
+                    `SELECT era_name, emperor_name, dynasty, gregorian_year 
+                     FROM era_years 
+                     WHERE emperor_name = $1`,
+                    ['武则天']
+                );
+                allData = allData.concat(wuzetianResult.rows);
+            }
+        } else {
+            // 单一朝代查询
+            const result = await pool.query(
+                `SELECT era_name, emperor_name, dynasty, gregorian_year 
+                 FROM era_years 
+                 WHERE dynasty = $1 
+                 ORDER BY gregorian_year ASC 
+                 LIMIT 2000`,
+                [dynastyStr]
+            );
+            allData = result.rows;
+        }
+
+        console.log('[era-groups] 查询结果:', { totalRecords: allData.length, dynasty: dynastyStr });
+
+        // 按年号名称分组，计算起止年份
+        const eraMap = new Map<string, {
+            era_name: string;
+            emperor_name: string;
+            dynasty: string;
+            startYear: number;
+            endYear: number;
+            yearCount: number;
+        }>();
+
+        allData.forEach((item: any) => {
+            const key = `${item.era_name}_${item.emperor_name}`;
+            if (!eraMap.has(key)) {
+                eraMap.set(key, {
+                    era_name: item.era_name,
+                    emperor_name: item.emperor_name,
+                    dynasty: item.dynasty,
+                    startYear: item.gregorian_year,
+                    endYear: item.gregorian_year,
+                    yearCount: 1
+                });
+            } else {
+                const existing = eraMap.get(key)!;
+                existing.endYear = Math.max(existing.endYear, item.gregorian_year);
+                existing.startYear = Math.min(existing.startYear, item.gregorian_year);
+                existing.yearCount++;
+            }
+        });
+
+        // 转换为数组并按朝代分组
+        const eraList = Array.from(eraMap.values());
+
+        // 按朝代分组，武则天的周归入唐朝
+        const dynastyGroups = new Map<string, typeof eraList>();
+        eraList.forEach(era => {
+            // 武则天的周（武周）归入唐朝
+            let groupDynasty = era.dynasty;
+            if (era.emperor_name === '武则天' && era.dynasty === '周') {
+                groupDynasty = '唐';
+            }
+
+            if (!dynastyGroups.has(groupDynasty)) {
+                dynastyGroups.set(groupDynasty, []);
+            }
+            dynastyGroups.get(groupDynasty)!.push(era);
+        });
+
+        // 转换为数组格式
+        const groups = Array.from(dynastyGroups.entries()).map(([dynasty, eras]) => ({
+            dynasty,
+            eras: eras.sort((a, b) => a.startYear - b.startYear)
+        })).sort((a, b) => {
+            const minYearA = Math.min(...a.eras.map(e => e.startYear));
+            const minYearB = Math.min(...b.eras.map(e => e.startYear));
+            return minYearA - minYearB;
+        });
+
+        res.json({
+            success: true,
+            data: groups
+        });
+    } catch (error) {
+        console.error('获取年号分组失败:', error);
         res.status(500).json({
             success: false,
             error: '服务器错误'
