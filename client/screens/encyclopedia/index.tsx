@@ -159,9 +159,6 @@ export default function EncyclopediaScreen() {
 
           {/* Categories */}
           <View style={styles.categoriesContainer}>
-            <ThemedText variant="h4" color={theme.textPrimary} style={styles.sectionTitle}>
-              知识分区
-            </ThemedText>
             {categories.map(category => renderCategory(category))}
           </View>
 
