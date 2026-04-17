@@ -19,7 +19,6 @@ interface GeoItem {
     location: string | null;
     description: string | null;
     aliases: string[] | null;
-    stroke_count: number | null;
 }
 
 export default function GeographyScreen() {
@@ -120,29 +119,29 @@ export default function GeographyScreen() {
             onPress={() => handleItemPress(item.id)}
             activeOpacity={0.7}
         >
-            <View style={styles.itemMain}>
-                <View style={styles.itemLeft}>
-                    <ThemedText variant="smallMedium" color={theme.textPrimary}>{item.name}</ThemedText>
+            <View style={styles.itemInfo}>
+                <View style={styles.itemHeader}>
+                    <ThemedText variant="h4" color={theme.textPrimary}>{item.name}</ThemedText>
                     {item.location && (
-                        <ThemedText variant="caption" color={theme.textMuted}>{item.location}</ThemedText>
+                        <ThemedText variant="small" color={theme.textSecondary} style={styles.locationText}>
+                            {item.location}
+                        </ThemedText>
                     )}
-                </View>
-                <View style={styles.itemRight}>
                     {item.category && (
-                        <View style={[styles.categoryTag, { backgroundColor: (categoryColors[item.category] || theme.textMuted) + '20' }]}>
-                            <ThemedText variant="tiny" color={categoryColors[item.category] || theme.textMuted}>
+                        <View style={styles.categoryTag}>
+                            <ThemedText variant="caption" color={theme.buttonPrimaryText}>
                                 {item.category}
                             </ThemedText>
                         </View>
                     )}
-                    <FontAwesome6 name="chevron-right" size={12} color={theme.textMuted} />
                 </View>
+                {item.description && (
+                    <ThemedText variant="small" color={theme.textMuted} numberOfLines={2} style={styles.itemSummary}>
+                        {item.description}
+                    </ThemedText>
+                )}
             </View>
-            {item.description && (
-                <ThemedText variant="caption" color={theme.textSecondary} numberOfLines={2} style={styles.itemDesc}>
-                    {item.description}
-                </ThemedText>
-            )}
+            <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
         </TouchableOpacity>
     );
 
@@ -160,18 +159,22 @@ export default function GeographyScreen() {
                 </View>
             </ThemedView>
 
-            {/* Search */}
+            {/* Search Bar */}
             <View style={styles.searchContainer}>
-                <View style={[styles.searchBox, { backgroundColor: theme.backgroundTertiary, borderColor: theme.border }]}>
-                    <FontAwesome6 name="magnifying-glass" size={16} color={theme.textMuted} />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder="搜索地名..."
-                        placeholderTextColor={theme.textMuted}
-                        value={searchText}
-                        onChangeText={handleSearch}
-                    />
-                </View>
+                <FontAwesome6 name="magnifying-glass" size={16} color={theme.textMuted} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="搜索地名..."
+                    placeholderTextColor={theme.textMuted}
+                    value={searchText}
+                    onChangeText={handleSearch}
+                    returnKeyType="search"
+                />
+                {searchText.length > 0 && (
+                    <TouchableOpacity onPress={() => { setSearchText(''); setSearchQuery(''); setPage(1); }}>
+                        <FontAwesome6 name="xmark" size={16} color={theme.textMuted} />
+                    </TouchableOpacity>
+                )}
             </View>
 
             {/* List */}
@@ -182,12 +185,29 @@ export default function GeographyScreen() {
                 contentContainerStyle={styles.listContent}
                 onEndReached={handleLoadMore}
                 onEndReachedThreshold={0.3}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        colors={[theme.primary]}
+                        tintColor={theme.primary}
+                    />
+                }
                 ListFooterComponent={hasMore ? (
                     <View style={styles.loadingMore}>
                         <ThemedText variant="small" color={theme.textMuted}>加载更多...</ThemedText>
                     </View>
                 ) : null}
+                ListEmptyComponent={
+                    !loading ? (
+                        <View style={styles.emptyContainer}>
+                            <FontAwesome6 name="mountain-sun" size={48} color={theme.textMuted} />
+                            <ThemedText variant="body" color={theme.textMuted} style={styles.emptyText}>
+                                {searchQuery ? '未找到匹配的地名' : '暂无地理数据'}
+                            </ThemedText>
+                        </View>
+                    ) : null
+                }
             />
         </Screen>
     );

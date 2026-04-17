@@ -4,75 +4,78 @@ import { Spacing, BorderRadius, Theme } from '@/constants/theme';
 export const createStyles = (theme: Theme) => {
     return StyleSheet.create({
         header: {
-            paddingHorizontal: Spacing.lg,
-            paddingTop: Spacing.md,
-            paddingBottom: Spacing.md,
-            backgroundColor: theme.backgroundRoot,
+            paddingHorizontal: Spacing["2xl"],
+            paddingTop: Spacing["2xl"],
+            paddingBottom: Spacing.lg,
         },
         headerRow: {
             flexDirection: 'row',
             justifyContent: 'space-between',
-            alignItems: 'center',
+            alignItems: 'flex-start',
         },
         headerSubtitle: {
-            marginTop: 2,
+            marginTop: Spacing.sm,
         },
         searchContainer: {
-            paddingHorizontal: Spacing.lg,
-            paddingVertical: Spacing.sm,
-        },
-        searchBox: {
             flexDirection: 'row',
             alignItems: 'center',
-            paddingHorizontal: Spacing.md,
-            paddingVertical: Spacing.sm,
+            marginHorizontal: Spacing["2xl"],
+            paddingHorizontal: Spacing.lg,
+            paddingVertical: Spacing.md,
+            backgroundColor: theme.backgroundDefault,
             borderRadius: BorderRadius.lg,
-            borderWidth: 1,
-            gap: Spacing.sm,
+            marginBottom: Spacing.lg,
+            gap: Spacing.md,
         },
         searchInput: {
             flex: 1,
-            fontSize: 15,
+            fontSize: 16,
             color: theme.textPrimary,
-            paddingVertical: 4,
         },
         listContent: {
-            paddingHorizontal: Spacing.lg,
-            paddingBottom: Spacing.xl,
+            paddingHorizontal: Spacing["2xl"],
+            paddingBottom: Spacing["5xl"],
         },
         itemCard: {
-            backgroundColor: theme.backgroundDefault,
-            borderRadius: BorderRadius.lg,
-            padding: Spacing.md,
-            marginBottom: Spacing.sm,
-            shadowColor: theme.primary,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.06,
-            shadowRadius: 8,
-            elevation: 2,
-        },
-        itemMain: {
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
+            padding: Spacing.lg,
+            backgroundColor: theme.backgroundDefault,
+            borderRadius: BorderRadius.lg,
+            marginBottom: Spacing.md,
+            gap: Spacing.lg,
         },
-        itemLeft: {
+        itemInfo: {
             flex: 1,
-            gap: 2,
         },
-        itemRight: {
+        itemHeader: {
             flexDirection: 'row',
             alignItems: 'center',
             gap: Spacing.sm,
         },
+        locationText: {
+            marginTop: 2,
+        },
         categoryTag: {
+            marginLeft: 'auto',
+            backgroundColor: theme.primary,
             paddingHorizontal: Spacing.sm,
             paddingVertical: 2,
             borderRadius: BorderRadius.sm,
         },
-        itemDesc: {
-            marginTop: Spacing.xs,
-            lineHeight: 18,
+        itemSummary: {
+            marginTop: Spacing.sm,
+            lineHeight: 20,
+        },
+        emptyContainer: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingVertical: Spacing["6xl"],
+        },
+        emptyText: {
+            marginTop: Spacing.lg,
         },
         loadingMore: {
             paddingVertical: Spacing.lg,

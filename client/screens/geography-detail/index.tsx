@@ -21,7 +21,6 @@ interface GeoDetail {
     lng: string | null;
     lat: string | null;
     description: string | null;
-    stroke_count: number | null;
 }
 
 export default function GeographyDetailScreen() {
