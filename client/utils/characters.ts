@@ -10,6 +10,8 @@ export interface Character {
   death_year: string | null;
   summary: string | null;
   avatar_url: string | null;
+  aliases: string[] | null;
+  hometown: string | null;
   created_at: string;
   updated_at: string;
 }

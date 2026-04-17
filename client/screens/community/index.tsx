@@ -100,18 +100,24 @@ export default function CommunityScreen() {
     }
   }, [activeCategory, showMyPosts, user]);
 
+  // 获取未读通知数
+  const fetchUnreadCount = useCallback(async () => {
+    if (!user) return;
+    try {
+      const result = await getNotifications({ userId: user.id, limit: 1 });
+      if (result?.success && result?.data) {
+        setUnreadCount(result.data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error('获取未读通知数失败:', error);
+    }
+  }, [user]);
+
   useFocusEffect(
     useCallback(() => {
       fetchPosts(1);
-      // 获取未读通知数
-      if (user) {
-        getNotifications({ userId: user.id, limit: 1 }).then(result => {
-          if (result.success) {
-            setUnreadCount(result.data.unreadCount);
-          }
-        });
-      }
-    }, [fetchPosts, user])
+      fetchUnreadCount();
+    }, [fetchPosts, fetchUnreadCount])
   );
 
   const handleRefresh = () => {

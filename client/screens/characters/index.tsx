@@ -24,6 +24,7 @@ export default function CharactersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [filterExpanded, setFilterExpanded] = useState(false);
 
   const fetchData = useCallback(async (pageNum: number = 1, refresh: boolean = false) => {
     try {
@@ -113,130 +114,165 @@ export default function CharactersScreen() {
   };
 
   const renderCharacter = ({ item }: { item: Character }) => (
-    <TouchableOpacity
-      style={styles.characterCard}
-      onPress={() => handleCharacterPress(item.id)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.characterInfo}>
-        <View style={styles.characterHeader}>
-          <ThemedText variant="h4" color={theme.textPrimary}>{item.name}</ThemedText>
-          {item.title && (
-            <ThemedText variant="small" color={theme.accent} style={styles.titleText}>
-              {item.title}
-            </ThemedText>
+      <TouchableOpacity
+          style={styles.characterCard}
+          onPress={() => handleCharacterPress(item.id)}
+          activeOpacity={0.7}
+      >
+        <View style={styles.characterInfo}>
+          <View style={styles.characterHeader}>
+            <ThemedText variant="h4" color={theme.textPrimary}>{item.name}</ThemedText>
+            {item.title && (
+                <ThemedText variant="small" color={theme.accent} style={styles.titleText}>
+                  {item.title}
+                </ThemedText>
+            )}
+            {/* 右上角纪标签 */}
+            {item.era && (
+                <View style={styles.eraTag}>
+                  <ThemedText variant="caption" color={theme.buttonPrimaryText}>
+                    {item.era}
+                  </ThemedText>
+                </View>
+            )}
+          </View>
+          {item.birth_year && item.death_year && (
+              <ThemedText variant="small" color={theme.textSecondary} style={styles.characterSubtitle}>
+                {item.birth_year}-{item.death_year}
+              </ThemedText>
+          )}
+          {item.summary && (
+              <ThemedText variant="small" color={theme.textMuted} numberOfLines={2} style={styles.characterSummary}>
+                {item.summary}
+              </ThemedText>
           )}
         </View>
-        <ThemedText variant="body" color={theme.textSecondary} style={styles.characterSubtitle}>
-          {item.era}{item.birth_year && item.death_year ? ` · ${item.birth_year}-${item.death_year}` : ''}
-        </ThemedText>
-        {item.summary && (
-          <ThemedText variant="small" color={theme.textMuted} numberOfLines={2} style={styles.characterSummary}>
-            {item.summary}
-          </ThemedText>
-        )}
-      </View>
-      <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
-    </TouchableOpacity>
+        <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
+      </TouchableOpacity>
   );
 
   const renderEraItem = (era: Era) => (
-    <TouchableOpacity
-      key={era.name}
-      style={[
-        styles.eraChip,
-        selectedEra === era.name && styles.eraChipActive,
-      ]}
-      onPress={() => handleEraSelect(selectedEra === era.name ? null : era.name)}
-    >
-      <ThemedText
-        variant="small"
-        color={selectedEra === era.name ? theme.buttonPrimaryText : theme.textSecondary}
+      <TouchableOpacity
+          key={era.name}
+          style={[
+            styles.eraChip,
+            selectedEra === era.name && styles.eraChipActive,
+          ]}
+          onPress={() => handleEraSelect(selectedEra === era.name ? null : era.name)}
       >
-        {era.name} ({era.count})
-      </ThemedText>
-    </TouchableOpacity>
+        <ThemedText
+            variant="small"
+            color={selectedEra === era.name ? theme.buttonPrimaryText : theme.textSecondary}
+        >
+          {era.name} ({era.count})
+        </ThemedText>
+      </TouchableOpacity>
   );
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
-      {/* Header */}
-      <ThemedView level="root" style={styles.header}>
-        <View style={styles.headerRow}>
-          <View>
-            <ThemedText variant="h2" color={theme.textPrimary}>人物图谱</ThemedText>
-            <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
-              探索历史人物关系网络
-            </ThemedText>
-          </View>
-          <TouchableOpacity style={styles.graphButton} onPress={() => router.push('/character-graph')}>
-            <FontAwesome6 name="diagram-project" size={18} color={theme.buttonPrimaryText} />
-          </TouchableOpacity>
-        </View>
-      </ThemedView>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <FontAwesome6 name="magnifying-glass" size={16} color={theme.textMuted} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="搜索人物姓名..."
-          placeholderTextColor={theme.textMuted}
-          value={searchText}
-          onChangeText={setSearchText}
-          onSubmitEditing={handleSearch}
-          returnKeyType="search"
-        />
-        {searchText.length > 0 && (
-          <TouchableOpacity onPress={() => { setSearchText(''); setSearchQuery(''); }}>
-            <FontAwesome6 name="xmark" size={16} color={theme.textMuted} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Era Filter */}
-      <View style={styles.eraContainer}>
-        <TouchableOpacity
-          style={[styles.eraChip, !selectedEra && styles.eraChipActive]}
-          onPress={() => handleEraSelect(null)}
-        >
-          <ThemedText
-            variant="small"
-            color={!selectedEra ? theme.buttonPrimaryText : theme.textSecondary}
-          >
-            全部
-          </ThemedText>
-        </TouchableOpacity>
-        {eras.map(era => renderEraItem(era))}
-      </View>
-
-      {/* Characters List */}
-      <FlatList
-        data={characters}
-        renderItem={renderCharacter}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={[theme.primary]}
-            tintColor={theme.primary}
-          />
-        }
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.3}
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.emptyContainer}>
-              <FontAwesome6 name="users" size={48} color={theme.textMuted} />
-              <ThemedText variant="body" color={theme.textMuted} style={styles.emptyText}>
-                {searchQuery ? '未找到匹配的人物' : '暂无人物数据'}
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+        {/* Header */}
+        <ThemedView level="root" style={styles.header}>
+          <View style={styles.headerRow}>
+            <View>
+              <ThemedText variant="h2" color={theme.textPrimary}>人物图谱</ThemedText>
+              <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
+                探索历史人物关系网络
               </ThemedText>
             </View>
-          ) : null
-        }
-      />
-    </Screen>
+          </View>
+        </ThemedView>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <FontAwesome6 name="magnifying-glass" size={16} color={theme.textMuted} />
+          <TextInput
+              style={styles.searchInput}
+              placeholder="搜索人物姓名..."
+              placeholderTextColor={theme.textMuted}
+              value={searchText}
+              onChangeText={setSearchText}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+          />
+          {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => { setSearchText(''); setSearchQuery(''); }}>
+                <FontAwesome6 name="xmark" size={16} color={theme.textMuted} />
+              </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Era Filter */}
+        <View style={styles.filterSection}>
+          <TouchableOpacity
+              style={styles.filterHeader}
+              onPress={() => setFilterExpanded(!filterExpanded)}
+              activeOpacity={0.7}
+          >
+            <View style={styles.filterHeaderLeft}>
+              <ThemedText variant="smallMedium" color={theme.textSecondary}>
+                按时期筛选
+              </ThemedText>
+              {selectedEra && (
+                  <View style={styles.selectedEraTag}>
+                    <ThemedText variant="caption" color={theme.buttonPrimaryText}>
+                      {selectedEra}
+                    </ThemedText>
+                  </View>
+              )}
+            </View>
+            <FontAwesome6
+                name={filterExpanded ? "chevron-up" : "chevron-down"}
+                size={12}
+                color={theme.textMuted}
+            />
+          </TouchableOpacity>
+
+          {filterExpanded && (
+              <View style={styles.eraContainer}>
+                <TouchableOpacity
+                    style={[styles.eraChip, !selectedEra && styles.eraChipActive]}
+                    onPress={() => handleEraSelect(null)}
+                >
+                  <ThemedText
+                      variant="small"
+                      color={!selectedEra ? theme.buttonPrimaryText : theme.textSecondary}
+                  >
+                    全部
+                  </ThemedText>
+                </TouchableOpacity>
+                {eras.map(era => renderEraItem(era))}
+              </View>
+          )}
+        </View>
+
+        {/* Characters List */}
+        <FlatList
+            data={characters}
+            renderItem={renderCharacter}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  colors={[theme.primary]}
+                  tintColor={theme.primary}
+              />
+            }
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.3}
+            ListEmptyComponent={
+              !loading ? (
+                  <View style={styles.emptyContainer}>
+                    <FontAwesome6 name="users" size={48} color={theme.textMuted} />
+                    <ThemedText variant="body" color={theme.textMuted} style={styles.emptyText}>
+                      {searchQuery ? '未找到匹配的人物' : '暂无人物数据'}
+                    </ThemedText>
+                  </View>
+              ) : null
+            }
+        />
+      </Screen>
   );
 }

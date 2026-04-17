@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
@@ -26,27 +26,59 @@ export default function EncyclopediaScreen() {
   const router = useSafeRouter();
 
   const [searchText, setSearchText] = useState('');
+  const [stats, setStats] = useState({ characters: 0, titles: 87, geography: 0 });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const charRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/characters?limit=1`);
+        const charData = await charRes.json();
+        const titlesRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/titles?limit=1`);
+        const titlesData = await titlesRes.json();
+        const geoRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography?limit=1`);
+        const geoData = await geoRes.json();
+        setStats({
+          characters: charData.data?.total || 0,
+          titles: titlesData.data?.total || 0,
+          geography: geoData.data?.total || 0,
+        });
+      } catch (e) {
+        console.error('获取统计数据失败', e);
+      }
+    };
+    fetchStats();
+  }, []);
 
   const categories: CategoryItem[] = [
     {
       id: 'characters',
-      title: '人物列表',
+      title: '人物',
       description: '历史人物与关系图谱',
       icon: 'users',
       color: theme.primary,
       gradient: ['#6366F1', '#4F46E5'],
       route: '/characters',
-      count: 234,
+      count: stats.characters,
     },
     {
       id: 'titles',
-      title: '官职列表',
+      title: '官职',
       description: '历代官职与品级制度',
       icon: 'scroll',
       color: theme.accent,
       gradient: ['#A78BFA', '#7C3AED'],
       route: '/titles',
-      count: 87,
+      count: stats.titles,
+    },
+    {
+      id: 'geography',
+      title: '地理数据',
+      description: '州郡山川关隘宫殿',
+      icon: 'mountain-sun',
+      color: '#0891B2',
+      gradient: ['#06B6D4', '#0891B2'],
+      route: '/geography',
+      count: stats.geography,
     },
     {
       id: 'quotes',
@@ -131,7 +163,7 @@ export default function EncyclopediaScreen() {
           {/* Header */}
           <ThemedView level="root" style={styles.header}>
             <ThemedText variant="h2" color={theme.textPrimary}>
-              通鉴百科
+              资治通鉴百科
             </ThemedText>
             <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
               探索历史的智慧
@@ -159,6 +191,9 @@ export default function EncyclopediaScreen() {
 
           {/* Categories */}
           <View style={styles.categoriesContainer}>
+            <ThemedText variant="h4" color={theme.textPrimary} style={styles.sectionTitle}>
+              知识分区
+            </ThemedText>
             {categories.map(category => renderCategory(category))}
           </View>
 
@@ -178,7 +213,7 @@ export default function EncyclopediaScreen() {
               </View>
               <View style={styles.statItem}>
                 <ThemedText variant="h2" color={theme.accent}>
-                  234
+                  {stats.characters}
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
                   人物
@@ -186,7 +221,7 @@ export default function EncyclopediaScreen() {
               </View>
               <View style={styles.statItem}>
                 <ThemedText variant="h2" color="#F59E0B">
-                  87
+                  {stats.titles}
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
                   官职
@@ -194,10 +229,10 @@ export default function EncyclopediaScreen() {
               </View>
               <View style={styles.statItem}>
                 <ThemedText variant="h2" color="#0891B2">
-                  20
+                  {stats.geography}
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
-                  地图
+                  地理
                 </ThemedText>
               </View>
             </View>

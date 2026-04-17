@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { Pool } from 'pg';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = Router();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 /**
  * 获取人物百科
@@ -14,7 +14,7 @@ router.get('/characters/:name', async (req, res) => {
 
         // 先按 name 精确匹配
         const result = await pool.query(
-            'SELECT * FROM characters WHERE name = $1 LIMIT 1',
+            'SELECT * FROM characters WHERE name = $1',
             [name]
         );
 
@@ -36,7 +36,7 @@ router.get('/characters/:name', async (req, res) => {
             });
         }
 
-        // 将 aliases 字段从字符串转换为数组
+        // 处理 aliases 字段
         const processedData = {
             ...character,
             aliases: character.aliases ? character.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
@@ -65,7 +65,7 @@ router.get('/titles/:name', async (req, res) => {
 
         // 先按 name 精确匹配
         const result = await pool.query(
-            'SELECT * FROM titles WHERE name = $1 LIMIT 1',
+            'SELECT * FROM official_posts WHERE name = $1',
             [name]
         );
 
@@ -74,7 +74,7 @@ router.get('/titles/:name', async (req, res) => {
         // 如果没找到，再在别名中查找
         if (!title) {
             const aliasResult = await pool.query(
-                "SELECT * FROM titles WHERE $1 = ANY(string_to_array(aliases, ','))",
+                "SELECT * FROM official_posts WHERE $1 = ANY(SELECT jsonb_array_elements_text(COALESCE(aliases, '[]'::jsonb)))",
                 [name]
             );
             title = aliasResult.rows[0];
@@ -87,10 +87,11 @@ router.get('/titles/:name', async (req, res) => {
             });
         }
 
-        // 将 aliases 字段从字符串转换为数组
+        // 处理 aliases 字段
         const processedData = {
             ...title,
-            aliases: title.aliases ? title.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
+            aliases: Array.isArray(title.aliases) ? title.aliases :
+                (typeof title.aliases === 'string' ? JSON.parse(title.aliases) : [])
         };
 
         res.json({
@@ -114,16 +115,20 @@ router.get('/characters', async (req, res) => {
     try {
         const { dynasty, limit = 20, offset = 0 } = req.query;
 
-        let query = 'SELECT * FROM characters';
-        const params: unknown[] = [];
+        let query = 'SELECT * FROM characters WHERE 1=1';
+        const params: any[] = [];
+        let paramIndex = 1;
 
         if (dynasty) {
-            query += ' WHERE dynasty = $1';
+            query += ` AND dynasty = $${paramIndex}`;
             params.push(dynasty);
+            paramIndex++;
         }
 
-        query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-        params.push(Number(limit), Number(offset));
+        // 分页
+        query += ` ORDER BY id LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        params.push(Number(limit));
+        params.push(Number(offset));
 
         const result = await pool.query(query, params);
 
@@ -152,30 +157,56 @@ router.get('/characters', async (req, res) => {
  */
 router.get('/titles', async (req, res) => {
     try {
-        const { dynasty, limit = 20, offset = 0 } = req.query;
+        const { search, category, dynasty, limit = 50, offset = 0 } = req.query;
 
-        let query = 'SELECT * FROM titles';
-        const params: unknown[] = [];
+        let query = 'SELECT * FROM official_posts WHERE 1=1';
+        const params: any[] = [];
+        let paramIndex = 1;
 
-        if (dynasty) {
-            query += ' WHERE dynasty = $1';
-            params.push(dynasty);
+        if (search) {
+            query += ` AND (name ILIKE $${paramIndex} OR description ILIKE $${paramIndex})`;
+            params.push(`%${search}%`);
+            paramIndex++;
         }
 
-        query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-        params.push(Number(limit), Number(offset));
+        if (category) {
+            query += ` AND category = $${paramIndex}`;
+            params.push(category);
+            paramIndex++;
+        }
+
+        if (dynasty) {
+            query += ` AND dynasty ILIKE $${paramIndex}`;
+            params.push(`%${dynasty}%`);
+            paramIndex++;
+        }
+
+        // 获取总数
+        const countResult = await pool.query(`SELECT COUNT(*) as total FROM (${query}) as subq`, params);
+        const total = parseInt(countResult.rows[0].total);
+
+        // 分页
+        query += ` ORDER BY id LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        params.push(Number(limit));
+        params.push(Number(offset));
 
         const result = await pool.query(query, params);
 
-        // 将 aliases 字段从字符串转换为数组
+        // 处理 aliases 字段
         const processedData = result.rows.map((item: any) => ({
             ...item,
-            aliases: item.aliases ? item.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
+            aliases: Array.isArray(item.aliases) ? item.aliases :
+                (typeof item.aliases === 'string' ? JSON.parse(item.aliases) : [])
         }));
 
         res.json({
             success: true,
-            data: processedData
+            data: {
+                titles: processedData,
+                total,
+                limit: Number(limit),
+                offset: Number(offset)
+            }
         });
     } catch (error) {
         console.error('获取官职列表失败:', error);
@@ -234,12 +265,10 @@ router.post('/batch', async (req, res) => {
     }
 });
 
-
 /**
  * 获取年号详情（含背景简述和重大纪事）
  * GET /api/v1/encyclopedia/era-years/detail
  * Query参数：eraName, emperorName
- * 注意：此路由必须在 /era-years/:id 之前定义，否则 detail 会被当作 :id 参数
  */
 router.get('/era-years/detail', async (req, res) => {
     try {
@@ -254,9 +283,9 @@ router.get('/era-years/detail', async (req, res) => {
             });
         }
 
-        // 查询年号所有年份的记录
+        // 构建查询
         let query = 'SELECT * FROM era_years WHERE era_name = $1';
-        const params: unknown[] = [eraName];
+        const params: any[] = [eraName];
 
         if (emperorName) {
             query += ' AND emperor_name = $2';
@@ -316,7 +345,6 @@ router.get('/era-years/detail', async (req, res) => {
     }
 });
 
-
 /**
  * 按年号名称分组获取（用于展示年号起止年份）
  * GET /api/v1/encyclopedia/era-groups
@@ -340,9 +368,8 @@ router.get('/era-groups', async (req, res) => {
             '三国两晋': ['魏', '西晋', '东晋'],
         };
 
-        // 处理历史时期分组查询
-        const dynastyStr = dynasty as string | undefined;
         let allData: any[] = [];
+        const dynastyStr = dynasty as string | undefined;
 
         if (!dynastyStr || dynastyStr === '全部') {
             // 查询全部时，分批查询各时期
@@ -357,14 +384,12 @@ router.get('/era-groups', async (req, res) => {
                          ORDER BY gregorian_year ASC`,
                         [dynasties]
                     );
-                    let periodData = result.rows;
-                    
+                    allData = allData.concat(result.rows);
+
                     // 周秦时期排除武则天
                     if (period === '周秦') {
-                        periodData = periodData.filter(d => d.emperor_name !== '武则天');
+                        allData = allData.filter(d => d.emperor_name !== '武则天');
                     }
-                    allData = allData.concat(periodData);
-                    
                     // 隋唐时期额外查询武则天
                     if (period === '隋唐') {
                         const wuzetianResult = await pool.query(
@@ -377,43 +402,46 @@ router.get('/era-groups', async (req, res) => {
                     }
                 }
             }
-        } else if (PERIOD_DYNASTY_MAP[dynastyStr]) {
-            // 历史时期分组查询
-            const dynasties = PERIOD_DYNASTY_MAP[dynastyStr];
-            let query = `SELECT era_name, emperor_name, dynasty, gregorian_year FROM era_years WHERE dynasty = ANY($1)`;
-            const params: unknown[] = [dynasties];
+        } else {
+            // 单一时期查询
+            if (PERIOD_DYNASTY_MAP[dynastyStr]) {
+                // 检查是否是历史时期分组
+                let query = `SELECT era_name, emperor_name, dynasty, gregorian_year 
+                            FROM era_years 
+                            WHERE dynasty = ANY($1)`;
+                const params: any[] = [PERIOD_DYNASTY_MAP[dynastyStr]];
 
-            // 武则天的周（武周）特殊处理：归入隋唐而非周秦
-            if (dynastyStr === '周秦') {
-                query += ' AND emperor_name != $2';
-                params.push('武则天');
-            }
+                // 周秦时期排除武则天
+                if (dynastyStr === '周秦') {
+                    query += ' AND emperor_name != $2';
+                    params.push('武则天');
+                }
 
-            query += ' ORDER BY gregorian_year ASC LIMIT 2000';
-            const result = await pool.query(query, params);
-            allData = result.rows;
+                query += ' ORDER BY gregorian_year ASC';
+                const result = await pool.query(query, params);
+                allData = result.rows;
 
-            // 如果是隋唐时期，额外查询武则天的年号
-            if (dynastyStr === '隋唐') {
-                const wuzetianResult = await pool.query(
+                // 如果是隋唐时期，额外查询武则天的年号
+                if (dynastyStr === '隋唐') {
+                    const wuzetianResult = await pool.query(
+                        `SELECT era_name, emperor_name, dynasty, gregorian_year 
+                         FROM era_years 
+                         WHERE emperor_name = $1`,
+                        ['武则天']
+                    );
+                    allData = allData.concat(wuzetianResult.rows);
+                }
+            } else {
+                // 单一朝代查询
+                const result = await pool.query(
                     `SELECT era_name, emperor_name, dynasty, gregorian_year 
                      FROM era_years 
-                     WHERE emperor_name = $1`,
-                    ['武则天']
+                     WHERE dynasty = $1 
+                     ORDER BY gregorian_year ASC`,
+                    [dynastyStr]
                 );
-                allData = allData.concat(wuzetianResult.rows);
+                allData = result.rows;
             }
-        } else {
-            // 单一朝代查询
-            const result = await pool.query(
-                `SELECT era_name, emperor_name, dynasty, gregorian_year 
-                 FROM era_years 
-                 WHERE dynasty = $1 
-                 ORDER BY gregorian_year ASC 
-                 LIMIT 2000`,
-                [dynastyStr]
-            );
-            allData = result.rows;
         }
 
         console.log('[era-groups] 查询结果:', { totalRecords: allData.length, dynasty: dynastyStr });
