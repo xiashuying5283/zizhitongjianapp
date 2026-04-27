@@ -67,6 +67,7 @@ export default function ReadingScreen() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedDynasty, setSelectedDynasty] = useState<string | null>(null);
+  const navigatingRef = useRef(false); // 防止重复跳转
 
   // 初始化时检查缓存
   const cachedGroups = useMemo(() => getDynastyGroupsCache(), []);
@@ -389,7 +390,12 @@ export default function ReadingScreen() {
                 <TouchableOpacity
                   key={volume.id}
                   style={styles.volumeItem}
-                  onPress={() => router.push('/volume-detail', { id: volume.volume })}
+                  onPress={() => {
+                    if (navigatingRef.current) return;
+                    navigatingRef.current = true;
+                    router.push('/volume-detail', { id: volume.volume });
+                    setTimeout(() => { navigatingRef.current = false; }, 300);
+                  }}
                   activeOpacity={0.7}
                 >
                   <View style={styles.volumeIcon}>
@@ -470,10 +476,15 @@ export default function ReadingScreen() {
                 </View>
                 <TouchableOpacity
                   style={styles.continueButton}
-                  onPress={() => router.push('/volume-detail', {
-                    id: recentRead.volume,
-                    scrollToParagraphId: recentRead.progress > 0 ? recentRead.lastParagraphIndex : undefined,
-                  })}
+                  onPress={() => {
+                    if (navigatingRef.current || !recentRead) return;
+                    navigatingRef.current = true;
+                    router.push('/volume-detail', {
+                      id: recentRead.volume,
+                      scrollToParagraphId: recentRead.progress > 0 ? recentRead.lastParagraphIndex : undefined,
+                    });
+                    setTimeout(() => { navigatingRef.current = false; }, 300);
+                  }}
                 >
                   <ThemedText variant="smallMedium" color={theme.buttonPrimaryText}>
                     继续阅读
@@ -497,7 +508,12 @@ export default function ReadingScreen() {
                 </View>
                 <TouchableOpacity
                   style={styles.continueButton}
-                  onPress={() => router.push('/volume-detail', { id: 1 })}
+                  onPress={() => {
+                    if (navigatingRef.current) return;
+                    navigatingRef.current = true;
+                    router.push('/volume-detail', { id: 1 });
+                    setTimeout(() => { navigatingRef.current = false; }, 300);
+                  }}
                 >
                   <ThemedText variant="smallMedium" color={theme.buttonPrimaryText}>
                     开始阅读
@@ -544,10 +560,17 @@ export default function ReadingScreen() {
                   <TouchableOpacity
                     key={result.id || index}
                     style={styles.searchResultItem}
-                    onPress={() => router.push('/volume-detail', { 
-                      id: result.volume_number,
-                      highlightId: result.id 
-                    })}
+                    onPress={() => {
+                      if (navigatingRef.current || !result.id || !result.volume_number) return;
+                      navigatingRef.current = true;
+                      router.push('/volume-detail', {
+                        id: result.volume_number,
+                        highlightId: result.id,
+                        keyword: searchText.trim()
+                      });
+                      // 300ms 后重置，允许下次跳转
+                      setTimeout(() => { navigatingRef.current = false; }, 300);
+                    }}
                     activeOpacity={0.7}
                   >
                     <View style={styles.resultHeader}>
@@ -564,9 +587,14 @@ export default function ReadingScreen() {
                   </TouchableOpacity>
                 ))}
                 {searchResults.length > 5 && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.moreResultsButton}
-                    onPress={() => router.push('/volume-detail', { id: searchResults[0].volume_number })}
+                    onPress={() => {
+                      if (navigatingRef.current || !searchResults[0]?.volume_number) return;
+                      navigatingRef.current = true;
+                      router.push('/volume-detail', { id: searchResults[0].volume_number });
+                      setTimeout(() => { navigatingRef.current = false; }, 300);
+                    }}
                   >
                     <ThemedText variant="small" color={theme.primary}>
                       {t('查看更多结果')}...

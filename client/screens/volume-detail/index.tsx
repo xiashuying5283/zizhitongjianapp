@@ -164,9 +164,7 @@ export default function VolumeDetailScreen() {
   const [volumeMeta, setVolumeMeta] = useState<VolumeMeta | null>(null);
   const [catalogData, setCatalogData] = useState<CatalogData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
 
   // 文本选择状态
   const [textSelection, setTextSelection] = useState<TextSelection | null>(null);
@@ -731,69 +729,29 @@ export default function VolumeDetailScreen() {
     volumeDataRef.current = volumeData;
   }, [volumeData]);
 
-  // 合并年份组数据
-  const mergeYearGroups = useCallback((existing: YearGroup[], newGroups: YearGroup[]): YearGroup[] => {
-    const yearMap = new Map<number, YearGroup>();
-    
-    // 先添加已有的
-    for (const year of existing) {
-      if (year.bc_year !== null) {
-        yearMap.set(year.bc_year, year);
-      }
-    }
-
-    for (const year of newGroups) {
-      if (year.bc_year !== null) {
-        if (yearMap.has(year.bc_year)) {
-          // 合并段落数组
-          const existingYear = yearMap.get(year.bc_year)!;
-          const existingIds = new Set(existingYear.paragraphs.map(p => p.id));
-          const newParagraphs = year.paragraphs.filter(p => !existingIds.has(p.id));
-          existingYear.paragraphs = [...existingYear.paragraphs, ...newParagraphs];
-        } else {
-          yearMap.set(year.bc_year, year);
-        }
-      }
-    }
-    
-    // 按年份排序
-    return Array.from(yearMap.values()).sort((a, b) => {
-      if (a.bc_year === null && b.bc_year === null) return 0;
-      if (a.bc_year === null) return 1;
-      if (b.bc_year === null) return -1;
-      return a.bc_year - b.bc_year;
-    });
-  }, []);
-
   /**
    * 服务端文件：server/src/routes/paragraphs.ts
    * 接口：GET /api/v1/paragraphs/volume/:volumeNumber
    * Path 参数：volumeNumber: number
-   * Query 参数：offset?: number, limit?: number
    */
-  const fetchVolumeData = useCallback(async (volumeNumber: number, isSilentRefresh: boolean, append: boolean = false) => {
-    // 检查缓存（仅首次加载）
-    if (!append) {
-      const cached = getCachedVolume(volumeNumber);
-      if (cached.volumeData) {
-        setVolumeData(cached.volumeData);
-        setCatalogData(cached.catalogData);
-        setLoading(false);
-        return;
-      }
+  const fetchVolumeData = useCallback(async (volumeNumber: number, isSilentRefresh: boolean) => {
+    // 检查缓存
+    const cached = getCachedVolume(volumeNumber);
+    if (cached.volumeData) {
+      setVolumeData(cached.volumeData);
+      setCatalogData(cached.catalogData);
+      setLoading(false);
+      return;
     }
 
-    if (append) {
-      setLoadingMore(true);
-    } else if (!isSilentRefresh) {
+    if (!isSilentRefresh) {
       setLoading(true);
     }
     setError(null);
 
     try {
-      const limit = 50;
-      const offset = append ? loadedParagraphsRef.current : 0;
-      const url = `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/paragraphs/volume/${volumeNumber}?offset=${offset}&limit=${limit}`;
+      // 一次性加载所有数据，不再分页
+      const url = `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/paragraphs/volume/${volumeNumber}`;
 
       const response = await fetch(url);
 
@@ -804,25 +762,9 @@ export default function VolumeDetailScreen() {
       const result = await response.json();
 
       if (result.success) {
-        totalParagraphsRef.current = result.total;  // 保存服务器返回的总段落数（用于进度计算）
-        setHasMore(result.hasMore);
-        
-        // 使用 ref 获取当前数据，避免依赖 volumeData
-        const currentData = volumeDataRef.current;
-        if (append && currentData) {
-          // 合并数据
-          const mergedYears = mergeYearGroups(currentData.years, result.data.years);
-          setVolumeData({
-            volume_number: volumeNumber,
-            years: mergedYears,
-          });
-        } else {
-          setVolumeData(result.data);
-        }
-        
-        // 更新已加载的段落数
-        const newLoaded = offset + (result.data.years?.reduce((sum: number, y: YearGroup) => sum + y.paragraphs.length, 0) || 0);
-        loadedParagraphsRef.current = newLoaded;
+        totalParagraphsRef.current = result.total;
+        setVolumeData(result.data);
+        loadedParagraphsRef.current = result.total;
       } else {
         setError(result.message || 'Failed to load data');
       }
@@ -830,18 +772,8 @@ export default function VolumeDetailScreen() {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
-  }, [mergeYearGroups]); // 移除 volumeData 依赖
-
-  /**
-   * 加载更多段落
-   */
-  const handleLoadMore = useCallback(() => {
-    if (!loadingMore && hasMore && currentVolumeRef.current) {
-      fetchVolumeData(currentVolumeRef.current, true, true);
-    }
-  }, [loadingMore, hasMore, fetchVolumeData]);
+  }, []);
 
   /**
    * 服务端文件：server/src/routes/volumes.ts
@@ -941,7 +873,6 @@ export default function VolumeDetailScreen() {
         currentVisibleParagraphIdRef.current = 0;  // 重置段落ID
         hasRestoredPositionRef.current = false;    // 重置恢复标志
         setVolumeData(null);
-        setHasMore(false);
         setUserNotes([]);  // 重置标注数据
       }
 
@@ -1004,55 +935,36 @@ export default function VolumeDetailScreen() {
     }, 350);
   }, []);
 
-  // 滚动到高亮段落（从搜索结果跳转）
+  // 滚动到高亮段落（从搜索结果跳转）- 带简单重试
   const scrollToHighlightParagraph = useCallback((paragraphId: number, retryCount = 0) => {
-    // 首次调用时重置状态
-    if (retryCount === 0) {
-      scrollToTargetRef.current = paragraphId;
-      scrollToSucceededRef.current = false;
-    }
-    // 目标已变更 或 已成功 → 停止重试
-    if (scrollToSucceededRef.current || scrollToTargetRef.current !== paragraphId) return;
+    scrollToTargetRef.current = paragraphId;
 
     if (htmlWebViewRef.current) {
       injectScroll(`window.__scrollToParagraph && window.__scrollToParagraph(${paragraphId});`);
     }
 
-    // 未成功才重试
-    if (retryCount < 15) {
-      if (retryCount === 0 && hasMore && !loadingMore && currentVolumeRef.current) {
-        fetchVolumeData(currentVolumeRef.current, true, true);
-      }
-      setTimeout(() => scrollToHighlightParagraph(paragraphId, retryCount + 1), 500);
-    } else {
-      setShowToolbar(false);
-      setActiveTab(null);
+    // 简单重试：最多3次，间隔300ms
+    if (retryCount < 3) {
+      setTimeout(() => {
+        if (!scrollToSucceededRef.current && scrollToTargetRef.current === paragraphId) {
+          scrollToHighlightParagraph(paragraphId, retryCount + 1);
+        }
+      }, 300);
     }
-  }, [hasMore, loadingMore, fetchVolumeData]);
+  }, [injectScroll]);
 
-  // 处理从搜索结果跳转到高亮段落
+  // 处理从搜索结果跳转到高亮段落 - 简化版，数据一次性加载
   useEffect(() => {
     if (!highlightId || !volumeData?.years || loading) return;
-    
+
     const paragraphId = parseInt(highlightId);
-    
-    // 检查段落是否已加载
-    let found = false;
-    for (const year of volumeData.years) {
-      if (year.paragraphs.some(p => p.id === paragraphId)) {
-        found = true;
-        break;
-      }
-    }
-    
-    if (found) {
-      // 段落已加载，延迟滚动确保 ref 已更新
-      setTimeout(() => scrollToHighlightParagraph(paragraphId), 200);
-    } else if (hasMore && !loadingMore && currentVolumeRef.current) {
-      // 段落未加载，加载更多数据
-      fetchVolumeData(currentVolumeRef.current, true, true);
-    }
-  }, [highlightId, volumeData, loading, hasMore, loadingMore, scrollToHighlightParagraph, fetchVolumeData]);
+
+    // 标记已恢复位置，防止阅读进度恢复干扰
+    hasRestoredPositionRef.current = true;
+
+    // 数据已加载，延迟滚动确保 WebView 已渲染
+    setTimeout(() => scrollToHighlightParagraph(paragraphId), 500);
+  }, [highlightId, volumeData, loading, scrollToHighlightParagraph]);
 
   // 保存阅读进度（页面失去焦点时）- 使用 useFocusEffect 确保在页面离开时保存
   useFocusEffect(
@@ -1079,8 +991,8 @@ export default function VolumeDetailScreen() {
   // 恢复阅读位置（首次加载时）
   const hasRestoredPositionRef = useRef(false);
   useEffect(() => {
-    // 只在首次加载且没有从搜索/书签跳转时恢复位置
-    if (!volumeData?.years || loading || hasRestoredPositionRef.current || highlightId) {
+    // 如果有搜索跳转或书签跳转，跳过阅读进度恢复
+    if (!volumeData?.years || loading || hasRestoredPositionRef.current || highlightId || yearMark) {
       return;
     }
     
@@ -1113,7 +1025,7 @@ export default function VolumeDetailScreen() {
     });
   }, [volumeData, loading, highlightId, scrollToHighlightParagraph, scrollToParagraphId]);
 
-  // 从目录跳转
+  // 从目录跳转 - 简化版，数据一次性加载
   const handleCatalogItemClick = useCallback((yearName: string, emperorName: string, bcYear: number | null) => {
     // 先用 bc_year 匹配
     let yearIndex = volumeData?.years.findIndex(y => y.bc_year === bcYear) ?? -1;
@@ -1123,13 +1035,11 @@ export default function VolumeDetailScreen() {
     }
     if (yearIndex >= 0) {
       scrollToYear(yearIndex);
-    } else if (hasMore && currentVolumeRef.current && !loadingMore) {
-      pendingJumpRef.current = { bcYear, yearName, emperorName };
-      fetchVolumeData(currentVolumeRef.current, true, true);
     }
-  }, [volumeData?.years, scrollToYear, hasMore, loadingMore, fetchVolumeData]);
+    // 数据一次性加载，不需要再加载更多
+  }, [volumeData?.years, scrollToYear]);
 
-  // 处理待跳转目标：当数据加载完成后执行跳转
+  // 处理待跳转目标：当数据加载完成后执行跳转 - 简化版
   useEffect(() => {
     if (!pendingJumpRef.current || !volumeData?.years) return;
 
@@ -1142,18 +1052,17 @@ export default function VolumeDetailScreen() {
     if (yearIndex >= 0) {
       pendingJumpRef.current = null;
       setTimeout(() => scrollToYear(yearIndex), 100);
-    } else if (hasMore && !loadingMore && currentVolumeRef.current) {
-      fetchVolumeData(currentVolumeRef.current, true, true);
     }
-  }, [volumeData, hasMore, loadingMore, scrollToYear, fetchVolumeData]);
+    // 数据一次性加载，不需要再加载更多
+  }, [volumeData, scrollToYear]);
 
-  // 处理书签跳转：当 URL 参数中有 yearMark 和 emperor 时
+  // 处理书签跳转：当 URL 参数中有 yearMark 和 emperor 时 - 简化版
   useEffect(() => {
     if (!yearMark || !emperor || !volumeData?.years) return;
-    
+
     // 已经在处理中，避免重复执行
     if (pendingJumpRef.current) return;
-    
+
     const yearIndex = volumeData.years.findIndex(
       y => y.year_mark === yearMark && y.emperor === emperor
     );
@@ -1161,12 +1070,9 @@ export default function VolumeDetailScreen() {
     if (yearIndex >= 0) {
       // 目标已加载，执行跳转
       setTimeout(() => scrollToYear(yearIndex), 100);
-    } else if (hasMore && !loadingMore && currentVolumeRef.current) {
-      // 目标未加载，设置待跳转目标并触发加载
-      pendingJumpRef.current = { bcYear: null, yearName: yearMark, emperorName: emperor };
-      fetchVolumeData(currentVolumeRef.current, true, true);
     }
-  }, [yearMark, emperor, volumeData?.years, hasMore, loadingMore, scrollToYear, fetchVolumeData]);
+    // 数据一次性加载，不需要再加载更多
+  }, [yearMark, emperor, volumeData?.years, scrollToYear]);
 
   // 点击屏幕处理 - 判断是点击还是滚动
   const activeTabRef = useRef<SettingsTab>(null);
@@ -2033,7 +1939,6 @@ export default function VolumeDetailScreen() {
                 highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
                 userNotes={userNotes}
                 onTap={handleScreenTap}
-                onLoadMore={handleLoadMore}
                 onVisibleParagraphChange={handleVisibleParagraphChange}
                 onScrollToResult={handleScrollToResult}
                 onTextSelection={handleTextSelection}
@@ -2061,7 +1966,6 @@ export default function VolumeDetailScreen() {
                   highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
                   userNotes={userNotes}
                   onTap={handleScreenTap}
-                  onLoadMore={handleLoadMore}
                   onVisibleParagraphChange={handleVisibleParagraphChange}
                   onScrollToResult={handleScrollToResult}
                   onTextSelection={handleTextSelection}

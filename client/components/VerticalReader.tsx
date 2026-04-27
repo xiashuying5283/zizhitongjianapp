@@ -59,7 +59,6 @@ interface VerticalReaderProps {
   highlightedParagraphId?: number | null;
   userNotes?: NoteMarker[];
   onTap?: () => void;
-  onLoadMore?: () => void;
   onVisibleParagraphChange?: (paragraphId: number, globalIndex: number) => void;
   onScrollToResult?: (targetId: number, success: boolean) => void;
   onTextSelection?: (selection: { paragraphId: number | null; startOffset: number; endOffset: number; selectedText: string } | null) => void;
@@ -114,9 +113,29 @@ function wrapVerticalPunctuation(text: string, useCustomFont: boolean): string {
   if (!useCustomFont) return text;
 
   // 竖排专用标点符号（需要用系统字体显示）
-  // 包括：引号、书名号、括号、逗号、句号、冒号、分号、感叹号、问号、省略号、破折号等
   const punctuationRegex = /([「」『』【】《》〈〉（）〔〕""''，。、：；！？…—～·])/g;
-  return text.replace(punctuationRegex, '<span class="vp">$1</span>');
+
+  // 跳过 HTML 标签内的内容
+  let result = '';
+  let inTag = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+
+    if (char === '<') {
+      inTag = true;
+      result += char;
+    } else if (char === '>') {
+      inTag = false;
+      result += char;
+    } else if (!inTag && punctuationRegex.test(char)) {
+      result += `<span class="vp">${char}</span>`;
+    } else {
+      result += char;
+    }
+  }
+
+  return result;
 }
 
 function generateHTML(props: VerticalReaderProps): string {
@@ -595,25 +614,9 @@ function generateHTML(props: VerticalReaderProps): string {
   }
 
   // === 滚动事件 ===
-  var lastLoadMoreTime = 0;
   window.addEventListener('scroll', function() {
     trackVisibleParagraph();
-
-    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
-    var scrollWidth = document.documentElement.scrollWidth;
-    var clientWidth = document.documentElement.clientWidth;
-    var absScrollLeft = Math.abs(scrollLeft);
-    var remaining = scrollWidth - absScrollLeft - clientWidth;
-
-    if (remaining < 500) {
-      var now = Date.now();
-      if (now - lastLoadMoreTime > 2000) {
-        lastLoadMoreTime = now;
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'loadMore' }));
-        }
-      }
-    }
+    // 数据一次性加载，不需要 loadMore
   });
 
   // === 点击事件 ===
@@ -904,7 +907,6 @@ export const VerticalReader = React.memo(function VerticalReader(props: Vertical
     highlightedParagraphId,
     userNotes,
     onTap,
-    onLoadMore,
     onVisibleParagraphChange,
     onScrollToResult,
     onTextSelection,
@@ -936,9 +938,6 @@ export const VerticalReader = React.memo(function VerticalReader(props: Vertical
         case 'tap':
           onTap?.();
           break;
-        case 'loadMore':
-          onLoadMore?.();
-          break;
         case 'visibleParagraph':
           onVisibleParagraphChange?.(data.paragraphId, data.globalIndex);
           break;
@@ -963,7 +962,7 @@ export const VerticalReader = React.memo(function VerticalReader(props: Vertical
     } catch (e) {
       // ignore
     }
-  }, [onTap, onLoadMore, onVisibleParagraphChange, onScrollToResult, onTextSelection, onNoteClick]);
+  }, [onTap, onVisibleParagraphChange, onScrollToResult, onTextSelection, onNoteClick]);
 
   return (
     <WebView

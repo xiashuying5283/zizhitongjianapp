@@ -59,7 +59,6 @@ interface HorizontalReaderProps {
   highlightedParagraphId?: number | null;
   userNotes?: NoteMarker[];
   onTap?: () => void;
-  onLoadMore?: () => void;
   onVisibleParagraphChange?: (paragraphId: number, globalIndex: number) => void;
   onScrollToResult?: (targetId: number, success: boolean) => void;
   onTextSelection?: (selection: { paragraphId: number | null; startOffset: number; endOffset: number; selectedText: string } | null) => void;
@@ -508,24 +507,9 @@ function generateHTML(props: HorizontalReaderProps): string {
   }
 
   // === 滚动事件 ===
-  var lastLoadMoreTime = 0;
   window.addEventListener('scroll', function() {
     trackVisibleParagraph();
-
-    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-    var scrollHeight = document.documentElement.scrollHeight;
-    var clientHeight = document.documentElement.clientHeight;
-    var remaining = scrollHeight - scrollTop - clientHeight;
-
-    if (remaining < 800) {
-      var now = Date.now();
-      if (now - lastLoadMoreTime > 2000) {
-        lastLoadMoreTime = now;
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'loadMore' }));
-        }
-      }
-    }
+    // 数据一次性加载，不需要 loadMore
   });
 
   // === 点击事件 ===
@@ -814,7 +798,6 @@ export const HorizontalReader = React.memo(function HorizontalReader(props: Hori
     highlightedParagraphId,
     userNotes,
     onTap,
-    onLoadMore,
     onVisibleParagraphChange,
     onScrollToResult,
     onTextSelection,
@@ -844,7 +827,6 @@ export const HorizontalReader = React.memo(function HorizontalReader(props: Hori
       const data = JSON.parse(event.nativeEvent.data);
       switch (data.type) {
         case 'tap': onTap?.(); break;
-        case 'loadMore': onLoadMore?.(); break;
         case 'visibleParagraph':
           onVisibleParagraphChange?.(data.paragraphId, data.globalIndex);
           break;
@@ -867,7 +849,7 @@ export const HorizontalReader = React.memo(function HorizontalReader(props: Hori
           break;
       }
     } catch (e) {}
-  }, [onTap, onLoadMore, onVisibleParagraphChange, onScrollToResult, onTextSelection, onNoteClick]);
+  }, [onTap, onVisibleParagraphChange, onScrollToResult, onTextSelection, onNoteClick]);
 
   return (
     <WebView

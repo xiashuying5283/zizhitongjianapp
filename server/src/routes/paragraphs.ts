@@ -137,31 +137,18 @@ router.get('/volume/:volumeNumber', async (req, res) => {
 
     // 查询段落，使用窗口函数计算全局索引
     let query = `
-      SELECT *, 
+      SELECT *,
         ROW_NUMBER() OVER (
           ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC
         ) - 1 as global_index
-      FROM zizhitongjian_paragraphs 
-      WHERE volume_number = $1 
+      FROM zizhitongjian_paragraphs
+      WHERE volume_number = $1
       ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC
     `;
     const params: unknown[] = [volumeNum];
 
-    if (limitNum !== null) {
-      query = `
-        SELECT * FROM (
-          SELECT *, 
-            ROW_NUMBER() OVER (
-              ORDER BY bc_year ASC, event_index ASC, paragraph_index ASC
-            ) - 1 as global_index
-          FROM zizhitongjian_paragraphs 
-          WHERE volume_number = $1
-        ) sub
-        ORDER BY global_index
-        LIMIT $2 OFFSET $3
-      `;
-      params.push(limitNum, offsetNum);
-    }
+    // 不再分页，一次性返回所有数据
+    // if (limitNum !== null) { ... }
 
     const result = await pool.query(query, params);
     const paragraphs = result.rows;
@@ -207,7 +194,7 @@ router.get('/volume/:volumeNumber', async (req, res) => {
         years: formattedYears,
       },
       total: count,
-      hasMore: limitNum !== null ? offsetNum + limitNum < count : false,
+      hasMore: false, // 一次性返回所有数据，没有更多
     });
   } catch (error) {
     console.error('获取卷段落失败:', error);
