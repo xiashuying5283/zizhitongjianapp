@@ -46,11 +46,33 @@ export const createStyles = (theme: Theme) => {
       fontSize: 16,
       color: theme.textPrimary,
     },
+    filterSection: {
+      backgroundColor: theme.backgroundRoot,
+      marginBottom: Spacing.md,
+    },
+    filterHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: Spacing["2xl"],
+      paddingVertical: Spacing.sm,
+    },
+    filterHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    selectedEraTag: {
+      backgroundColor: theme.primary,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderRadius: BorderRadius.sm,
+    },
     eraContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       paddingHorizontal: Spacing["2xl"],
-      marginBottom: Spacing.lg,
+      paddingBottom: Spacing.md,
       gap: Spacing.sm,
     },
     eraChip: {
@@ -74,6 +96,7 @@ export const createStyles = (theme: Theme) => {
       backgroundColor: theme.backgroundDefault,
       borderRadius: BorderRadius.lg,
       marginBottom: Spacing.md,
+      gap: Spacing.lg,
     },
     characterInfo: {
       flex: 1,
@@ -82,6 +105,13 @@ export const createStyles = (theme: Theme) => {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.sm,
+    },
+    eraTag: {
+      marginLeft: 'auto',
+      backgroundColor: theme.primary,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderRadius: BorderRadius.sm,
     },
     titleText: {
       marginTop: 2,

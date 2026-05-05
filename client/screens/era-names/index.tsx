@@ -1,184 +1,258 @@
-import React, { useState, useMemo } from 'react';
-import { View, FlatList, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, SectionList, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, RefreshControl, Text } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { Spacing, BorderRadius } from '@/constants/theme';
-import { createStyles } from './styles';
+import { styles, COLORS } from './styles';
+import {ThemedView} from "@/components/ThemedView";
+import {ThemedText} from "@/components/ThemedText";
 
-interface EraName {
-  id: number;
-  name: string;
-  emperor: string;
+interface EraItem {
+  era_name: string;
+  emperor_name: string;
+  dynasty: string;
   startYear: number;
   endYear: number;
-  bc_start: number;
-  bc_end: number;
-  dynasty: string;
+  yearCount: number;
 }
 
-interface EraGroup {
+interface EraSection {
   dynasty: string;
-  eras: EraName[];
+  data: EraItem[];
 }
 
-const eras: EraName[] = [
-  { id: 1, name: '始皇帝', emperor: '秦始皇', startYear: 1, endYear: 37, bc_start: 221, bc_end: 207, dynasty: '秦' },
-  { id: 2, name: '二世', emperor: '秦二世', startYear: 1, endYear: 3, bc_start: 209, bc_end: 207, dynasty: '秦' },
-  { id: 3, name: '高祖', emperor: '汉高祖', startYear: 1, endYear: 12, bc_start: 206, bc_end: 195, dynasty: '汉' },
-  { id: 4, name: '惠帝', emperor: '汉惠帝', startYear: 1, endYear: 7, bc_start: 194, bc_end: 188, dynasty: '汉' },
-  { id: 5, name: '高后', emperor: '吕后', startYear: 1, endYear: 8, bc_start: 187, bc_end: 180, dynasty: '汉' },
-  { id: 6, name: '文帝', emperor: '汉文帝', startYear: 1, endYear: 16, bc_start: 179, bc_end: 164, dynasty: '汉' },
-  { id: 7, name: '景帝', emperor: '汉景帝', startYear: 1, endYear: 7, bc_start: 156, bc_end: 150, dynasty: '汉' },
-  { id: 8, name: '武帝', emperor: '汉武帝', startYear: 1, endYear: 54, bc_start: 140, bc_end: 87, dynasty: '汉' },
-  { id: 9, name: '昭帝', emperor: '汉昭帝', startYear: 1, endYear: 13, bc_start: 86, bc_end: 74, dynasty: '汉' },
-  { id: 10, name: '宣帝', emperor: '汉宣帝', startYear: 1, endYear: 25, bc_start: 73, bc_end: 49, dynasty: '汉' },
-];
+const MAIN_DYNASTIES = ['全部', '周秦', '兩漢', '三國兩晉', '南北朝', '隋唐', '五代'];
 
 export default function EraNamesScreen() {
   const { theme } = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
 
   const [searchText, setSearchText] = useState('');
-  const [selectedDynasty, setSelectedDynasty] = useState('全部');
+  const [selectedDynasty, setSelectedDynasty] = useState('周秦');
+  const [eraGroups, setEraGroups] = useState<EraSection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const dynasties = ['全部', '秦', '汉', '三国', '晋'];
+  // 加载年号数据
+  const loadEraGroups = async (dynasty?: string) => {
+    try {
+      setLoading(true);
+      const dynastyParam = dynasty || selectedDynasty;
+      const url = dynastyParam === '全部'
+          ? `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/era-groups`
+          : `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/era-groups?dynasty=${encodeURIComponent(dynastyParam)}`;
 
-  const eraGroups: EraGroup[] = useMemo(() => {
-    const filtered = eras.filter(era => {
-      const matchDynasty = selectedDynasty === '全部' || era.dynasty === selectedDynasty;
-      const matchSearch = !searchText ||
-        era.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        era.emperor.toLowerCase().includes(searchText.toLowerCase());
-      return matchDynasty && matchSearch;
-    });
-
-    // 按朝代分组
-    const groups: EraGroup[] = [];
-    const dynastyMap = new Map<string, EraName[]>();
-
-    filtered.forEach(era => {
-      if (!dynastyMap.has(era.dynasty)) {
-        dynastyMap.set(era.dynasty, []);
+      /**
+       * 服务端文件：server/src/routes/encyclopedia.ts
+       * 接口：GET /api/v1/encyclopedia/era-groups
+       * Query参数：dynasty（支持历史时期分组：周秦、兩漢、三國兩晉、南北朝、隋唐、五代）
+       */
+      const response = await fetch(url);
+      const result = await response.json();
+      if (result.success && result.data) {
+        // 转换为 SectionList 格式
+        const sections: EraSection[] = result.data.map((group: any) => ({
+          dynasty: group.dynasty,
+          data: group.eras.sort((a: EraItem, b: EraItem) => a.startYear - b.startYear)
+        }));
+        setEraGroups(sections);
       }
-      dynastyMap.get(era.dynasty)!.push(era);
+    } catch (error) {
+      console.error('加载年号数据失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEraGroups();
+  }, []);
+
+  const handleDynastyChange = (dynasty: string) => {
+    setSelectedDynasty(dynasty);
+    loadEraGroups(dynasty);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadEraGroups();
+    setRefreshing(false);
+  };
+
+  // 格式化年份
+  const formatYear = (year: number): string => {
+    if (year < 0) {
+      return `公元前${Math.abs(year)}年`;
+    }
+    return `公元${year}年`;
+  };
+
+  // 搜索过滤后的 sections
+  const filteredSections = useMemo(() => {
+    if (!searchText.trim()) {
+      return eraGroups;
+    }
+
+    const search = searchText.toLowerCase();
+    const filtered: EraSection[] = [];
+
+    eraGroups.forEach(section => {
+      const matchingEras = section.data.filter(era =>
+          era.era_name.toLowerCase().includes(search) ||
+          era.emperor_name.toLowerCase().includes(search)
+      );
+
+      if (matchingEras.length > 0) {
+        filtered.push({
+          dynasty: section.dynasty,
+          data: matchingEras
+        });
+      }
     });
 
-    dynastyMap.forEach((eras, dynasty) => {
-      groups.push({ dynasty, eras });
-    });
+    return filtered;
+  }, [eraGroups, searchText]);
 
-    return groups;
-  }, [selectedDynasty, searchText]);
+  // 是否显示朝代分割线（有多个朝代分组时显示）
+  const showDynastyDividers = useMemo(() => {
+    return filteredSections.length > 1;
+  }, [filteredSections]);
 
-  const renderEraItem = (era: EraName) => (
-    <View key={era.id} style={styles.eraItem}>
-      <View style={styles.eraHeader}>
-        <ThemedText variant="h4" color={theme.textPrimary}>
-          {era.name}
-        </ThemedText>
-        <ThemedText variant="caption" color="#EF4444" style={styles.dynastyBadge}>
-          {era.dynasty}
-        </ThemedText>
-      </View>
-      <View style={styles.eraInfo}>
-        <ThemedText variant="body" color={theme.textSecondary}>
-          {era.emperor}
-        </ThemedText>
-        <ThemedText variant="caption" color={theme.textMuted}>
-          ·
-        </ThemedText>
-        <ThemedText variant="caption" color={theme.textMuted}>
-          {era.startYear}-{era.endYear}年
-        </ThemedText>
-      </View>
-      <View style={styles.yearConversion}>
-        <ThemedText variant="caption" color={theme.textMuted}>
-          公元前{era.bc_start}-{era.bc_end}年
-        </ThemedText>
-      </View>
-    </View>
+  const renderEraItem = ({ item }: { item: EraItem }) => (
+      <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push('/era-detail', {
+            eraName: item.era_name,
+            emperorName: item.emperor_name,
+            dynasty: item.dynasty,
+            startYear: item.startYear.toString(),
+            endYear: item.endYear.toString(),
+            yearCount: item.yearCount.toString(),
+          })}
+          activeOpacity={0.7}
+      >
+        {/* 顶部：年号名称 + 朝代标签 */}
+        <View style={styles.cardTop}>
+          <Text style={styles.eraName}>{item.era_name}</Text>
+          <View style={styles.dynastyBadge}>
+            <Text style={styles.dynastyText}>{item.dynasty}</Text>
+          </View>
+        </View>
+
+        {/* 中间：帝王 + 年数 */}
+        <View style={styles.cardMiddle}>
+          <Text style={styles.emperorName}>{item.emperor_name}</Text>
+          <Text style={styles.dot}> · </Text>
+          <Text style={styles.yearCount}>共 {item.yearCount} 年</Text>
+        </View>
+
+        {/* 底部：公历年份 */}
+        <View style={styles.cardBottom}>
+          <Text style={styles.yearRange}>
+            {formatYear(item.startYear)} - {formatYear(item.endYear)}
+          </Text>
+        </View>
+      </TouchableOpacity>
   );
 
-  const renderEraGroup = (group: EraGroup) => (
-    <View key={group.dynasty} style={styles.eraGroup}>
-      <ThemedText variant="h4" color={theme.textPrimary} style={styles.groupTitle}>
-        {group.dynasty}
-      </ThemedText>
-      <ThemedView level="default" style={styles.eraList}>
-        {group.eras.map(renderEraItem)}
-      </ThemedView>
-    </View>
-  );
+  const renderSectionHeader = ({ section }: { section: EraSection }) => {
+    if (!showDynastyDividers) return null;
+
+    return (
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionDividerLeft} />
+          <View style={styles.sectionLabel}>
+            <Text style={styles.sectionLabelText}>{section.dynasty}</Text>
+          </View>
+          <View style={styles.sectionDividerRight} />
+        </View>
+    );
+  };
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
-      {/* Header */}
-      <ThemedView level="root" style={styles.header}>
-        <View style={styles.headerRow}>
+      <Screen backgroundColor={COLORS.background} statusBarStyle="dark">
+        {/* Header */}
+        <ThemedView level="root" style={styles.header}>
           <ThemedText variant="h2" color={theme.textPrimary}>年号对照</ThemedText>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <FontAwesome6 name="arrow-left" size={20} color={theme.textPrimary} />
-          </TouchableOpacity>
+          <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
+            帝王年号与纪年大事
+          </ThemedText>
+        </ThemedView>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <FontAwesome6 name="magnifying-glass" size={18} color={COLORS.textHint} />
+          <TextInput
+              style={styles.searchInput}
+              placeholder="搜索年号或帝王..."
+              placeholderTextColor={COLORS.textHint}
+              value={searchText}
+              onChangeText={setSearchText}
+          />
+          {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearBtn}>
+                <FontAwesome6 name="xmark" size={16} color={COLORS.textHint} />
+              </TouchableOpacity>
+          )}
         </View>
-        <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
-          帝王年号与纪年转换
-        </ThemedText>
-      </ThemedView>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <FontAwesome6 name="magnifying-glass" size={16} color={theme.textMuted} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="搜索年号或帝王..."
-          placeholderTextColor={theme.textMuted}
-          value={searchText}
-          onChangeText={setSearchText}
-          returnKeyType="search"
-        />
-        {searchText.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchText('')}>
-            <FontAwesome6 name="xmark" size={16} color={theme.textMuted} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Dynasty Filter */}
-      <View style={styles.dynastyContainer}>
-        {dynasties.map(dynasty => (
-          <TouchableOpacity
-            key={dynasty}
-            style={[styles.dynastyChip, selectedDynasty === dynasty && styles.dynastyChipActive]}
-            onPress={() => setSelectedDynasty(dynasty)}
+        {/* Dynasty Tabs */}
+        <View style={styles.tabsContainer}>
+          <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tabsContent}
           >
-            <ThemedText
-              variant="small"
-              color={selectedDynasty === dynasty ? theme.buttonPrimaryText : theme.textSecondary}
-            >
-              {dynasty}
-            </ThemedText>
-          </TouchableOpacity>
-        ))}
-      </View>
+            {MAIN_DYNASTIES.map(dynasty => (
+                <TouchableOpacity
+                    key={dynasty}
+                    style={styles.tab}
+                    onPress={() => handleDynastyChange(dynasty)}
+                >
+                  <Text style={[
+                    styles.tabText,
+                    selectedDynasty === dynasty && styles.tabTextActive
+                  ]}>
+                    {dynasty}
+                  </Text>
+                  {selectedDynasty === dynasty && <View style={styles.tabUnderline} />}
+                </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
-      {/* Era List */}
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {eraGroups.length > 0 ? (
-          eraGroups.map(renderEraGroup)
+        {/* Era List */}
+        {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.loadingText}>加载中...</Text>
+            </View>
         ) : (
-          <View style={styles.emptyContainer}>
-            <FontAwesome6 name="calendar-days" size={48} color={theme.textMuted} />
-            <ThemedText variant="body" color={theme.textMuted} style={styles.emptyText}>
-              暂无数据
-            </ThemedText>
-          </View>
+            <SectionList
+                sections={filteredSections}
+                renderItem={renderEraItem}
+                renderSectionHeader={renderSectionHeader}
+                keyExtractor={(item, index) => `${item.era_name}_${item.emperor_name}_${index}`}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                stickySectionHeadersEnabled={false}
+                refreshControl={
+                  <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={handleRefresh}
+                      colors={[COLORS.primary]}
+                      tintColor={COLORS.primary}
+                  />
+                }
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <FontAwesome6 name="magnifying-glass" size={48} color={COLORS.textHint} style={{ opacity: 0.3 }} />
+                    <Text style={styles.emptyText}>未找到相关年号记录</Text>
+                  </View>
+                }
+            />
         )}
-      </ScrollView>
-    </Screen>
+      </Screen>
   );
 }

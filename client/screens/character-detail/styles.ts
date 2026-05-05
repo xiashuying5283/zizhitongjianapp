@@ -42,6 +42,15 @@ export const createStyles = (theme: Theme) => {
       borderRadius: BorderRadius.xl,
       alignItems: 'center',
     },
+    eraTag: {
+      position: 'absolute',
+      top: Spacing.md,
+      right: Spacing.md,
+      backgroundColor: theme.primary,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderRadius: BorderRadius.sm,
+    },
     avatar: {
       width: 80,
       height: 80,
@@ -57,44 +66,81 @@ export const createStyles = (theme: Theme) => {
     titleText: {
       marginBottom: Spacing.md,
     },
-    metaContainer: {
+    metaSection: {
+      width: '100%',
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.border,
+      paddingTop: Spacing.md,
+      marginTop: Spacing.sm,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      paddingVertical: Spacing.xs,
+    },
+    aliasesContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      justifyContent: 'center',
-      gap: Spacing.lg,
+      gap: Spacing.xs,
+      justifyContent: 'flex-end',
+    },
+    aliasTag: {
+      backgroundColor: theme.backgroundTertiary,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderRadius: BorderRadius.sm,
+    },
+    // 生平纪事卡片
+    biographyCard: {
+      marginHorizontal: Spacing["2xl"],
+      padding: Spacing.xl,
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.xl,
       marginBottom: Spacing.lg,
     },
-    metaItem: {
+    cardTitle: {
+      marginBottom: Spacing.md,
+    },
+    summaryText: {
+      lineHeight: 24,
+    },
+    // 人际网络卡片
+    relationsCard: {
+      marginHorizontal: Spacing["2xl"],
+      padding: Spacing.xl,
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.xl,
+      marginBottom: Spacing.lg,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Spacing.md,
+    },
+    viewGraphBtn: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.xs,
     },
-    summaryText: {
-      textAlign: 'center',
-      lineHeight: 24,
+    relationsList: {
+      marginTop: Spacing.sm,
     },
-    section: {
-      marginHorizontal: Spacing["2xl"],
-      marginBottom: Spacing.xl,
-    },
-    sectionTitle: {
-      marginBottom: Spacing.lg,
-    },
-    relationsContainer: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.lg,
-      overflow: 'hidden',
+    emptyRelations: {
+      alignItems: 'center',
+      paddingVertical: Spacing.xl,
     },
     relationItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: Spacing.lg,
+      paddingVertical: Spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.border,
     },
     relationAvatar: {
-      width: 36,
-      height: 36,
+      width: 40,
+      height: 40,
       borderRadius: BorderRadius.full,
       backgroundColor: theme.primary,
       justifyContent: 'center',
@@ -109,6 +155,14 @@ export const createStyles = (theme: Theme) => {
       paddingVertical: 2,
       borderRadius: BorderRadius.xs,
       marginRight: Spacing.sm,
+    },
+    // 生平大事卡片
+    eventsCard: {
+      marginHorizontal: Spacing["2xl"],
+      padding: Spacing.xl,
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.xl,
+      marginBottom: Spacing.lg,
     },
     eventsContainer: {
       paddingLeft: Spacing.sm,

@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import fs from 'fs';
-import path from 'path';
+import { s3Storage } from '../utils/s3-storage.js';
 
 const router = Router();
 
@@ -10,12 +9,6 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 限制 5MB
 });
-
-// 本地上传目录
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
 
 /**
  * 服务端文件：server/src/routes/upload.ts
@@ -54,15 +47,13 @@ router.post('/avatar', upload.single('file'), async (req, res) => {
     const ext = file.originalname.split('.').pop() || 'jpg';
     const fileName = `avatars/${userId}/${Date.now()}.${ext}`;
 
-    // 本地文件存储
-    const localPath = path.join(UPLOAD_DIR, fileName);
-    const dir = path.dirname(localPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(localPath, file.buffer);
+    // 上传到 S3 存储
+    await s3Storage.uploadFile(fileName, file.buffer, file.mimetype || 'image/jpeg');
 
-    res.json({ success: true, data: { url: `/uploads/${fileName}`, key: fileName } });
+    // 获取文件URL
+    const url = s3Storage.getFileUrl(fileName);
+
+    res.json({ success: true, data: { url, key: fileName } });
   } catch (error) {
     console.error('Upload avatar error:', error);
     res.status(500).json({ success: false, message: '上传失败' });
@@ -71,7 +62,7 @@ router.post('/avatar', upload.single('file'), async (req, res) => {
 
 /**
  * POST /api/v1/upload/image
- * 通用图片上传（用于帖子、评论）
+ * 通用图片上传（用于帖子、评论、聊天）
  */
 router.post('/image', upload.single('file'), async (req, res) => {
   try {
@@ -99,15 +90,13 @@ router.post('/image', upload.single('file'), async (req, res) => {
     const ext = file.originalname.split('.').pop() || 'jpg';
     const fileName = `community/${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
-    // 本地文件存储
-    const localPath = path.join(UPLOAD_DIR, fileName);
-    const dir = path.dirname(localPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(localPath, file.buffer);
+    // 上传到 S3 存储
+    await s3Storage.uploadFile(fileName, file.buffer, file.mimetype || 'image/jpeg');
 
-    res.json({ success: true, data: { url: `/uploads/${fileName}` } });
+    // 获取文件URL
+    const url = s3Storage.getFileUrl(fileName);
+
+    res.json({ success: true, data: { url } });
   } catch (error) {
     console.error('Upload image error:', error);
     res.status(500).json({ success: false, message: '上传失败' });

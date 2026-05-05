@@ -6,7 +6,7 @@ index 33ce50ee2950c40d2b0553b148710f1e24e44f3d..3d78cb02dd7e96ac9727a2935d8178f2
 
      client.on('update-done', () => {
        hideLoading();
-+      if (process.env.EXPO_PUBLIC_COZE_PROJECT_ID && typeof window !== 'undefined' && window.location) {
++      if (typeof window !== 'undefined' && window.location) {
 +        if((window as any).__updateTimeoutId) {
 +          clearTimeout((window as any).__updateTimeoutId);
 +        }

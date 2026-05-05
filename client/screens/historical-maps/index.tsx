@@ -82,15 +82,9 @@ export default function HistoricalMapsScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Header */}
           <ThemedView level="root" style={styles.header}>
-            <View style={styles.headerRow}>
-              <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                <FontAwesome6 name="arrow-left" size={20} color={theme.textPrimary} />
-              </TouchableOpacity>
-              <ThemedText variant="h2" color={theme.textPrimary}>
-                历史地图
-              </ThemedText>
-              <View style={styles.placeholder} />
-            </View>
+            <ThemedText variant="h2" color={theme.textPrimary}>
+              历史地图
+            </ThemedText>
             <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
               探索古代地理变迁
             </ThemedText>

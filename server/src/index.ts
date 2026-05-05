@@ -20,6 +20,11 @@ import readingStatsRoutes from "./routes/reading-stats";
 import ttsRoutes from "./routes/tts";
 import encyclopediaRoutes from "./routes/encyclopedia";
 import notificationsRoutes from "./routes/notifications";
+import historicalCharactersRoutes from "./routes/historical-characters";
+import customCharactersRoutes from "./routes/custom-characters";
+import chatHistoryRoutes from "./routes/chat-history";
+import groupChatRoutes from "./routes/group-chat";
+import geographyRoutes from "./routes/geography";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,6 +65,12 @@ app.use('/api/v1/reading-stats', readingStatsRoutes);
 app.use('/api/v1/tts', ttsRoutes);
 app.use('/api/v1/encyclopedia', encyclopediaRoutes);
 app.use('/api/v1/notifications', notificationsRoutes);
+app.use('/api/v1/historical-characters', historicalCharactersRoutes);
+app.use('/api/v1/custom-characters', customCharactersRoutes);
+app.use('/api/v1/chat-history', chatHistoryRoutes);
+app.use('/api/v1/group-chat', groupChatRoutes);
+app.use('/api/v1/custom-characters', customCharactersRoutes);
+app.use('/api/v1/geography', geographyRoutes);
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);

@@ -175,12 +175,7 @@ export default function QuotesScreen() {
     <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
       {/* Header */}
       <ThemedView level="root" style={styles.header}>
-        <View style={styles.headerRow}>
-          <ThemedText variant="h2" color={theme.textPrimary}>典著名句</ThemedText>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <FontAwesome6 name="arrow-left" size={20} color={theme.textPrimary} />
-          </TouchableOpacity>
-        </View>
+        <ThemedText variant="h2" color={theme.textPrimary}>典著名句</ThemedText>
         <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
           资治通鉴经典语录
         </ThemedText>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
@@ -26,6 +26,28 @@ export default function EncyclopediaScreen() {
   const router = useSafeRouter();
 
   const [searchText, setSearchText] = useState('');
+  const [stats, setStats] = useState({ characters: 0, titles: 87, geography: 0 });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const charRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/characters?limit=1`);
+        const charData = await charRes.json();
+        const titlesRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/titles?limit=1`);
+        const titlesData = await titlesRes.json();
+        const geoRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography?limit=1`);
+        const geoData = await geoRes.json();
+        setStats({
+          characters: charData.data?.total || 0,
+          titles: titlesData.data?.total || 0,
+          geography: geoData.data?.total || 0,
+        });
+      } catch (e) {
+        console.error('获取统计数据失败', e);
+      }
+    };
+    fetchStats();
+  }, []);
 
   const categories: CategoryItem[] = [
     {
@@ -36,7 +58,7 @@ export default function EncyclopediaScreen() {
       color: theme.primary,
       gradient: ['#6366F1', '#4F46E5'],
       route: '/characters',
-      count: 234,
+      count: stats.characters,
     },
     {
       id: 'titles',
@@ -46,26 +68,17 @@ export default function EncyclopediaScreen() {
       color: theme.accent,
       gradient: ['#A78BFA', '#7C3AED'],
       route: '/titles',
-      count: 87,
+      count: stats.titles,
     },
     {
-      id: 'events',
-      title: '大事记',
-      description: '重大历史事件时间线',
-      icon: 'clock-rotate-left',
-      color: '#F59E0B',
-      gradient: ['#FBBF24', '#F59E0B'],
-      route: '/events',
-    },
-    {
-      id: 'historical-maps',
-      title: '历史地图',
-      description: '历朝地图与专题地图',
-      icon: 'map',
+      id: 'geography',
+      title: '地理数据',
+      description: '州郡山川关隘宫殿',
+      icon: 'mountain-sun',
       color: '#0891B2',
       gradient: ['#06B6D4', '#0891B2'],
-      route: '/historical-maps',
-      count: 20,
+      route: '/geography',
+      count: stats.geography,
     },
     {
       id: 'quotes',
@@ -84,6 +97,24 @@ export default function EncyclopediaScreen() {
       color: '#EF4444',
       gradient: ['#F87171', '#EF4444'],
       route: '/era-names',
+    },
+    {
+      id: 'group-chat',
+      title: '历史群聊',
+      description: '与历史人物对话',
+      icon: 'message',
+      color: '#8B5CF6',
+      gradient: ['#A78BFA', '#8B5CF6'],
+      route: '/group-chat',
+    },
+    {
+      id: 'chat-rooms',
+      title: '我的群聊',
+      description: '查看历史群聊记录',
+      icon: 'comments',
+      color: '#F59E0B',
+      gradient: ['#FBBF24', '#F59E0B'],
+      route: '/chat-rooms',
     },
   ];
 
@@ -182,7 +213,7 @@ export default function EncyclopediaScreen() {
               </View>
               <View style={styles.statItem}>
                 <ThemedText variant="h2" color={theme.accent}>
-                  234
+                  {stats.characters}
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
                   人物
@@ -190,7 +221,7 @@ export default function EncyclopediaScreen() {
               </View>
               <View style={styles.statItem}>
                 <ThemedText variant="h2" color="#F59E0B">
-                  87
+                  {stats.titles}
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
                   官职
@@ -198,10 +229,10 @@ export default function EncyclopediaScreen() {
               </View>
               <View style={styles.statItem}>
                 <ThemedText variant="h2" color="#0891B2">
-                  20
+                  {stats.geography}
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
-                  地图
+                  地理
                 </ThemedText>
               </View>
             </View>

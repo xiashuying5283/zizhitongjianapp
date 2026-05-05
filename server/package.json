@@ -8,10 +8,12 @@
     "start": "cross-env NODE_ENV=production PORT=9091 node dist/index.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1027.0",
     "@supabase/supabase-js": "2.95.3",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
+    "cnchar": "^3.2.6",
     "cors": "^2.8.5",
     "dayjs": "^1.11.19",
     "dotenv": "^17.2.3",
