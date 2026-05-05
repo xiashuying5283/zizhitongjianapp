@@ -2,18 +2,20 @@ import { StyleSheet } from 'react-native';
 import { Spacing, BorderRadius, Theme } from '@/constants/theme';
 
 export const createStyles = (theme: Theme) => {
+  const isClassic = false;
+
   return StyleSheet.create({
     scrollContent: {
       flexGrow: 1,
-      paddingHorizontal: Spacing["2xl"],
+      paddingHorizontal: isClassic ? Spacing.lg : Spacing["2xl"],
       paddingBottom: Spacing["5xl"],
     },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: Spacing.lg,
-      paddingVertical: Spacing.lg,
+      paddingHorizontal: isClassic ? Spacing.md : Spacing.lg,
+      paddingVertical: isClassic ? Spacing.md : Spacing.lg,
     },
     backButton: {
       width: 40,
@@ -22,7 +24,7 @@ export const createStyles = (theme: Theme) => {
       alignItems: 'center',
     },
     section: {
-      marginBottom: Spacing["2xl"],
+      marginBottom: isClassic ? Spacing.xl : Spacing["2xl"],
     },
     sectionTitle: {
       marginBottom: Spacing.lg,
@@ -30,8 +32,8 @@ export const createStyles = (theme: Theme) => {
     // Font Size
     fontSizePreview: {
       backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.lg,
-      padding: Spacing.lg,
+      borderRadius: isClassic ? BorderRadius.md : BorderRadius.lg,
+      padding: isClassic ? Spacing.md : Spacing.lg,
       alignItems: 'center',
       marginBottom: Spacing.lg,
     },
@@ -44,7 +46,7 @@ export const createStyles = (theme: Theme) => {
       flex: 1,
       paddingVertical: Spacing.md,
       marginHorizontal: Spacing.xs,
-      borderRadius: BorderRadius.md,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
       borderWidth: 1,
       alignItems: 'center',
     },
@@ -55,10 +57,10 @@ export const createStyles = (theme: Theme) => {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: Spacing.lg,
+      paddingHorizontal: isClassic ? Spacing.md : Spacing.lg,
       paddingVertical: Spacing.md,
       backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.md,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
     },
     // Settings
     settingItem: {
@@ -66,6 +68,10 @@ export const createStyles = (theme: Theme) => {
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingVertical: Spacing.lg,
+      paddingHorizontal: isClassic ? Spacing.sm : 0,
+      backgroundColor: isClassic ? theme.backgroundDefault : 'transparent',
+      borderRadius: isClassic ? BorderRadius.md : 0,
+      marginBottom: isClassic ? Spacing.sm : 0,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.border,
     },
@@ -80,7 +86,7 @@ export const createStyles = (theme: Theme) => {
     settingIcon: {
       width: 36,
       height: 36,
-      borderRadius: BorderRadius.md,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -97,7 +103,7 @@ export const createStyles = (theme: Theme) => {
       alignItems: 'center',
       paddingVertical: Spacing.lg,
       backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.md,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
     },
   });
 };

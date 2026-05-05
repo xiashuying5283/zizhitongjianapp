@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
+export type ThemeVariant = 'vermilion' | 'jade' | 'monochrome';
 export type ScriptMode = 'simplified' | 'traditional';
 export type ReadingMode = 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
 export type FontFamily = 'system' | 'serif' | 'kaiti' | 'lishu' | 'zhengkai';
@@ -16,6 +17,8 @@ interface SettingsContextType {
   // 主题设置
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
+  themeVariant: ThemeVariant;
+  setThemeVariant: (variant: ThemeVariant) => void;
   
   // 阅读模式
   readingMode: ReadingMode;
@@ -32,6 +35,7 @@ const STORAGE_KEYS = {
   FONT_SIZE: 'settings_font_size',
   FONT_FAMILY: 'settings_font_family',
   THEME_MODE: 'settings_theme_mode',
+  THEME_VARIANT: 'settings_theme_variant',
   READING_MODE: 'settings_reading_mode',
   SCRIPT_MODE: 'settings_script_mode',
 };
@@ -45,6 +49,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [fontSize, setFontSizeState] = useState(FONT_SIZE_DEFAULT);
   const [fontFamily, setFontFamilyState] = useState<FontFamily>('system');
   const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
+  const [themeVariant, setThemeVariantState] = useState<ThemeVariant>('vermilion');
   const [readingMode, setReadingModeState] = useState<ReadingMode>('original+annotation');
   const [scriptMode, setScriptModeState] = useState<ScriptMode>('simplified');
   const [loaded, setLoaded] = useState(false);
@@ -53,10 +58,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [savedFontSize, savedFontFamily, savedThemeMode, savedReadingMode, savedScriptMode] = await Promise.all([
+        const [savedFontSize, savedFontFamily, savedThemeMode, savedThemeVariant, savedReadingMode, savedScriptMode] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.FONT_SIZE),
           AsyncStorage.getItem(STORAGE_KEYS.FONT_FAMILY),
           AsyncStorage.getItem(STORAGE_KEYS.THEME_MODE),
+          AsyncStorage.getItem(STORAGE_KEYS.THEME_VARIANT),
           AsyncStorage.getItem(STORAGE_KEYS.READING_MODE),
           AsyncStorage.getItem(STORAGE_KEYS.SCRIPT_MODE),
         ]);
@@ -69,6 +75,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
         if (savedThemeMode) {
           setThemeModeState(savedThemeMode as ThemeMode);
+        }
+        if (savedThemeVariant) {
+          setThemeVariantState(savedThemeVariant as ThemeVariant);
         }
         if (savedReadingMode) {
           setReadingModeState(savedReadingMode as any);
@@ -114,6 +123,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setThemeVariant = useCallback(async (variant: ThemeVariant) => {
+    setThemeVariantState(variant);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.THEME_VARIANT, variant);
+    } catch (error) {
+      console.error('Failed to save theme variant:', error);
+    }
+  }, []);
+
   const setReadingMode = useCallback(async (mode: ReadingMode) => {
     setReadingModeState(mode);
     try {
@@ -146,6 +164,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setFontFamily,
         themeMode,
         setThemeMode,
+        themeVariant,
+        setThemeVariant,
         readingMode,
         setReadingMode,
         scriptMode,

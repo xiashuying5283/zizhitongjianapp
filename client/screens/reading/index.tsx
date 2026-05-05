@@ -6,8 +6,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { useScriptText } from '@/hooks/useScriptText';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
 import { getRecentRead, RecentRead as ApiRecentRead } from '@/utils/readingProgress';
@@ -252,6 +252,11 @@ export default function ReadingScreen() {
     return groups;
   }, [dynastyGroups, selectedDynasty, searchText]);
 
+  const totalVolumes = useMemo(
+    () => dynastyGroups.reduce((sum, group) => sum + group.count, 0),
+    [dynastyGroups]
+  );
+
   const getStatusColor = (status: ReadingStatus) => {
     switch (status) {
       case 'reading': return theme.statusReading || '#D97706';
@@ -337,33 +342,40 @@ export default function ReadingScreen() {
           activeOpacity={0.7}
         >
           <View style={styles.groupHeaderLeft}>
-            <FontAwesome6
-              name={isExpanded ? 'chevron-down' : 'chevron-right'}
-              size={14}
-              color={theme.textSecondary}
-            />
-            <ThemedText variant="h4" color={theme.textPrimary} style={styles.groupTitle}>
-              {group.dynastyLabel}
-            </ThemedText>
-            <ThemedText variant="caption" color={theme.textMuted}>
-              （共{group.count}卷）
-            </ThemedText>
+            <View style={styles.groupStamp}>
+              <ThemedText variant="tiny" color={theme.accent}>
+                {group.dynastyLabel.slice(0, 1)}
+              </ThemedText>
+            </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText variant="bodyMedium" color={theme.textPrimary} style={styles.groupTitle}>
+                {group.dynastyLabel}
+              </ThemedText>
+              <ThemedText variant="caption" color={theme.textMuted}>
+                {group.count}卷 · {isExpanded ? '已展开' : '点击展开'}
+              </ThemedText>
+            </View>
           </View>
           <View style={styles.groupStats}>
             {readCount > 0 && (
-              <View style={[styles.miniBadge, { backgroundColor: (theme.statusRead || '#059669') + '20' }]}>
+              <View style={[styles.miniBadge, { backgroundColor: theme.accentSoft }]}>
                 <ThemedText variant="tiny" color={theme.statusRead || '#059669'}>
                   {readCount}已读
                 </ThemedText>
               </View>
             )}
             {readingCount > 0 && (
-              <View style={[styles.miniBadge, { backgroundColor: (theme.statusReading || '#D97706') + '20' }]}>
+              <View style={[styles.miniBadge, { backgroundColor: theme.goldSoft }]}>
                 <ThemedText variant="tiny" color={theme.statusReading || '#D97706'}>
                   {readingCount}在读
                 </ThemedText>
               </View>
             )}
+            <FontAwesome6
+              name={isExpanded ? 'chevron-down' : 'chevron-right'}
+              size={14}
+              color={theme.textMuted}
+            />
           </View>
         </TouchableOpacity>
 
@@ -399,7 +411,9 @@ export default function ReadingScreen() {
                   activeOpacity={0.7}
                 >
                   <View style={styles.volumeIcon}>
-                    <FontAwesome6 name="book" size={14} color={theme.textMuted} />
+                    <ThemedText variant="tiny" color={theme.textMuted}>
+                      卷
+                    </ThemedText>
                   </View>
                   <View style={styles.volumeInfo}>
                     <ThemedText variant="body" color={theme.textPrimary}>
@@ -411,14 +425,20 @@ export default function ReadingScreen() {
                       </ThemedText>
                     )}
                   </View>
-                  <View style={styles.volumeStatus}>
-                    <FontAwesome6
-                      name={getStatusIcon(volume.status)}
-                      size={12}
-                      color={getStatusColor(volume.status)}
-                      solid={volume.status === 'read'}
-                    />
-                    <ThemedText variant="tiny" color={getStatusColor(volume.status)} style={{ marginLeft: 4 }}>
+                  <View
+                    style={[
+                      styles.volumeStatus,
+                      {
+                        backgroundColor:
+                          volume.status === 'read'
+                            ? theme.accentSoft
+                            : volume.status === 'reading'
+                              ? theme.goldSoft
+                              : theme.backgroundTertiary,
+                      },
+                    ]}
+                  >
+                    <ThemedText variant="tiny" color={getStatusColor(volume.status)}>
                       {getStatusText(volume.status)}
                     </ThemedText>
                   </View>
@@ -433,7 +453,7 @@ export default function ReadingScreen() {
 
   if (loading) {
     return (
-      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+      <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark" safeAreaEdges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <ThemedText variant="body" color={theme.textMuted} style={{ marginTop: Spacing.md }}>
@@ -445,26 +465,34 @@ export default function ReadingScreen() {
   }
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark" safeAreaEdges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <ThemedView level="root" style={styles.header}>
-          <ThemedText variant="h1" color={theme.textPrimary}>资治通鉴</ThemedText>
-          <ThemedText variant="caption" color={theme.textMuted} style={{ marginTop: Spacing.xs }}>
-            司马光 · 编年体通史
-          </ThemedText>
-          <ThemedText variant="caption" color={theme.textMuted} style={{ marginTop: Spacing.xs }}>
-            胡三省 · 音注
-          </ThemedText>
-        </ThemedView>
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerText}>
+              <ThemedText variant="h1" color={theme.textPrimary}>资治通鉴</ThemedText>
+              <ThemedText variant="small" color={theme.textMuted} style={styles.headerSubtitle}>
+                编年体通史 · 胡三省音注
+              </ThemedText>
+            </View>
+            <View style={styles.seal}>
+              <ThemedText variant="title" color={theme.buttonPrimaryText}>鉴</ThemedText>
+            </View>
+          </View>
+        </View>
 
         {/* Recent Reading */}
-        <ThemedView level="root" style={styles.recentReading}>
+        <LinearGradient
+          colors={[theme.primarySoft, theme.goldSoft]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.recentReading}
+        >
           {recentRead ? (
             <>
-              <ThemedText variant="labelSmall" color={theme.textMuted} style={styles.recentLabel}>
-                上次读到
-              </ThemedText>
+              <View style={styles.recentLabel}>
+                <ThemedText variant="tiny" color={theme.primary}>上次读到</ThemedText>
+              </View>
               <View style={styles.recentContent}>
                 <View style={styles.recentInfo}>
                   <ThemedText variant="h4" color={theme.textPrimary}>
@@ -494,9 +522,9 @@ export default function ReadingScreen() {
             </>
           ) : (
             <>
-              <ThemedText variant="labelSmall" color={theme.textMuted} style={styles.recentLabel}>
-                开始阅读
-              </ThemedText>
+              <View style={styles.recentLabel}>
+                <ThemedText variant="tiny" color={theme.primary}>开始阅读</ThemedText>
+              </View>
               <View style={styles.recentContent}>
                 <View style={styles.recentInfo}>
                   <ThemedText variant="h4" color={theme.textPrimary}>
@@ -522,10 +550,10 @@ export default function ReadingScreen() {
               </View>
             </>
           )}
-        </ThemedView>
+        </LinearGradient>
 
         {/* Search Bar */}
-        <ThemedView level="default" style={styles.searchBox}>
+        <View style={styles.searchBox}>
           <FontAwesome6 name="magnifying-glass" size={16} color={theme.textMuted} />
           <TextInput
             style={styles.searchInput}
@@ -539,7 +567,7 @@ export default function ReadingScreen() {
               <FontAwesome6 name="xmark" size={16} color={theme.textMuted} />
             </TouchableOpacity>
           )}
-        </ThemedView>
+        </View>
 
         {/* Full-text Search Results */}
         {searchText.trim() && (
@@ -610,6 +638,14 @@ export default function ReadingScreen() {
         {renderDynastyTags()}
 
         {/* Dynasty Groups */}
+        <View style={styles.sectionHeader}>
+          <ThemedText variant="smallMedium" color={theme.textPrimary}>
+            卷目
+          </ThemedText>
+          <ThemedText variant="caption" color={theme.textMuted}>
+            {totalVolumes} 卷
+          </ThemedText>
+        </View>
         <View style={styles.groupsContainer}>
           {filteredGroups.map(group => renderDynastyGroup(group))}
         </View>

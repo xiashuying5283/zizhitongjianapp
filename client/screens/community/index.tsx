@@ -6,9 +6,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
 import { getPosts, deletePost, getNotifications, Post } from '@/utils/community';
 
@@ -285,12 +283,12 @@ export default function CommunityScreen() {
             {item.user.nickname}
           </ThemedText>
           <ThemedText variant="caption" color={theme.textMuted}>
-            {formatTime(item.created_at)}
+            {formatTime(item.created_at)} · {CATEGORY_LABELS[item.category as Category] || item.category}
           </ThemedText>
         </View>
         {item.is_pinned && (
           <View style={styles.pinnedTag}>
-            <ThemedText variant="tiny" color={theme.buttonPrimaryText}>置顶</ThemedText>
+            <ThemedText variant="tiny" color={theme.primary}>置顶</ThemedText>
           </View>
         )}
         {/* 自己的帖子显示编辑删除按钮 */}
@@ -350,47 +348,55 @@ export default function CommunityScreen() {
   const categories: Category[] = ['all', 'discussion', 'question', 'sharing', 'notice'];
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
-      {/* 头部 */}
-      <ThemedView level="root" style={styles.header}>
-        <ThemedText variant="h2" color={theme.textPrimary}>读书社区</ThemedText>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={() => router.push('/notifications')}
-          >
-            <FontAwesome6 name="bell" size={20} color={theme.textPrimary} />
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </ThemedText>
-              </View>
-            )}
-          </TouchableOpacity>
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark" safeAreaEdges={['top', 'left', 'right']}>
+      <View style={styles.header}>
+        <View style={styles.headerMainRow}>
+          <View style={styles.headerTitleWrap}>
+            <ThemedText variant="h1" color={theme.textPrimary}>读书社区</ThemedText>
+            <ThemedText variant="small" color={theme.textMuted} style={styles.headerSubtitle}>
+              讨论、提问、分享、公告与读书互助
+            </ThemedText>
+          </View>
+          <View style={styles.headerIconActions}>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => router.push('/notifications')}
+            >
+              <FontAwesome6 name="bell" size={18} color={theme.textPrimary} />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </ThemedText>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.createButton} onPress={handleCreatePost}>
+              <FontAwesome6 name="pen-to-square" size={16} color={theme.buttonPrimaryText} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.headerUtilityRow}>
           <TouchableOpacity
             style={[styles.myPostsButton, showMyPosts && styles.myPostsButtonActive]}
             onPress={handleToggleMyPosts}
           >
             <FontAwesome6
               name="user"
-              size={16}
+              size={14}
               color={showMyPosts ? theme.buttonPrimaryText : theme.textMuted}
             />
             <ThemedText
               variant="small"
               color={showMyPosts ? theme.buttonPrimaryText : theme.textMuted}
             >
-              我的
+              我的帖子
             </ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.createButton} onPress={handleCreatePost}>
-            <FontAwesome6 name="pen-to-square" size={18} color={theme.buttonPrimaryText} />
-          </TouchableOpacity>
         </View>
-      </ThemedView>
+      </View>
 
-      {/* 分类筛选 */}
       <View style={styles.categoryContainer}>
         {categories.map((category) => (
           <TouchableOpacity
@@ -400,10 +406,12 @@ export default function CommunityScreen() {
               activeCategory === category && styles.categoryTabActive,
             ]}
             onPress={() => handleCategoryChange(category)}
+            activeOpacity={0.8}
           >
             <ThemedText
               variant="small"
               color={activeCategory === category ? theme.buttonPrimaryText : theme.textSecondary}
+              numberOfLines={1}
             >
               {CATEGORY_LABELS[category]}
             </ThemedText>
@@ -411,7 +419,6 @@ export default function CommunityScreen() {
         ))}
       </View>
 
-      {/* 帖子列表 */}
       <FlatList
         data={posts}
         renderItem={renderPost}
@@ -439,14 +446,18 @@ export default function CommunityScreen() {
           ) : null
         }
         ListEmptyComponent={
-          !loading ? (
+          loading ? (
+            <View style={styles.emptyContainer}>
+              <ActivityIndicator size="small" color={theme.primary} />
+            </View>
+          ) : (
             <View style={styles.emptyContainer}>
               <FontAwesome6 name="comments" size={48} color={theme.textMuted} />
               <ThemedText variant="body" color={theme.textMuted} style={styles.emptyText}>
                 暂无帖子，快来发表你的见解吧
               </ThemedText>
             </View>
-          ) : null
+          )
         }
       />
     </Screen>

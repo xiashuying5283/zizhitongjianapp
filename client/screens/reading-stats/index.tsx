@@ -9,7 +9,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
-import { getDeviceId } from '@/utils/deviceId';
+import { getUserIdentity } from '@/utils/userIdentity';
 
 interface StatsSummary {
   totalDuration: number;
@@ -54,13 +54,20 @@ export default function ReadingStatsScreen() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const deviceId = await getDeviceId();
+      const identity = await getUserIdentity();
+      const queryParams = new URLSearchParams();
+      if (identity.userId) {
+        queryParams.append('userId', identity.userId.toString());
+      } else if (identity.deviceId) {
+        queryParams.append('deviceId', identity.deviceId);
+      }
+      const identityQuery = queryParams.toString();
 
       // 并行获取数据
       const [summaryRes, dailyRes, achievementsRes] = await Promise.all([
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/summary?deviceId=${deviceId}`),
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/daily?deviceId=${deviceId}&days=30`),
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/achievements?deviceId=${deviceId}`),
+        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/summary?${identityQuery}`),
+        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/daily?${identityQuery}&days=30`),
+        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/achievements?${identityQuery}`),
       ]);
 
       if (summaryRes.ok) {

@@ -9,7 +9,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
-import { getUserIdentity } from '@/utils/notes';
+import { getUserIdentity } from '@/utils/userIdentity';
 
 interface Note {
   id: number;

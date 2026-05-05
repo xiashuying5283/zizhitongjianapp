@@ -1,108 +1,108 @@
 import { StyleSheet } from 'react-native';
-import { Spacing, BorderRadius, Theme } from '@/constants/theme';
+import { BorderRadius, Spacing, Theme } from '@/constants/theme';
 
 export const createStyles = (theme: Theme) => {
+  const isClassic = false;
+
   return StyleSheet.create({
     scrollContent: {
       flexGrow: 1,
-      paddingHorizontal: Spacing["2xl"],
-      paddingTop: Spacing["2xl"],
-      paddingBottom: Spacing["5xl"],
+      paddingHorizontal: isClassic ? Spacing.md : Spacing.lg,
+      paddingTop: isClassic ? Spacing.md : Spacing.lg,
+      paddingBottom: Spacing['5xl'],
     },
-    
-    // ==================== Header ====================
+    centerContainer: {
+      paddingVertical: Spacing['4xl'],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     header: {
-      marginBottom: Spacing["3xl"],
+      marginBottom: isClassic ? Spacing.md : Spacing.lg,
     },
-    
-    // ==================== Recent Reading ====================
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: isClassic ? 'center' : 'flex-start',
+      justifyContent: 'space-between',
+      gap: Spacing.md,
+    },
+    headerText: {
+      flex: 1,
+    },
+    headerSubtitle: {
+      marginTop: Spacing.xs,
+      lineHeight: 20,
+    },
+    seal: {
+      width: isClassic ? 36 : 42,
+      height: isClassic ? 36 : 42,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isClassic ? theme.backgroundSecondary : theme.primary,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
     recentReading: {
-      marginBottom: Spacing.xl,
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.lg,
-      padding: Spacing.lg,
-      // 有色阴影
+      borderRadius: isClassic ? BorderRadius.md : BorderRadius.lg,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: isClassic ? Spacing.md : Spacing.lg,
+      marginBottom: isClassic ? Spacing.md : Spacing.lg,
+      overflow: 'hidden',
       shadowColor: theme.primary,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      elevation: 2,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: isClassic ? 0.02 : 0.08,
+      shadowRadius: isClassic ? 8 : 20,
+      elevation: isClassic ? 1 : 4,
     },
     recentLabel: {
-      marginBottom: Spacing.xs,
-      letterSpacing: 1,
+      alignSelf: 'flex-start',
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 4,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundOverlay,
+      marginBottom: Spacing.sm,
     },
     recentContent: {
-      flexDirection: 'row',
+      flexDirection: isClassic ? 'column' : 'row',
+      alignItems: isClassic ? 'flex-start' : 'center',
       justifyContent: 'space-between',
-      alignItems: 'center',
+      gap: Spacing.md,
     },
     recentInfo: {
       flex: 1,
-      marginRight: Spacing.lg,
     },
     recentMeta: {
       marginTop: Spacing.xs,
+      lineHeight: 18,
     },
     continueButton: {
       paddingHorizontal: Spacing.lg,
       paddingVertical: Spacing.md,
-      backgroundColor: theme.primary,
-      borderRadius: BorderRadius.md,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.primary,
+      borderWidth: 1,
+      borderColor: isClassic ? theme.primary : 'rgba(255,255,255,0.15)',
     },
-    
-    // ==================== Stats Card ====================
-    statsCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.lg,
-      padding: Spacing.lg,
-      marginBottom: Spacing.lg,
-      shadowColor: theme.primary,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      elevation: 2,
-    },
-    statsItem: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-    },
-    statsText: {
-      flex: 1,
-    },
-    statsDivider: {
-      width: 1,
-      height: 24,
-      backgroundColor: theme.border,
-      marginHorizontal: Spacing.sm,
-    },
-    
-    // ==================== Search ====================
     searchBox: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: Spacing.lg,
-      paddingVertical: Spacing.md,
-      backgroundColor: theme.backgroundTertiary,
-      borderRadius: BorderRadius.lg,
-      marginBottom: Spacing.lg,
       gap: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.md,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.backgroundOverlay,
+      borderRadius: isClassic ? BorderRadius.md : BorderRadius.lg,
       borderWidth: 1,
       borderColor: theme.border,
+      marginBottom: Spacing.md,
     },
     searchInput: {
       flex: 1,
-      fontSize: 16,
+      fontSize: 15,
       color: theme.textPrimary,
     },
-    
-    // ==================== Search Results ====================
     searchResultsSection: {
-      marginBottom: Spacing.lg,
+      marginBottom: Spacing.md,
     },
     searchResultHeader: {
       marginBottom: Spacing.sm,
@@ -111,72 +111,73 @@ export const createStyles = (theme: Theme) => {
       gap: Spacing.sm,
     },
     searchResultItem: {
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.backgroundOverlay,
       borderRadius: BorderRadius.lg,
+      borderWidth: 1,
+      borderColor: theme.border,
       padding: Spacing.lg,
-      borderLeftWidth: 3,
-      borderLeftColor: theme.primary,
+      gap: Spacing.sm,
     },
     resultHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: Spacing.sm,
+      gap: Spacing.md,
     },
     moreResultsButton: {
       paddingVertical: Spacing.md,
       alignItems: 'center',
     },
-    
-    // ==================== Filter Tags ====================
     filterSection: {
-      marginBottom: Spacing.lg,
+      marginBottom: Spacing.md,
     },
     filterLabel: {
       marginBottom: Spacing.sm,
-      letterSpacing: 1,
     },
     filterTagsContainer: {
-      flexDirection: 'row',
       gap: Spacing.sm,
-      paddingVertical: Spacing.xs,
+      paddingRight: Spacing.sm,
     },
     filterTag: {
-      paddingHorizontal: Spacing.lg,
+      paddingHorizontal: Spacing.md,
       paddingVertical: Spacing.sm,
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.md,
+      backgroundColor: theme.backgroundOverlay,
+      borderRadius: BorderRadius.full,
       borderWidth: 1,
       borderColor: theme.border,
     },
     filterTagActive: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary,
+      backgroundColor: theme.accent,
+      borderColor: theme.accent,
     },
-    
-    // ==================== Groups ====================
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: Spacing.sm,
+    },
     groupsContainer: {
-      gap: Spacing.md,
+      gap: Spacing.sm,
     },
     groupContainer: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.lg,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.backgroundOverlay,
+      borderRadius: isClassic ? BorderRadius.md : BorderRadius.lg,
+      borderWidth: 1,
+      borderColor: theme.border,
       overflow: 'hidden',
-      // 有色阴影
       shadowColor: theme.primary,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.04,
-      shadowRadius: 4,
-      elevation: 1,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isClassic ? 0.01 : 0.04,
+      shadowRadius: isClassic ? 4 : 12,
+      elevation: isClassic ? 0 : 2,
     },
     groupHeader: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: Spacing.lg,
-      paddingVertical: Spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      justifyContent: 'space-between',
+      gap: Spacing.sm,
+      paddingHorizontal: isClassic ? Spacing.sm : Spacing.md,
+      paddingVertical: isClassic ? Spacing.sm : Spacing.md,
     },
     groupHeaderLeft: {
       flexDirection: 'row',
@@ -184,53 +185,55 @@ export const createStyles = (theme: Theme) => {
       gap: Spacing.sm,
       flex: 1,
     },
+    groupStamp: {
+      width: 30,
+      height: 30,
+      borderRadius: BorderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.accentSoft,
+    },
     groupTitle: {
-      // 无额外样式
+      marginBottom: 2,
     },
     groupStats: {
       flexDirection: 'row',
-      gap: Spacing.sm,
+      alignItems: 'center',
+      gap: Spacing.xs,
     },
     miniBadge: {
       paddingHorizontal: Spacing.sm,
-      paddingVertical: 2,
-      borderRadius: BorderRadius.xs,
+      paddingVertical: 4,
+      borderRadius: BorderRadius.full,
     },
     groupContent: {
-      // 无额外样式
+      borderTopWidth: 1,
+      borderTopColor: theme.borderLight,
     },
-    
-    // ==================== Volume Item ====================
     volumeItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: Spacing.lg,
-      paddingVertical: Spacing.lg,
+      gap: Spacing.sm,
+      paddingHorizontal: isClassic ? Spacing.sm : Spacing.md,
+      paddingVertical: isClassic ? Spacing.sm : Spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.borderLight,
     },
     volumeIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: BorderRadius.sm,
-      backgroundColor: theme.backgroundTertiary,
-      justifyContent: 'center',
+      width: 30,
+      height: 30,
+      borderRadius: BorderRadius.md,
       alignItems: 'center',
-      marginRight: Spacing.md,
+      justifyContent: 'center',
+      backgroundColor: theme.backgroundTertiary,
     },
     volumeInfo: {
       flex: 1,
     },
     volumeStatus: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    
-    // ==================== Common ====================
-    centerContainer: {
-      paddingVertical: Spacing["4xl"],
-      alignItems: 'center',
-      justifyContent: 'center',
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 4,
+      borderRadius: BorderRadius.full,
     },
   });
 };

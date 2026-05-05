@@ -9,7 +9,7 @@ const STORAGE_KEYS = {
   ttsSpeed: '@reading_tts_speed',
 };
 
-type BackgroundTheme = 'light' | 'dark' | 'sepia';
+type BackgroundTheme = 'system' | 'light' | 'dark' | 'sepia';
 type ViewMode = 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
 type TextLayout = 'horizontal' | 'vertical';
 
@@ -29,7 +29,7 @@ let initialized = false;
 // 默认值
 const DEFAULT_SETTINGS: ReadingSettings = {
   fontSize: 18,
-  backgroundTheme: 'light',
+  backgroundTheme: 'system',
   viewMode: 'original+annotation',
   textLayout: 'horizontal',
   ttsVoice: 'audiobook',

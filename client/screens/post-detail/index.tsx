@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, Image, Modal, FlatList, Dimensions } from 'react-native';
+import { View, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, Image, Modal, FlatList, Dimensions, StyleProp, ViewStyle, TextStyle, Keyboard, LayoutAnimation, UIManager, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,10 +10,15 @@ import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
-import { getPost, getComments, createComment, likePost, likeComment, deleteComment, Post, Comment } from '@/utils/community';
+import { getPost, getComments, createComment, likePost, likeComment, deleteComment, uploadImage, Post, Comment } from '@/utils/community';
+import { copyToClipboard } from '@/utils/share';
 
 const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const COMMENT_EMOJIS = [
+  0x1F600, 0x1F602, 0x1F979, 0x1F60A, 0x1F60D, 0x1F914, 0x1F62E, 0x1F605, 0x1F62D,
+  0x1F44F, 0x1F64F, 0x1F44D, 0x1F440, 0x2764, 0x1F525, 0x2728, 0x1F4DA, 0x1F4DD,
+].map((codePoint) => String.fromCodePoint(codePoint));
 
 // 解析内容中的文本和图片
 function parseContent(content: string): { type: 'text' | 'image'; value: string }[] {
@@ -63,10 +69,21 @@ export default function PostDetailScreen() {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [allImages, setAllImages] = useState<string[]>([]);
+  const [actionMenuComment, setActionMenuComment] = useState<Comment | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [composerHeight, setComposerHeight] = useState(124);
+  const [commentImages, setCommentImages] = useState<string[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [uploadingCommentMedia, setUploadingCommentMedia] = useState(false);
+  const [commentInputFocused, setCommentInputFocused] = useState(false);
+  const [composerExpanded, setComposerExpanded] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const imageFlatListRef = useRef<FlatList>(null);
+  const commentInputRef = useRef<TextInput>(null);
   const commentRefs = useRef<Map<number, View>>(new Map());
+  const scrollOffsetYRef = useRef(0);
 
   const postId = params.id;
   const targetCommentId = params.commentId;
@@ -74,42 +91,94 @@ export default function PostDetailScreen() {
   // 判断当前用户是否是帖子作者
   const isOwner = user && post && user.id === post.user.id;
 
+  const fetchPostDetail = useCallback(async () => {
+    if (!postId) return;
+
+    /**
+     * 服务端文件：server/src/routes/posts.ts
+     * 接口：GET /api/v1/posts/:id
+     * Path 参数：id: number
+     */
+    const postResult = await getPost(postId);
+    if (postResult.success) {
+      setPost(postResult.data);
+    }
+  }, [postId]);
+
+  const fetchCommentsOnly = useCallback(async () => {
+    if (!postId) return;
+
+    /**
+     * 服务端文件：server/src/routes/comments.ts
+     * 接口：GET /api/v1/comments/post/:postId
+     * Path 参数：postId: number
+     * Query 参数：page?: number, limit?: number
+     */
+    const commentsResult = await getComments(postId, { limit: 100 });
+    if (commentsResult.success) {
+      setComments(commentsResult.data.comments);
+    }
+  }, [postId]);
+
   const fetchData = useCallback(async () => {
     if (!postId) return;
 
     try {
       setLoading(true);
-
-      /**
-       * 服务端文件：server/src/routes/posts.ts
-       * 接口：GET /api/v1/posts/:id
-       * Path 参数：id: number
-       */
-      const postResult = await getPost(postId);
-      if (postResult.success) {
-        setPost(postResult.data);
-      }
-
-      /**
-       * 服务端文件：server/src/routes/comments.ts
-       * 接口：GET /api/v1/comments/post/:postId
-       * Path 参数：postId: number
-       * Query 参数：page?: number, limit?: number
-       */
-      const commentsResult = await getComments(postId, { limit: 100 });
-      if (commentsResult.success) {
-        setComments(commentsResult.data.comments);
-      }
+      await Promise.all([fetchPostDetail(), fetchCommentsOnly()]);
     } catch (error) {
       console.error('获取帖子详情失败:', error);
     } finally {
       setLoading(false);
     }
-  }, [postId]);
+  }, [fetchCommentsOnly, fetchPostDetail, postId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const handleShow = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates?.height ?? 0);
+    });
+    const handleHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      handleShow.remove();
+      handleHide.remove();
+    };
+  }, []);
+
+  const ensureReplyTargetVisible = useCallback((commentId: number, keyboardTopY: number) => {
+    const commentView = commentRefs.current.get(commentId);
+    if (!commentView || !scrollViewRef.current) return;
+
+    requestAnimationFrame(() => {
+      commentView.measureInWindow((_x, y, _width, height) => {
+        const visibleBottom = keyboardTopY - composerHeight - 12;
+        const commentBottom = y + height;
+        const overlap = commentBottom - visibleBottom;
+
+        if (overlap > 0) {
+          scrollViewRef.current?.scrollTo({
+            y: Math.max(0, scrollOffsetYRef.current + overlap + 16),
+            animated: true,
+          });
+        }
+      });
+    });
+  }, [composerHeight]);
 
   // 滚动到目标评论
   useEffect(() => {
@@ -165,13 +234,28 @@ export default function PostDetailScreen() {
       return;
     }
 
-    if (!commentText.trim()) {
-      Alert.alert('提示', '请输入评论内容');
+    if (!commentText.trim() && commentImages.length === 0) {
+      Alert.alert('提示', '请输入评论内容或添加图片');
       return;
     }
 
     try {
       setSubmitting(true);
+      setUploadingCommentMedia(commentImages.length > 0);
+
+      const uploadedUrls: string[] = [];
+      for (const uri of commentImages) {
+        const uploadResult = await uploadImage(uri, user.id);
+        if (uploadResult.success && uploadResult.data?.url) {
+          uploadedUrls.push(uploadResult.data.url);
+        }
+      }
+
+      let finalContent = commentText.trim();
+      if (uploadedUrls.length > 0) {
+        const imageMarkup = uploadedUrls.map(url => `[img]${url}[/img]`).join('\n');
+        finalContent = finalContent ? `${finalContent}\n${imageMarkup}` : imageMarkup;
+      }
 
       /**
        * 服务端文件：server/src/routes/comments.ts
@@ -180,21 +264,29 @@ export default function PostDetailScreen() {
        */
       const result = await createComment({
         postId: post.id,
-        content: commentText.trim(),
+        content: finalContent,
         parentId: replyTo?.id,
         userId: user.id,
       });
 
       if (result.success) {
         setCommentText('');
+        setCommentImages([]);
         setReplyTo(null);
-        // 重新获取评论列表
-        fetchData();
+        setShowEmojiPicker(false);
+        setShowMentionPicker(false);
+        Keyboard.dismiss();
+        await fetchCommentsOnly();
+        setPost(prev => prev ? {
+          ...prev,
+          comment_count: prev.comment_count + 1,
+        } : prev);
       }
     } catch (error) {
       console.error('发表评论失败:', error);
       Alert.alert('错误', '发表评论失败，请重试');
     } finally {
+      setUploadingCommentMedia(false);
       setSubmitting(false);
     }
   };
@@ -213,7 +305,7 @@ export default function PostDetailScreen() {
        * Body 参数：userId: number
        */
       await likeComment(comment.id, user.id);
-      fetchData();
+      await fetchCommentsOnly();
     } catch (error) {
       console.error('点赞评论失败:', error);
     }
@@ -224,15 +316,152 @@ export default function PostDetailScreen() {
       router.push('/login');
       return;
     }
+
+    setComposerExpanded(true);
+    setActionMenuComment(null);
     setReplyTo(comment);
+    requestAnimationFrame(() => {
+      commentInputRef.current?.focus();
+    });
+  };
+
+  useEffect(() => {
+    if (!replyTo || keyboardHeight <= 0) return;
+    ensureReplyTargetVisible(replyTo.id, SCREEN_HEIGHT - keyboardHeight);
+  }, [ensureReplyTargetVisible, keyboardHeight, replyTo]);
+
+  const mentionCandidates = useMemo(() => {
+    const uniqueUsers = new Map<number, { id: number; username: string; nickname: string; avatar?: string | null }>();
+
+    const visit = (items: Comment[]) => {
+      items.forEach((item) => {
+        if (item.user?.id && !uniqueUsers.has(item.user.id)) {
+          uniqueUsers.set(item.user.id, item.user);
+        }
+        if (item.replies?.length) {
+          visit(item.replies);
+        }
+      });
+    };
+
+    if (post?.user?.id) {
+      uniqueUsers.set(post.user.id, post.user);
+    }
+    visit(comments);
+
+    return Array.from(uniqueUsers.values());
+  }, [comments, post]);
+
+  const appendToCommentText = useCallback((value: string) => {
+    setCommentText(prev => `${prev}${value}`);
+    requestAnimationFrame(() => {
+      commentInputRef.current?.focus();
+    });
+  }, []);
+
+  const expandComposer = useCallback((focusInput = false) => {
+    setComposerExpanded(true);
+    if (focusInput) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          commentInputRef.current?.focus();
+        });
+      });
+    }
+  }, []);
+
+  const handleInsertEmoji = useCallback((emoji: string) => {
+    setShowEmojiPicker(false);
+    appendToCommentText(emoji);
+  }, [appendToCommentText]);
+
+  const handleInsertMention = useCallback((nickname: string) => {
+    setShowMentionPicker(false);
+    const prefix = commentText && !commentText.endsWith(' ') ? ' ' : '';
+    appendToCommentText(`${prefix}@${nickname} `);
+  }, [appendToCommentText, commentText]);
+
+  const handlePickCommentImages = useCallback(async () => {
+    setComposerExpanded(true);
+    const remainingSlots = 9 - commentImages.length;
+    if (remainingSlots <= 0) {
+      Alert.alert('提示', '评论最多上传9张图片');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const newUris = result.assets.map(asset => asset.uri);
+      setCommentImages(prev => [...prev, ...newUris].slice(0, 9));
+      setShowEmojiPicker(false);
+      setShowMentionPicker(false);
+    }
+  }, [commentImages.length]);
+
+  const removeCommentImage = useCallback((index: number) => {
+    setCommentImages(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  useEffect(() => {
+    if (
+      !commentInputFocused
+      && keyboardHeight === 0
+      && !replyTo
+      && commentText.trim().length === 0
+      && commentImages.length === 0
+      && !showEmojiPicker
+      && !showMentionPicker
+    ) {
+      setComposerExpanded(false);
+    }
+  }, [commentImages.length, commentInputFocused, commentText, keyboardHeight, replyTo, showEmojiPicker, showMentionPicker]);
+
+  const openCommentActions = (comment: Comment) => {
+    setActionMenuComment(comment);
+  };
+
+  const closeCommentActions = () => {
+    setActionMenuComment(null);
+  };
+
+  const canDeleteComment = useCallback((comment: Comment) => {
+    return Boolean(isOwner || (user && comment.user.id === user.id));
+  }, [isOwner, user]);
+
+  const handleCopyComment = async (comment: Comment) => {
+    closeCommentActions();
+    const success = await copyToClipboard(comment.content);
+    Alert.alert(success ? '已复制' : '复制失败', success ? '评论内容已复制到剪贴板' : '请稍后重试');
+  };
+
+  const handleReportComment = (comment: Comment) => {
+    closeCommentActions();
+    Alert.alert(
+      '举报评论',
+      `将跳转到意见反馈页，请补充举报原因。\n\n@${comment.user.nickname}：${comment.content.slice(0, 36)}${comment.content.length > 36 ? '...' : ''}`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '去反馈',
+          onPress: () => router.push('/feedback'),
+        },
+      ]
+    );
   };
 
   const handleDeleteComment = async (comment: Comment) => {
     if (!user || !post) return;
+    closeCommentActions();
 
     Alert.alert(
       '确认删除',
-      '确定要删除这条评论吗？',
+      comment.replies?.length ? '删除后其下的回复也会一并删除，确定继续吗？' : '确定要删除这条评论吗？',
       [
         { text: '取消', style: 'cancel' },
         {
@@ -242,22 +471,8 @@ export default function PostDetailScreen() {
             try {
               const result = await deleteComment(comment.id, user.id);
               if (result.success) {
-                // 从本地状态移除评论
-                setComments(prev => {
-                  // 检查是否是顶级评论
-                  const parentIndex = prev.findIndex(c => c.id === comment.id);
-                  if (parentIndex !== -1) {
-                    // 是顶级评论，直接移除
-                    return prev.filter(c => c.id !== comment.id);
-                  }
-                  // 是回复，从父评论中移除
-                  return prev.map(c => ({
-                    ...c,
-                    replies: c.replies?.filter(r => r.id !== comment.id),
-                  }));
-                });
-                // 更新评论计数
-                setPost(prev => prev ? { ...prev, comment_count: prev.comment_count - 1 } : null);
+                setReplyTo(null);
+                await Promise.all([fetchPostDetail(), fetchCommentsOnly()]);
               }
             } catch (error) {
               console.error('删除评论失败:', error);
@@ -373,8 +588,155 @@ export default function PostDetailScreen() {
     );
   };
 
-  const renderComment = (comment: Comment, isReply: boolean = false) => {
+  const renderRichContent = (content: string, textVariant: 'body' | 'caption' = 'body', textStyle?: StyleProp<TextStyle>) => {
+    const parts = parseContent(content);
+    const textParts = parts.filter(part => part.type === 'text');
+    const imageParts = parts
+      .filter(part => part.type === 'image')
+      .map(part => part.value.startsWith('http') ? part.value : `${BASE_URL}${part.value}`);
+
+    return (
+      <View style={styles.richContentBlock}>
+        {textParts.map((part, index) => (
+          <ThemedText
+            key={`text-${index}`}
+            variant={textVariant}
+            color={theme.textPrimary}
+            style={textStyle}
+          >
+            {part.value}
+          </ThemedText>
+        ))}
+        {imageParts.length > 0 ? renderImageGrid(imageParts) : null}
+      </View>
+    );
+  };
+
+  const renderUserAvatar = (
+    userInfo: { nickname: string; avatar?: string | null },
+    containerStyle?: StyleProp<ViewStyle>,
+    textVariant: 'tiny' | 'captionMedium' = 'tiny'
+  ) => {
+    if (userInfo.avatar) {
+      return (
+        <View style={[styles.avatar, containerStyle]}>
+          <Image source={{ uri: userInfo.avatar }} style={styles.avatarImage} resizeMode="cover" />
+        </View>
+      );
+    }
+
+    return (
+      <View style={[styles.avatar, containerStyle]}>
+        <ThemedText variant={textVariant} color={theme.buttonPrimaryText}>
+          {userInfo.nickname.charAt(0).toUpperCase()}
+        </ThemedText>
+      </View>
+    );
+  };
+
+  const flattenReplies = useCallback((replies: Comment[] = []): Comment[] => {
+    const flattened: Comment[] = [];
+
+    const visit = (items: Comment[]) => {
+      items.forEach((item) => {
+        flattened.push(item);
+        if (item.replies?.length) {
+          visit(item.replies);
+        }
+      });
+    };
+
+    visit(replies);
+    return flattened.sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  }, []);
+
+  const renderReplyRow = (comment: Comment, index: number, total: number) => {
     const isHighlighted = highlightedCommentId === comment.id;
+    const isPostAuthor = post?.user.id === comment.user.id;
+
+    return (
+      <View
+        key={comment.id}
+        ref={(ref) => {
+          if (ref) {
+            commentRefs.current.set(comment.id, ref as unknown as View);
+          } else {
+            commentRefs.current.delete(comment.id);
+          }
+        }}
+        style={[
+          styles.threadReplyRow,
+          index > 0 && styles.threadReplyGap,
+        ]}
+      >
+        {renderUserAvatar(comment.user, styles.replyAvatar)}
+
+        <View style={styles.threadReplyBody}>
+          <TouchableOpacity
+            activeOpacity={0.96}
+            onPress={() => handleReply(comment)}
+            onLongPress={() => openCommentActions(comment)}
+            delayLongPress={260}
+            style={[
+              styles.threadReplyItem,
+              isHighlighted && styles.highlightedReply,
+            ]}
+          >
+            <View style={styles.commentNameRow}>
+              <ThemedText variant="smallMedium" color={theme.textMuted}>
+                {comment.user.nickname}
+              </ThemedText>
+              {isPostAuthor && (
+                <View style={styles.authorBadge}>
+                  <ThemedText variant="captionMedium" color={theme.primary}>作者</ThemedText>
+                </View>
+              )}
+              {comment.reply_to_user && (
+                <>
+                  <ThemedText variant="small" color={theme.textMuted}>
+                    {' '}回复{' '}
+                  </ThemedText>
+                  <ThemedText variant="smallMedium" color={theme.textMuted}>
+                    {comment.reply_to_user.nickname}
+                  </ThemedText>
+                </>
+              )}
+            </View>
+
+            {renderRichContent(comment.content, 'body', styles.replyContentText)}
+          </TouchableOpacity>
+
+          <View style={styles.commentFooter}>
+            <View style={styles.commentMetaLeft}>
+              <ThemedText variant="caption" color={theme.textMuted}>
+                {formatTime(comment.created_at)}
+              </ThemedText>
+              <TouchableOpacity onPress={() => handleReply(comment)}>
+                <ThemedText variant="captionMedium" color={theme.textMuted}>回复</ThemedText>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.replyLikeAction}
+              onPress={() => handleLikeComment(comment)}
+            >
+              <FontAwesome6 name="heart" size={11} color={theme.textMuted} />
+              <ThemedText variant="caption" color={theme.textMuted}>
+                {comment.like_count > 0 ? comment.like_count : ''}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderComment = (comment: Comment) => {
+    const isHighlighted = highlightedCommentId === comment.id;
+    const threadedReplies = flattenReplies(comment.replies ?? []);
+    const isPostAuthor = post?.user.id === comment.user.id;
+
     return (
       <View
         key={comment.id}
@@ -387,61 +749,81 @@ export default function PostDetailScreen() {
         }}
         style={[
           styles.commentItem,
-          isReply && styles.replyItem,
-          isHighlighted && styles.highlightedComment,
         ]}
       >
-      <View style={styles.commentHeader}>
-        <View style={[styles.avatar, isReply && styles.smallAvatar]}>
-          <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
-            {comment.user.nickname.charAt(0).toUpperCase()}
-          </ThemedText>
-        </View>
-        <View style={styles.commentMeta}>
-          <ThemedText variant="smallMedium" color={theme.textPrimary}>
-            {comment.user.nickname}
-          </ThemedText>
-          <ThemedText variant="caption" color={theme.textMuted}>
-            {formatTime(comment.created_at)}
-          </ThemedText>
-        </View>
-        {/* 评论作者或帖子作者可删除评论 */}
-        {(isOwner || (user && comment.user.id === user.id)) && (
-          <TouchableOpacity onPress={() => handleDeleteComment(comment)} style={styles.deleteCommentButton}>
-            <FontAwesome6 name="trash" size={14} color={theme.textMuted} />
-          </TouchableOpacity>
-        )}
-      </View>
-      <ThemedText variant="body" color={theme.textSecondary} style={styles.commentContent}>
-        {comment.content}
-      </ThemedText>
-      <View style={styles.commentActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleLikeComment(comment)}
-        >
-          <FontAwesome6 name="heart" size={14} color={theme.textMuted} />
-          <ThemedText variant="caption" color={theme.textMuted}>{comment.like_count || 0}</ThemedText>
-        </TouchableOpacity>
-        {!isReply && (
+        {renderUserAvatar(comment.user, styles.commentAvatar)}
+
+        <View style={styles.commentBody}>
           <TouchableOpacity
-            style={styles.actionButton}
+            activeOpacity={0.96}
             onPress={() => handleReply(comment)}
+            onLongPress={() => openCommentActions(comment)}
+            delayLongPress={260}
+            style={[
+              styles.commentSurface,
+              isHighlighted && styles.highlightedComment,
+            ]}
           >
-            <FontAwesome6 name="reply" size={14} color={theme.textMuted} />
-            <ThemedText variant="caption" color={theme.textMuted}>回复</ThemedText>
+            <View style={styles.commentNameRow}>
+              <ThemedText variant="smallMedium" color={theme.textMuted}>
+                {comment.user.nickname}
+              </ThemedText>
+              {isPostAuthor && (
+                <View style={styles.authorBadge}>
+                  <ThemedText variant="captionMedium" color={theme.primary}>作者</ThemedText>
+                </View>
+              )}
+            </View>
+            {renderRichContent(comment.content, 'body', styles.commentContent)}
           </TouchableOpacity>
-        )}
-      </View>
-      {/* 回复列表 */}
-      {comment.replies && comment.replies.length > 0 && (
-        <View style={styles.repliesContainer}>
-          {comment.replies.map(reply => renderComment(reply, true))}
+
+          <View style={styles.commentFooter}>
+            <View style={styles.commentMetaLeft}>
+              <ThemedText variant="caption" color={theme.textMuted}>
+                {formatTime(comment.created_at)}
+              </ThemedText>
+              <TouchableOpacity onPress={() => handleReply(comment)}>
+                <ThemedText variant="captionMedium" color={theme.textMuted}>回复</ThemedText>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.replyLikeAction}
+              onPress={() => handleLikeComment(comment)}
+            >
+              <FontAwesome6 name="heart" size={12} color={theme.textMuted} />
+              <ThemedText variant="caption" color={theme.textMuted}>
+                {comment.like_count > 0 ? comment.like_count : ''}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+
+          {threadedReplies.length > 0 && (
+            <View style={styles.repliesContainer}>
+              {threadedReplies.map((reply, index) => renderReplyRow(reply, index, threadedReplies.length))}
+            </View>
+          )}
         </View>
-      )}
-    </View>
+      </View>
     );
   };
+
+  const isComposerExpanded = (
+    composerExpanded
+    || commentInputFocused
+    || keyboardHeight > 0
+    || !!replyTo
+    || commentText.trim().length > 0
+    || commentImages.length > 0
+    || showEmojiPicker
+    || showMentionPicker
+  );
+  const hasReplyTarget = !!replyTo;
+
+  useEffect(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, [isComposerExpanded, showEmojiPicker, showMentionPicker, commentImages.length, hasReplyTarget]);
+
+  const scrollBottomPadding = composerHeight + (keyboardHeight > 0 ? keyboardHeight : 0) + Spacing.xl;
 
   if (loading) {
     return (
@@ -468,7 +850,7 @@ export default function PostDetailScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 72 : 0}
       >
         {/* 头部导航 */}
         <ThemedView level="root" style={styles.header}>
@@ -479,15 +861,20 @@ export default function PostDetailScreen() {
           <View style={{ width: 40 }} />
         </ThemedView>
 
-        <ScrollView ref={scrollViewRef} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPadding }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
+        >
           {/* 帖子内容 */}
           <View style={styles.postContainer}>
             <View style={styles.postHeader}>
-              <View style={styles.avatar}>
-                <ThemedText variant="captionMedium" color={theme.buttonPrimaryText}>
-                  {post.user.nickname.charAt(0).toUpperCase()}
-                </ThemedText>
-              </View>
+              {renderUserAvatar(post.user, undefined, 'captionMedium')}
               <View style={styles.postMeta}>
                 <ThemedText variant="smallMedium" color={theme.textPrimary}>
                   {post.user.nickname}
@@ -539,7 +926,7 @@ export default function PostDetailScreen() {
           {/* 评论区 */}
           <View style={styles.commentsSection}>
             <ThemedText variant="h4" color={theme.textPrimary} style={styles.commentsTitle}>
-              评论 ({comments.length})
+              评论 ({post.comment_count})
             </ThemedText>
 
             {comments.length === 0 ? (
@@ -553,7 +940,60 @@ export default function PostDetailScreen() {
         </ScrollView>
 
         {/* 评论输入框 */}
-        <View style={styles.commentInputContainer}>
+        <View
+          style={styles.commentInputContainer}
+          onLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
+        >
+          {!isComposerExpanded ? (
+            <TouchableOpacity
+              style={styles.collapsedComposer}
+              activeOpacity={0.9}
+              onPress={() => {
+                if (!isAuthenticated) {
+                  router.push('/login');
+                  return;
+                }
+                expandComposer(true);
+              }}
+            >
+              <View style={styles.collapsedComposerField}>
+                <FontAwesome6 name="pen" size={14} color={theme.textMuted} />
+                <ThemedText variant="body" color={theme.textMuted}>
+                  说点什么...
+                </ThemedText>
+              </View>
+              <View style={styles.collapsedComposerActions}>
+                <TouchableOpacity
+                  style={styles.collapsedActionButton}
+                  onPress={() => {
+                    if (!isAuthenticated) {
+                      router.push('/login');
+                      return;
+                    }
+                    handlePickCommentImages();
+                  }}
+                >
+                  <FontAwesome6 name="image" size={16} color={theme.textMuted} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.collapsedActionButton}
+                  onPress={() => {
+                    if (!isAuthenticated) {
+                      router.push('/login');
+                      return;
+                    }
+                    setComposerExpanded(true);
+                    Keyboard.dismiss();
+                    setShowMentionPicker(false);
+                    setShowEmojiPicker(true);
+                  }}
+                >
+                  <FontAwesome6 name="face-smile" size={16} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <>
           {replyTo && (
             <View style={styles.replyingTo}>
               <ThemedText variant="caption" color={theme.textMuted}>
@@ -565,30 +1005,204 @@ export default function PostDetailScreen() {
             </View>
           )}
           <View style={styles.commentInput}>
-            <TextInput
-              style={styles.input}
-              placeholder={isAuthenticated ? "写下你的评论..." : "登录后发表评论"}
-              placeholderTextColor={theme.textMuted}
-              value={commentText}
-              onChangeText={setCommentText}
-              multiline
-              editable={isAuthenticated}
-            />
+            <View style={styles.commentComposer}>
+              <TextInput
+                ref={commentInputRef}
+                style={styles.input}
+                placeholder={isAuthenticated ? (replyTo ? `回复 ${replyTo.user.nickname}...` : "说点什么...") : "登录后发表评论"}
+                placeholderTextColor={theme.textMuted}
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                editable={isAuthenticated}
+                textAlignVertical="top"
+                onFocus={() => {
+                  setCommentInputFocused(true);
+                  setShowEmojiPicker(false);
+                  setShowMentionPicker(false);
+                }}
+                onBlur={() => {
+                  setCommentInputFocused(false);
+                }}
+              />
+              <View style={styles.commentToolsRow}>
+                <TouchableOpacity style={styles.commentToolButton} onPress={handlePickCommentImages}>
+                  <FontAwesome6 name="image" size={16} color={theme.textMuted} />
+                  <ThemedText variant="caption" color={theme.textMuted}>图片</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.commentToolButton}
+                  onPress={() => {
+                    setComposerExpanded(true);
+                    Keyboard.dismiss();
+                    setShowMentionPicker(false);
+                    setShowEmojiPicker(prev => !prev);
+                  }}
+                >
+                  <FontAwesome6 name="face-smile" size={16} color={showEmojiPicker ? theme.primary : theme.textMuted} />
+                  <ThemedText variant="caption" color={showEmojiPicker ? theme.primary : theme.textMuted}>表情</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.commentToolButton}
+                  onPress={() => {
+                    setComposerExpanded(true);
+                    Keyboard.dismiss();
+                    setShowEmojiPicker(false);
+                    setShowMentionPicker(prev => !prev);
+                  }}
+                >
+                  <FontAwesome6 name="at" size={16} color={showMentionPicker ? theme.primary : theme.textMuted} />
+                  <ThemedText variant="caption" color={showMentionPicker ? theme.primary : theme.textMuted}>@某人</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
             <TouchableOpacity
-              style={[styles.submitButton, !commentText.trim() && styles.submitButtonDisabled]}
+              style={[styles.submitButton, !commentText.trim() && commentImages.length === 0 && styles.submitButtonDisabled]}
               onPress={handleSubmitComment}
-              disabled={!commentText.trim() || submitting || !isAuthenticated}
+              disabled={(!commentText.trim() && commentImages.length === 0) || submitting || !isAuthenticated}
             >
-              <ThemedText
-                variant="smallMedium"
-                color={commentText.trim() ? theme.buttonPrimaryText : theme.textMuted}
-              >
-                发送
-              </ThemedText>
+              <FontAwesome6
+                name={submitting || uploadingCommentMedia ? 'spinner' : 'arrow-up'}
+                size={16}
+                color={commentText.trim() || commentImages.length > 0 ? theme.buttonPrimaryText : theme.textMuted}
+              />
             </TouchableOpacity>
           </View>
+          {commentImages.length > 0 && (
+            <View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.commentImagePreviewRow}
+              >
+                {commentImages.map((uri, index) => (
+                  <View key={`${uri}-${index}`} style={styles.commentImagePreviewItem}>
+                    <Image source={{ uri }} style={styles.commentImagePreview} />
+                    <TouchableOpacity
+                      style={styles.commentImageRemoveButton}
+                      onPress={() => removeCommentImage(index)}
+                    >
+                      <FontAwesome6 name="xmark" size={10} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          {showEmojiPicker && (
+            <View style={styles.emojiPicker}>
+              <View style={styles.emojiGrid}>
+                {COMMENT_EMOJIS.map((emoji) => (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={styles.emojiItem}
+                    onPress={() => handleInsertEmoji(emoji)}
+                  >
+                    <ThemedText variant="h4">{emoji}</ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+          {showMentionPicker && (
+            <View style={styles.mentionPicker}>
+              <ThemedText variant="smallMedium" color={theme.textSecondary} style={styles.mentionPickerTitle}>
+                提到谁
+              </ThemedText>
+              <View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mentionRow}>
+                  {mentionCandidates.map((candidate) => (
+                    <TouchableOpacity
+                      key={candidate.id}
+                      style={styles.mentionChip}
+                      onPress={() => handleInsertMention(candidate.nickname)}
+                    >
+                      {candidate.avatar ? (
+                        <Image source={{ uri: candidate.avatar }} style={styles.mentionAvatar} />
+                      ) : (
+                        <View style={[styles.mentionAvatar, { backgroundColor: theme.primaryLight }]}>
+                          <ThemedText variant="captionMedium" color={theme.primary}>
+                            {candidate.nickname.charAt(0).toUpperCase()}
+                          </ThemedText>
+                        </View>
+                      )}
+                      <ThemedText variant="captionMedium" color={theme.textPrimary}>
+                        @{candidate.nickname}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          )}
+            </>
+          )}
         </View>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={!!actionMenuComment}
+        transparent
+        animationType="fade"
+        onRequestClose={closeCommentActions}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.actionSheetOverlay}
+          onPress={closeCommentActions}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.actionSheet}
+            onPress={() => undefined}
+          >
+            <View style={styles.actionSheetHandle} />
+            {actionMenuComment && (
+              <>
+                <View style={styles.actionSheetHeader}>
+                  <ThemedText variant="smallMedium" color={theme.textPrimary}>
+                    @{actionMenuComment.user.nickname}
+                  </ThemedText>
+                  <ThemedText variant="caption" color={theme.textMuted} numberOfLines={2}>
+                    {actionMenuComment.content}
+                  </ThemedText>
+                </View>
+
+                <TouchableOpacity style={styles.actionSheetItem} onPress={() => handleReply(actionMenuComment)}>
+                  <FontAwesome6 name="reply" size={16} color={theme.textPrimary} />
+                  <ThemedText variant="body" color={theme.textPrimary}>回复</ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.actionSheetItem} onPress={() => handleCopyComment(actionMenuComment)}>
+                  <FontAwesome6 name="copy" size={16} color={theme.textPrimary} />
+                  <ThemedText variant="body" color={theme.textPrimary}>复制</ThemedText>
+                </TouchableOpacity>
+
+                {(!user || actionMenuComment.user.id !== user.id) && (
+                  <TouchableOpacity style={styles.actionSheetItem} onPress={() => handleReportComment(actionMenuComment)}>
+                    <FontAwesome6 name="flag" size={16} color={theme.textPrimary} />
+                    <ThemedText variant="body" color={theme.textPrimary}>举报</ThemedText>
+                  </TouchableOpacity>
+                )}
+
+                {canDeleteComment(actionMenuComment) && (
+                  <TouchableOpacity
+                    style={[styles.actionSheetItem, styles.actionSheetItemDanger]}
+                    onPress={() => handleDeleteComment(actionMenuComment)}
+                  >
+                    <FontAwesome6 name="trash" size={16} color={theme.error} />
+                    <ThemedText variant="body" color={theme.error}>删除</ThemedText>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity style={styles.actionSheetCancel} onPress={closeCommentActions}>
+                  <ThemedText variant="bodyMedium" color={theme.textPrimary}>取消</ThemedText>
+                </TouchableOpacity>
+              </>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* 图片查看 Modal */}
       <Modal

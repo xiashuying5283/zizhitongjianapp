@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Image } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,8 +9,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { createStyles } from './styles';
-import { getStoredUser } from '@/utils/auth';
-import { getDeviceId } from '@/utils/deviceId';
+import { getUserIdentity } from '@/utils/userIdentity';
 
 interface StatsSummary {
   totalDuration: number;
@@ -30,22 +30,6 @@ export default function ProfileScreen() {
   const { user, isAuthenticated, logout } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const [statsSummary, setStatsSummary] = useState<StatsSummary | null>(null);
-  const userIdentityRef = useRef<{ userId?: number; deviceId?: string } | null>(null);
-
-  // 获取用户标识（缓存）
-  const getUserIdentity = useCallback(async () => {
-    if (userIdentityRef.current) {
-      return userIdentityRef.current;
-    }
-    const storedUser = await getStoredUser();
-    if (storedUser) {
-      userIdentityRef.current = { userId: storedUser.id };
-    } else {
-      const deviceId = await getDeviceId();
-      userIdentityRef.current = { deviceId };
-    }
-    return userIdentityRef.current;
-  }, []);
 
   // 获取阅读统计
   const fetchStatsSummary = useCallback(async () => {
@@ -69,12 +53,13 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error('Failed to fetch stats summary:', error);
     }
-  }, [getUserIdentity]);
+  }, []);
 
-  // 初始化获取统计数据
-  useEffect(() => {
-    fetchStatsSummary();
-  }, [fetchStatsSummary]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchStatsSummary();
+    }, [fetchStatsSummary])
+  );
 
   const handleLogout = useCallback(() => {
     Alert.alert(
@@ -112,7 +97,7 @@ export default function ProfileScreen() {
   }, [router]);
 
   return (
-    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen preset="fixed" backgroundColor={theme.backgroundRoot} statusBarStyle="dark" safeAreaEdges={['top', 'left', 'right']}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
       >
@@ -153,7 +138,7 @@ export default function ProfileScreen() {
             {loggingOut ? (
               <ActivityIndicator size="small" color={theme.textPrimary} />
             ) : (
-              <ThemedText variant="smallMedium" color={isAuthenticated ? (theme.error || '#DC2626') : theme.primary}>
+              <ThemedText variant="smallMedium" color={isAuthenticated ? theme.error : theme.primary}>
                 {isAuthenticated ? '登出' : '登录'}
               </ThemedText>
             )}
@@ -168,35 +153,25 @@ export default function ProfileScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.statsItem}>
-              <FontAwesome6 name="clock" size={16} color={theme.primary} />
-              <View style={styles.statsText}>
-                <ThemedText variant="tiny" color={theme.textMuted}>累计阅读</ThemedText>
-                <ThemedText variant="smallMedium" color={theme.textPrimary}>
-                  {statsSummary.formattedDuration}
-                </ThemedText>
-              </View>
+              <ThemedText variant="h4" color={theme.primary}>
+                {statsSummary.formattedDuration}
+              </ThemedText>
+              <ThemedText variant="tiny" color={theme.textMuted}>累计阅读</ThemedText>
             </View>
             <View style={styles.statsDivider} />
             <View style={styles.statsItem}>
-              <FontAwesome6 name="fire-flame-curved" size={16} color="#F59E0B" />
-              <View style={styles.statsText}>
-                <ThemedText variant="tiny" color={theme.textMuted}>连续阅读</ThemedText>
-                <ThemedText variant="smallMedium" color={theme.textPrimary}>
-                  {statsSummary.currentStreak}天
-                </ThemedText>
-              </View>
+              <ThemedText variant="h4" color={theme.warning}>
+                {statsSummary.currentStreak}天
+              </ThemedText>
+              <ThemedText variant="tiny" color={theme.textMuted}>连续阅读</ThemedText>
             </View>
             <View style={styles.statsDivider} />
             <View style={styles.statsItem}>
-              <FontAwesome6 name="calendar-day" size={16} color="#10B981" />
-              <View style={styles.statsText}>
-                <ThemedText variant="tiny" color={theme.textMuted}>总天数</ThemedText>
-                <ThemedText variant="smallMedium" color={theme.textPrimary}>
-                  {statsSummary.totalDays}天
-                </ThemedText>
-              </View>
+              <ThemedText variant="h4" color={theme.accent}>
+                {statsSummary.totalDays}天
+              </ThemedText>
+              <ThemedText variant="tiny" color={theme.textMuted}>总天数</ThemedText>
             </View>
-            <FontAwesome6 name="chevron-right" size={14} color={theme.textMuted} />
           </TouchableOpacity>
         )}
 
@@ -204,14 +179,14 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.vipCard} onPress={() => router.push('/vip')}>
           <View style={styles.vipContent}>
             <View style={styles.vipIconContainer}>
-              <FontAwesome6 name="crown" size={24} color="#FFD700" />
+              <FontAwesome6 name="crown" size={24} color={theme.gold} />
             </View>
             <View style={styles.vipText}>
-              <ThemedText variant="h4" color={theme.textPrimary}>开通会员</ThemedText>
-              <ThemedText variant="caption" color={theme.textSecondary}>解锁全部功能，享受极致体验</ThemedText>
+              <ThemedText variant="h4" color={theme.textPrimary}>会员功能</ThemedText>
+              <ThemedText variant="caption" color={theme.textSecondary}>权益筹备中，可先查看规划内容</ThemedText>
             </View>
           </View>
-          <FontAwesome6 name="chevron-right" size={16} color="#FFD700" />
+          <FontAwesome6 name="chevron-right" size={16} color={theme.gold} />
         </TouchableOpacity>
 
         {/* Quick Actions */}
@@ -226,27 +201,31 @@ export default function ProfileScreen() {
                 <FontAwesome6 name="book" size={20} color={theme.primary} />
               </View>
               <ThemedText variant="smallMedium" color={theme.textPrimary}>全部卷目</ThemedText>
+              <ThemedText variant="caption" color={theme.textMuted}>回到阅读目录</ThemedText>
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/bookmarks')}>
-              <View style={[styles.quickActionIcon, { backgroundColor: '#10B98115' }]}>
-                <FontAwesome6 name="bookmark" size={20} color="#10B981" />
+              <View style={[styles.quickActionIcon, { backgroundColor: theme.accentSoft }]}>
+                <FontAwesome6 name="bookmark" size={20} color={theme.accent} />
               </View>
               <ThemedText variant="smallMedium" color={theme.textPrimary}>我的书签</ThemedText>
+              <ThemedText variant="caption" color={theme.textMuted}>保存的位置</ThemedText>
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/notes')}>
-              <View style={[styles.quickActionIcon, { backgroundColor: '#F59E0B15' }]}>
-                <FontAwesome6 name="highlighter" size={20} color="#F59E0B" />
+              <View style={[styles.quickActionIcon, { backgroundColor: theme.goldSoft }]}>
+                <FontAwesome6 name="highlighter" size={20} color={theme.warning} />
               </View>
               <ThemedText variant="smallMedium" color={theme.textPrimary}>我的笔记</ThemedText>
+              <ThemedText variant="caption" color={theme.textMuted}>划线与批注</ThemedText>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/reading-stats')}>
-              <View style={[styles.quickActionIcon, { backgroundColor: '#8B5CF615' }]}>
-                <FontAwesome6 name="chart-line" size={20} color="#8B5CF6" />
+              <View style={[styles.quickActionIcon, { backgroundColor: theme.infoSoft }]}>
+                <FontAwesome6 name="chart-line" size={20} color={theme.info} />
               </View>
               <ThemedText variant="smallMedium" color={theme.textPrimary}>阅读统计</ThemedText>
+              <ThemedText variant="caption" color={theme.textMuted}>时长与连续天数</ThemedText>
             </TouchableOpacity>
           </View>
         </ThemedView>
@@ -260,23 +239,7 @@ export default function ProfileScreen() {
           <TouchableOpacity style={styles.settingItem} onPress={() => router.push('/settings')}>
             <View style={styles.settingInfo}>
               <FontAwesome6 name="gear" size={20} color={theme.textPrimary} />
-              <ThemedText variant="body" color={theme.textPrimary}>通用设置</ThemedText>
-            </View>
-            <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem} onPress={() => router.push('/settings')}>
-            <View style={styles.settingInfo}>
-              <FontAwesome6 name="font" size={20} color={theme.textPrimary} />
-              <ThemedText variant="body" color={theme.textPrimary}>字体设置</ThemedText>
-            </View>
-            <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem} onPress={() => router.push('/settings')}>
-            <View style={styles.settingInfo}>
-              <FontAwesome6 name="moon" size={20} color={theme.textPrimary} />
-              <ThemedText variant="body" color={theme.textPrimary}>深色模式</ThemedText>
+              <ThemedText variant="body" color={theme.textPrimary}>阅读与显示设置</ThemedText>
             </View>
             <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
           </TouchableOpacity>

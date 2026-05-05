@@ -12,9 +12,22 @@ import { createStyles } from './styles';
 
 export default function SettingsScreen() {
   const { theme, isDark } = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
-  const { fontSize, setFontSize, fontFamily, setFontFamily, themeMode, setThemeMode, readingMode, setReadingMode, scriptMode, setScriptMode } = useSettings();
+  const {
+    fontSize,
+    setFontSize,
+    fontFamily,
+    setFontFamily,
+    themeMode,
+    setThemeMode,
+    themeVariant,
+    setThemeVariant,
+    readingMode,
+    setReadingMode,
+    scriptMode,
+    setScriptMode,
+  } = useSettings();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const fontSizeOptions = [
     { label: '小', value: 14 },
@@ -35,6 +48,12 @@ export default function SettingsScreen() {
     { label: '跟随系统', value: 'system' as const, icon: 'mobile-screen' as const },
     { label: '浅色模式', value: 'light' as const, icon: 'sun' as const },
     { label: '深色模式', value: 'dark' as const, icon: 'moon' as const },
+  ];
+
+  const themeVariantOptions = [
+    { label: '朱砂典藏', value: 'vermilion' as const, desc: '暖纸色与朱砂印风格，延续当前主视觉', icon: 'stamp' as const },
+    { label: '青玉札记', value: 'jade' as const, desc: '冷青玉与墨蓝层次，更清雅克制', icon: 'palette' as const },
+    { label: '黑白刻本', value: 'monochrome' as const, desc: '黑白灰层次，像校勘刻本一样干净克制', icon: 'circle-half-stroke' as const },
   ];
 
   const readingModeOptions = [
@@ -137,7 +156,7 @@ export default function SettingsScreen() {
         {/* 主题设置 */}
         <ThemedView level="root" style={styles.section}>
           <ThemedText variant="title" color={theme.textPrimary} style={styles.sectionTitle}>
-            显示模式
+            明暗模式
           </ThemedText>
           
           {themeOptions.map((option) => (
@@ -158,6 +177,39 @@ export default function SettingsScreen() {
                 themeMode === option.value && { backgroundColor: theme.primary }
               ]}>
                 {themeMode === option.value && (
+                  <FontAwesome6 name="check" size={12} color="#fff" />
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ThemedView>
+
+        <ThemedView level="root" style={styles.section}>
+          <ThemedText variant="title" color={theme.textPrimary} style={styles.sectionTitle}>
+            主题风格
+          </ThemedText>
+
+          {themeVariantOptions.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={styles.settingItem}
+              onPress={() => setThemeVariant(option.value)}
+            >
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIcon, { backgroundColor: theme.primary + '15' }]}>
+                  <FontAwesome6 name={option.icon} size={18} color={theme.primary} />
+                </View>
+                <View style={styles.settingInfoWithDesc}>
+                  <ThemedText variant="body" color={theme.textPrimary}>{option.label}</ThemedText>
+                  <ThemedText variant="caption" color={theme.textMuted}>{option.desc}</ThemedText>
+                </View>
+              </View>
+              <View style={[
+                styles.radioButton,
+                { borderColor: themeVariant === option.value ? theme.primary : theme.border },
+                themeVariant === option.value && { backgroundColor: theme.primary }
+              ]}>
+                {themeVariant === option.value && (
                   <FontAwesome6 name="check" size={12} color="#fff" />
                 )}
               </View>
@@ -197,7 +249,7 @@ export default function SettingsScreen() {
         {/* 简繁切换 */}
         <ThemedView level="root" style={styles.section}>
           <ThemedText variant="title" color={theme.textPrimary} style={styles.sectionTitle}>
-            字体风格
+            简繁切换
           </ThemedText>
           
           {scriptModeOptions.map((option) => (
@@ -244,6 +296,7 @@ export default function SettingsScreen() {
               setFontSize(18);
               setFontFamily('system');
               setThemeMode('system');
+              setThemeVariant('vermilion');
               setReadingMode('original+annotation');
               setScriptMode('simplified');
             }}

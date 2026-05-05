@@ -1,120 +1,114 @@
 import { StyleSheet } from 'react-native';
-import { Spacing, BorderRadius, Theme } from '@/constants/theme';
+import { BorderRadius, Spacing, Theme } from '@/constants/theme';
 
 export const createStyles = (theme: Theme) => {
+  const isClassic = false;
+
   return StyleSheet.create({
     scrollContent: {
       flexGrow: 1,
-      paddingHorizontal: Spacing["2xl"],
-      paddingTop: Spacing["2xl"],
-      paddingBottom: Spacing["5xl"],
+      paddingHorizontal: isClassic ? Spacing.md : Spacing.lg,
+      paddingTop: isClassic ? Spacing.md : Spacing.lg,
+      paddingBottom: Spacing['5xl'],
     },
     header: {
-      marginBottom: Spacing["3xl"],
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      alignItems: isClassic ? 'center' : 'flex-start',
+      gap: Spacing.sm,
+      marginBottom: Spacing.md,
+      padding: isClassic ? Spacing.md : Spacing.lg,
+      borderRadius: isClassic ? BorderRadius.md : BorderRadius.lg,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.backgroundOverlay,
+      borderWidth: 1,
+      borderColor: theme.border,
     },
     userInfo: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: Spacing.lg,
+      gap: Spacing.md,
       flex: 1,
     },
     avatar: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: theme.backgroundTertiary,
+      width: isClassic ? 54 : 62,
+      height: isClassic ? 54 : 62,
+      borderRadius: BorderRadius.xl,
+      backgroundColor: theme.primarySoft,
       justifyContent: 'center',
       alignItems: 'center',
       overflow: 'hidden',
     },
     avatarImage: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
+      width: isClassic ? 54 : 62,
+      height: isClassic ? 54 : 62,
+      borderRadius: BorderRadius.xl,
     },
     avatarPlaceholder: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
+      width: isClassic ? 54 : 62,
+      height: isClassic ? 54 : 62,
+      borderRadius: BorderRadius.xl,
       justifyContent: 'center',
       alignItems: 'center',
     },
     userDetails: {
       flex: 1,
+      gap: 2,
     },
     nameRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: Spacing.sm,
+      gap: Spacing.xs,
     },
     editIcon: {
-      marginLeft: Spacing.xs,
+      marginLeft: 2,
     },
     authButton: {
       paddingHorizontal: Spacing.lg,
       paddingVertical: Spacing.sm,
       borderRadius: BorderRadius.full,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.backgroundSecondary,
       borderWidth: 1,
       borderColor: theme.primary,
     },
     logoutButton: {
-      borderColor: theme.error || '#DC2626',
+      borderColor: theme.error,
     },
-    section: {
-      marginBottom: Spacing["3xl"],
-    },
-    sectionTitle: {
+    statsCard: {
+      flexDirection: 'row',
+      borderRadius: isClassic ? BorderRadius.md : BorderRadius.lg,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.backgroundOverlay,
       marginBottom: Spacing.lg,
     },
-    // Quick Actions
-    quickActions: {
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-    },
-    quickActionItem: {
+    statsItem: {
+      flex: 1,
       alignItems: 'center',
-      gap: Spacing.sm,
-    },
-    quickActionIcon: {
-      width: 56,
-      height: 56,
-      borderRadius: BorderRadius.lg,
       justifyContent: 'center',
+      paddingVertical: Spacing.lg,
+      paddingHorizontal: Spacing.sm,
+      gap: 4,
+      backgroundColor: isClassic ? theme.backgroundSecondary : 'rgba(255,255,255,0.16)',
+    },
+    statsText: {
       alignItems: 'center',
     },
-    // Settings
-    settingItem: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: Spacing.xl,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.border,
+    statsDivider: {
+      width: 1,
+      backgroundColor: theme.border,
     },
-    settingInfo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.md,
-    },
-    // App Info
-    appInfo: {
-      alignItems: 'center',
-      paddingVertical: Spacing.xl,
-    },
-    // VIP Card
     vipCard: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      backgroundColor: '#FFD70015',
-      borderRadius: BorderRadius.lg,
-      padding: Spacing.lg,
-      marginBottom: Spacing["3xl"],
+      justifyContent: 'space-between',
+      gap: Spacing.sm,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.backgroundOverlay,
+      borderRadius: isClassic ? BorderRadius.md : BorderRadius.lg,
+      padding: isClassic ? Spacing.md : Spacing.lg,
       borderWidth: 1,
-      borderColor: '#FFD70030',
+      borderColor: theme.border,
+      marginBottom: Spacing.lg,
     },
     vipContent: {
       flexDirection: 'row',
@@ -123,44 +117,65 @@ export const createStyles = (theme: Theme) => {
       flex: 1,
     },
     vipIconContainer: {
-      width: 48,
-      height: 48,
-      borderRadius: BorderRadius.full,
-      backgroundColor: '#FFD70025',
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.md,
       justifyContent: 'center',
       alignItems: 'center',
+      backgroundColor: theme.goldSoft,
     },
     vipText: {
       flex: 1,
     },
-    // Stats Card
-    statsCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.lg,
-      padding: Spacing.lg,
-      marginBottom: Spacing['3xl'],
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
+    section: {
+      marginBottom: Spacing.lg,
     },
-    statsItem: {
-      flex: 1,
+    sectionTitle: {
+      marginBottom: Spacing.sm,
+    },
+    quickActions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: isClassic ? 'flex-start' : 'space-between',
+      columnGap: isClassic ? Spacing.sm : 0,
+      rowGap: Spacing.sm,
+    },
+    quickActionItem: {
+      width: isClassic ? '100%' : '48.5%',
+      padding: Spacing.md,
+      borderRadius: isClassic ? BorderRadius.md : BorderRadius.lg,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.backgroundOverlay,
+      borderWidth: 1,
+      borderColor: theme.border,
+      gap: Spacing.sm,
+    },
+    quickActionIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: BorderRadius.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    settingItem: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.sm,
+      padding: Spacing.md,
+      borderRadius: isClassic ? BorderRadius.md : BorderRadius.lg,
+      backgroundColor: isClassic ? theme.backgroundDefault : theme.backgroundOverlay,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginBottom: Spacing.sm,
     },
-    statsText: {
+    settingInfo: {
       flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
     },
-    statsDivider: {
-      width: 1,
-      height: 32,
-      backgroundColor: theme.border,
-      marginHorizontal: Spacing.sm,
+    appInfo: {
+      alignItems: 'center',
+      paddingVertical: Spacing.lg,
     },
   });
 };

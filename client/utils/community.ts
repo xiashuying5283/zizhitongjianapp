@@ -45,6 +45,7 @@ export interface Post {
     id: number;
     username: string;
     nickname: string;
+    avatar?: string | null;
   };
 }
 
@@ -59,7 +60,14 @@ export interface Comment {
     id: number;
     username: string;
     nickname: string;
+    avatar?: string | null;
   };
+  reply_to_user?: {
+    id: number;
+    username: string;
+    nickname: string;
+    avatar?: string | null;
+  } | null;
   replies?: Comment[];
 }
 

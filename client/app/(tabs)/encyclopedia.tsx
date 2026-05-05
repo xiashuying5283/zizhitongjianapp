@@ -1,1 +1,1 @@
-export { default } from "@/screens/encyclopedia";
+export { default } from '@/screens/encyclopedia';

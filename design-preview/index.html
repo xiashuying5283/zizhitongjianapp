@@ -1,0 +1,1417 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>资治通鉴 App · 功能完整设计预览</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f5efe4;
+        --paper-2: #ebe0cf;
+        --card: rgba(255, 252, 246, 0.86);
+        --solid: #fffaf1;
+        --ink: #26221d;
+        --muted: #7d7365;
+        --hair: rgba(58, 48, 34, 0.14);
+        --red: #a74238;
+        --red-soft: #f2d8d4;
+        --teal: #25756e;
+        --teal-soft: #d8ece8;
+        --gold: #ae7b31;
+        --gold-soft: #f1e0bf;
+        --blue: #365f8f;
+        --blue-soft: #dbe7f4;
+        --shadow: 0 18px 48px rgba(57, 44, 28, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          linear-gradient(120deg, rgba(167, 66, 56, 0.07), transparent 42%),
+          linear-gradient(240deg, rgba(37, 117, 110, 0.07), transparent 44%),
+          var(--paper);
+        font-family: "Songti SC", "Noto Serif CJK SC", "STSong", serif;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      .page {
+        min-height: 100vh;
+        padding: 28px;
+      }
+
+      .shell {
+        max-width: 1320px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 24px;
+        align-items: start;
+      }
+
+      .brief {
+        position: sticky;
+        top: 24px;
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+        border: 1px solid var(--hair);
+        border-radius: 8px;
+        background: rgba(255, 250, 241, 0.76);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .kicker {
+        color: var(--red);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 40px;
+        line-height: 1.04;
+      }
+
+      .brief p,
+      .brief li {
+        color: var(--muted);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .brief ul {
+        display: grid;
+        gap: 7px;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+
+      .coverage {
+        display: grid;
+        gap: 8px;
+      }
+
+      .coverage span {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 9px 10px;
+        border: 1px solid var(--hair);
+        border-radius: 8px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.42);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+      }
+
+      .coverage b {
+        color: var(--ink);
+      }
+
+      .stage {
+        display: grid;
+        place-items: center;
+      }
+
+      .phone {
+        width: min(390px, calc(100vw - 38px));
+        height: min(844px, calc(100vh - 38px));
+        min-height: 720px;
+        border: 9px solid #221f1a;
+        border-radius: 34px;
+        overflow: hidden;
+        background: #221f1a;
+        box-shadow: 0 28px 70px rgba(36, 30, 22, 0.28);
+      }
+
+      .screen {
+        height: 100%;
+        display: grid;
+        grid-template-rows: 35px 1fr;
+        border-radius: 25px;
+        overflow: hidden;
+        background: var(--solid);
+      }
+
+      .status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 18px;
+        background: rgba(255, 250, 241, 0.94);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .bars {
+        display: flex;
+        gap: 3px;
+        align-items: end;
+      }
+
+      .bars i {
+        width: 4px;
+        border-radius: 9px;
+        background: var(--ink);
+      }
+
+      .bars i:nth-child(1) { height: 6px; }
+      .bars i:nth-child(2) { height: 9px; }
+      .bars i:nth-child(3) { height: 12px; }
+      .bars i:nth-child(4) { height: 15px; }
+
+      .app {
+        position: relative;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: 1fr 70px;
+        background:
+          linear-gradient(180deg, rgba(255, 250, 241, 0.98), rgba(242, 234, 220, 0.98)),
+          var(--solid);
+      }
+
+      .view {
+        min-height: 0;
+        display: none;
+        overflow: hidden;
+      }
+
+      .view.active {
+        display: block;
+        animation: rise 240ms ease both;
+      }
+
+      @keyframes rise {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .scroll {
+        height: 100%;
+        overflow: auto;
+        padding: 18px 18px 28px;
+        scrollbar-width: none;
+      }
+
+      .scroll::-webkit-scrollbar {
+        width: 0;
+      }
+
+      .top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .top h2 {
+        font-size: 30px;
+        line-height: 1.05;
+      }
+
+      .top p,
+      .meta {
+        margin-top: 5px;
+        color: var(--muted);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+      }
+
+      .seal,
+      .icon {
+        width: 40px;
+        height: 40px;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        color: #fffaf1;
+        background: var(--red);
+        font-weight: 900;
+      }
+
+      .card {
+        border: 1px solid var(--hair);
+        border-radius: 8px;
+        background: var(--card);
+        box-shadow: 0 8px 22px rgba(67, 48, 24, 0.07);
+      }
+
+      .recent {
+        display: grid;
+        gap: 11px;
+        padding: 14px;
+        background:
+          linear-gradient(135deg, rgba(167, 66, 56, 0.12), rgba(174, 123, 49, 0.1)),
+          var(--solid);
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .primary {
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 13px;
+        color: #fffaf1;
+        background: var(--red);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .progress {
+        height: 7px;
+        border-radius: 99px;
+        overflow: hidden;
+        background: rgba(38, 34, 29, 0.12);
+      }
+
+      .progress span {
+        display: block;
+        height: 100%;
+        width: 43%;
+        border-radius: inherit;
+        background: var(--red);
+      }
+
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 13px 0;
+        padding: 11px 12px;
+        border: 1px solid var(--hair);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.55);
+        color: var(--muted);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      .search input {
+        width: 100%;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--ink);
+        font-size: 13px;
+      }
+
+      .chips {
+        display: flex;
+        gap: 8px;
+        overflow: auto;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+      }
+
+      .chip {
+        flex: 0 0 auto;
+        border: 1px solid var(--hair);
+        border-radius: 999px;
+        padding: 7px 12px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.48);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .chip.active {
+        color: #fffaf1;
+        border-color: transparent;
+        background: var(--teal);
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 17px 0 9px;
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      .section-title strong {
+        font-size: 13px;
+      }
+
+      .section-title span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .volume-group {
+        overflow: hidden;
+        margin-bottom: 10px;
+      }
+
+      .group-head {
+        display: flex;
+        justify-content: space-between;
+        padding: 13px;
+        border-bottom: 1px solid var(--hair);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      .group-head span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .volume {
+        width: 100%;
+        border: 0;
+        display: grid;
+        grid-template-columns: 28px 1fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 12px 13px;
+        border-bottom: 1px solid var(--hair);
+        background: transparent;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .volume:last-child {
+        border-bottom: 0;
+      }
+
+      .mini {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        display: grid;
+        place-items: center;
+        color: var(--teal);
+        background: var(--teal-soft);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .tag {
+        border-radius: 999px;
+        padding: 4px 7px;
+        color: var(--red);
+        background: var(--red-soft);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .reader-head {
+        display: grid;
+        gap: 10px;
+        margin: -18px -18px 12px;
+        padding: 13px 14px;
+        border-bottom: 1px solid var(--hair);
+        background: rgba(255, 250, 241, 0.58);
+      }
+
+      .reader-nav {
+        display: grid;
+        grid-template-columns: 36px 1fr 36px;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .icon-btn {
+        position: relative;
+        width: 36px;
+        height: 36px;
+        border: 1px solid var(--hair);
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: rgba(255, 255, 255, 0.52);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        cursor: pointer;
+      }
+
+      .reader-title {
+        min-width: 0;
+        text-align: center;
+      }
+
+      .reader-title strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 16px;
+      }
+
+      .reader-title span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 11px;
+      }
+
+      .reader-progress {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+        color: var(--muted);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 11px;
+      }
+
+      .reader-progress .progress {
+        height: 5px;
+      }
+
+      .reader-progress .progress span {
+        width: 18%;
+      }
+
+      .reader-content {
+        display: grid;
+        gap: 13px;
+      }
+
+      .reader-content[data-mode="original"] .translation,
+      .reader-content[data-mode="original"] .annotation-list,
+      .reader-content[data-mode="translation"] .original,
+      .reader-content[data-mode="translation"] .annotation-list,
+      .reader-content[data-mode="note"] .translation {
+        display: none;
+      }
+
+      .reader-content[data-mode="all"] .annotation-list {
+        display: none;
+      }
+
+      .reader-content.show-related .related-strip {
+        display: flex;
+      }
+
+      .passage {
+        padding: 15px;
+      }
+
+      .passage-title {
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 11px;
+      }
+
+      .passage-title strong {
+        color: var(--red);
+        font-size: 12px;
+      }
+
+      .label {
+        width: fit-content;
+        margin: 10px 0 6px;
+        border-radius: 999px;
+        padding: 3px 7px;
+        color: var(--red);
+        background: var(--red-soft);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 10px;
+        font-weight: 800;
+      }
+
+      .passage p {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.88;
+      }
+
+      .translation p,
+      .annotation-item {
+        color: #4e473f;
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .note-mark {
+        position: relative;
+        top: -0.2em;
+        min-width: 18px;
+        height: 18px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 5px;
+        color: #fffaf1;
+        background: var(--teal);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .note-mark.active {
+        background: var(--red);
+      }
+
+      .annotation-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 11px;
+        border-top: 1px dashed rgba(58, 48, 34, 0.18);
+      }
+
+      .annotation-item {
+        display: grid;
+        grid-template-columns: 24px 1fr;
+        gap: 8px;
+      }
+
+      .annotation-item b {
+        width: 22px;
+        height: 22px;
+        border-radius: 99px;
+        display: grid;
+        place-items: center;
+        color: var(--teal);
+        background: var(--teal-soft);
+      }
+
+      .related-strip {
+        display: none;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 11px;
+        padding-top: 11px;
+        border-top: 1px solid rgba(58, 48, 34, 0.1);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      .related-strip::before {
+        content: "相关";
+        width: 100%;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .related-pill {
+        border: 1px solid var(--hair);
+        border-radius: 999px;
+        padding: 7px 10px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.48);
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .related-pill strong {
+        color: var(--ink);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .feature {
+        min-height: 92px;
+        display: grid;
+        align-content: space-between;
+        padding: 12px;
+      }
+
+      .feature strong {
+        display: block;
+        margin-top: 9px;
+        font-size: 16px;
+      }
+
+      .feature span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 11px;
+      }
+
+      .map-card {
+        position: relative;
+        height: 188px;
+        overflow: hidden;
+        background:
+          linear-gradient(135deg, rgba(37, 117, 110, 0.22), transparent 58%),
+          #efe4d3;
+      }
+
+      .map-card svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      .map-caption {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+        padding: 9px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        border-radius: 8px;
+        background: rgba(255, 250, 241, 0.82);
+        backdrop-filter: blur(10px);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+      }
+
+      .list {
+        display: grid;
+        gap: 9px;
+      }
+
+      .list-item {
+        display: grid;
+        grid-template-columns: 34px 1fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 12px;
+      }
+
+      .post {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 10px;
+        padding: 13px;
+      }
+
+      .post-top {
+        display: grid;
+        grid-template-columns: 34px 1fr auto;
+        gap: 9px;
+        align-items: center;
+      }
+
+      .avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        color: #fffaf1;
+        background: var(--teal);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-weight: 900;
+      }
+
+      .thumbs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 7px;
+      }
+
+      .thumb {
+        height: 58px;
+        border-radius: 8px;
+        background:
+          linear-gradient(135deg, rgba(37, 117, 110, 0.2), transparent),
+          var(--paper-2);
+      }
+
+      .stats {
+        display: flex;
+        gap: 13px;
+        color: var(--muted);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+      }
+
+      .profile-card {
+        display: grid;
+        grid-template-columns: 54px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px;
+      }
+
+      .big-avatar {
+        width: 54px;
+        height: 54px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        color: #fffaf1;
+        background: var(--red);
+        font-size: 24px;
+        font-weight: 900;
+      }
+
+      .stat-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        overflow: hidden;
+        margin: 12px 0;
+      }
+
+      .stat {
+        display: grid;
+        gap: 4px;
+        place-items: center;
+        padding: 13px 8px;
+        border-right: 1px solid var(--hair);
+        background: rgba(255, 255, 255, 0.38);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      .stat:last-child {
+        border-right: 0;
+      }
+
+      .stat strong {
+        color: var(--red);
+        font-size: 16px;
+      }
+
+      .stat span {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .nav {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border-top: 1px solid var(--hair);
+        background: rgba(255, 250, 241, 0.94);
+      }
+
+      .nav button {
+        border: 0;
+        display: grid;
+        place-items: center;
+        align-content: center;
+        gap: 4px;
+        color: var(--muted);
+        background: transparent;
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .nav button::before {
+        content: attr(data-icon);
+        font-size: 20px;
+        line-height: 1;
+      }
+
+      .nav button.active {
+        color: var(--red);
+      }
+
+      .drawer {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 82px;
+        z-index: 10;
+        display: none;
+        gap: 12px;
+        max-height: 510px;
+        overflow: auto;
+        padding: 14px;
+        border: 1px solid rgba(58, 48, 34, 0.16);
+        border-radius: 10px;
+        background: rgba(255, 250, 241, 0.97);
+        box-shadow: 0 18px 42px rgba(36, 30, 22, 0.24);
+        backdrop-filter: blur(18px);
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      .drawer.active {
+        display: grid;
+        animation: rise 200ms ease both;
+      }
+
+      .drawer-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .drawer-title {
+        color: var(--teal);
+        font-size: 15px;
+      }
+
+      .drawer-close {
+        width: 28px;
+        height: 28px;
+        border: 1px solid var(--hair);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.5);
+        cursor: pointer;
+      }
+
+      .drawer-body {
+        color: #4d463d;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .settings-panel,
+      .setting-group {
+        display: grid;
+        gap: 11px;
+      }
+
+      .setting-label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .mode-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+      }
+
+      .mode-option,
+      .settings-action {
+        min-height: 38px;
+        border: 1px solid var(--hair);
+        border-radius: 8px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.5);
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .mode-option.active,
+      .settings-action.active {
+        color: #fffaf1;
+        border-color: transparent;
+        background: var(--red);
+      }
+
+      .switch-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 10px;
+        border: 1px solid var(--hair);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.42);
+      }
+
+      .switch-row span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .switch {
+        width: 44px;
+        height: 24px;
+        border: 0;
+        border-radius: 99px;
+        padding: 3px;
+        background: rgba(38, 34, 29, 0.18);
+        cursor: pointer;
+      }
+
+      .switch::before {
+        content: "";
+        display: block;
+        width: 18px;
+        height: 18px;
+        border-radius: 99px;
+        background: #fffaf1;
+        transition: transform 180ms ease;
+      }
+
+      .switch.active {
+        background: var(--teal);
+      }
+
+      .switch.active::before {
+        transform: translateX(20px);
+      }
+
+      @media (max-width: 860px) {
+        .page { padding: 0; }
+        .shell { display: block; }
+        .brief { display: none; }
+        .phone {
+          width: 100vw;
+          height: 100vh;
+          min-height: 0;
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+        }
+        .screen { border-radius: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="shell">
+        <aside class="brief">
+          <div class="kicker">Huashu Design · Full Feature Preview</div>
+          <h1>资治通鉴<br />功能完整原型</h1>
+          <p>这版按当前项目真实功能重排：底部仍收束为四个主任务，但探索里覆盖百科和地图；阅读器改为沉浸式，复杂功能进入设置或上下文面板。</p>
+          <div class="coverage">
+            <span><b>阅读</b> 最近阅读、全文搜索、朝代卷目</span>
+            <span><b>阅读器</b> 目录、字体、背景、模式、TTS、书签、笔记</span>
+            <span><b>探索</b> 人物、官职、大事记、地图、名句、年号</span>
+            <span><b>地图</b> 地名对照、时间轴、战役、图层</span>
+            <span><b>社区</b> 分类、我的帖子、发帖、通知、图文</span>
+            <span><b>我的</b> 登录、会员、书签、笔记、统计、设置、反馈</span>
+          </div>
+        </aside>
+
+        <div class="stage">
+          <div class="phone">
+            <div class="screen">
+              <div class="status">
+                <span>9:41</span>
+                <span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+              </div>
+
+              <div class="app">
+                <section class="view active" id="reading">
+                  <div class="scroll">
+                    <div class="top">
+                      <div>
+                        <h2>资治通鉴</h2>
+                        <p>编年体通史 · 胡三省音注</p>
+                      </div>
+                      <div class="seal">鉴</div>
+                    </div>
+
+                    <article class="card recent">
+                      <div class="row">
+                        <div>
+                          <div class="kicker">上次读到</div>
+                          <h3>第十二卷 · 汉纪四</h3>
+                          <p class="meta">高帝五年 · 已读 43%</p>
+                        </div>
+                        <button class="primary" type="button" data-open-reader>继续</button>
+                      </div>
+                      <div class="progress"><span></span></div>
+                    </article>
+
+                    <label class="search">
+                      <span>⌕</span>
+                      <input placeholder="搜索卷目、原文、译文..." />
+                    </label>
+
+                    <div class="chips">
+                      <button class="chip active" type="button">全部</button>
+                      <button class="chip" type="button">周</button>
+                      <button class="chip" type="button">秦</button>
+                      <button class="chip" type="button">汉</button>
+                      <button class="chip" type="button">魏晋</button>
+                      <button class="chip" type="button">唐</button>
+                    </div>
+
+                    <div class="section-title"><strong>卷目</strong><span>294 卷</span></div>
+                    <article class="card volume-group">
+                      <div class="group-head"><strong>周纪</strong><span>5 卷 · 已展开</span></div>
+                      <button class="volume" type="button" data-open-reader>
+                        <span class="mini">书</span>
+                        <div><strong>第1卷 · 周纪一</strong><p class="meta">前403-前369年</p></div>
+                        <span class="tag">在读</span>
+                      </button>
+                      <button class="volume" type="button">
+                        <span class="mini">书</span>
+                        <div><strong>第2卷 · 周纪二</strong><p class="meta">前368-前321年</p></div>
+                        <span class="tag">未读</span>
+                      </button>
+                      <button class="volume" type="button">
+                        <span class="mini">书</span>
+                        <div><strong>第3卷 · 周纪三</strong><p class="meta">前320-前298年</p></div>
+                        <span class="tag">未读</span>
+                      </button>
+                    </article>
+                    <article class="card volume-group">
+                      <div class="group-head"><strong>秦纪</strong><span>3 卷</span></div>
+                    </article>
+                  </div>
+                </section>
+
+                <section class="view" id="reader">
+                  <div class="scroll">
+                    <div class="reader-head">
+                      <div class="reader-nav">
+                        <button class="icon-btn" type="button" data-back-reader aria-label="返回">‹</button>
+                        <div class="reader-title">
+                          <strong>第1卷 · 周纪一</strong>
+                          <span>威烈王二十三年至安王二十六年</span>
+                        </div>
+                        <button class="icon-btn" type="button" data-open-settings aria-label="阅读设置">字</button>
+                      </div>
+                      <div class="reader-progress">
+                        <div class="progress"><span></span></div>
+                        <span>18%</span>
+                      </div>
+                    </div>
+
+                    <div class="reader-content" data-mode="all">
+                      <article class="card passage">
+                        <div class="passage-title"><strong>周威烈王二十三年</strong><span>开篇</span></div>
+                        <section class="original">
+                          <div class="label">原文</div>
+                          <p>初命晋大夫魏斯<button class="note-mark" data-note-title="魏斯" data-note-body="胡三省注：魏斯，文侯也。魏氏本为晋大夫，此处周天子命之为诸侯。">1</button>、赵籍<button class="note-mark" data-note-title="赵籍" data-note-body="胡三省注：赵籍，烈侯也。赵氏与魏、韩并为晋卿。">2</button>、韩虔<button class="note-mark" data-note-title="韩虔" data-note-body="胡三省注：韩虔，景侯也。韩氏受命，与魏、赵并立。">3</button>为诸侯<button class="note-mark" data-note-title="为诸侯" data-note-body="胡三省注：三家本为晋大夫，周命之为诸侯，自是天子之权益微矣。">4</button>。</p>
+                        </section>
+                        <div class="annotation-list">
+                          <div class="annotation-item"><b>1</b><span><strong>魏斯：</strong>文侯也。魏氏本为晋大夫，此处周天子命之为诸侯。</span></div>
+                          <div class="annotation-item"><b>2</b><span><strong>赵籍：</strong>烈侯也。赵氏与魏、韩并为晋卿。</span></div>
+                          <div class="annotation-item"><b>3</b><span><strong>韩虔：</strong>景侯也。韩氏受命，与魏、赵并立。</span></div>
+                          <div class="annotation-item"><b>4</b><span><strong>为诸侯：</strong>周命之为诸侯，自是天子之权益微矣。</span></div>
+                        </div>
+                        <section class="translation">
+                          <div class="label" style="color:var(--gold);background:var(--gold-soft)">译文</div>
+                          <p>周威烈王开始正式册命晋国的大夫魏斯、赵籍、韩虔为诸侯。三家由此取得名义上的合法地位，晋国旧有格局被彻底改写。</p>
+                        </section>
+                        <div class="related-strip">
+                          <button class="related-pill" type="button" data-related-title="相关人物" data-related-items="魏斯|魏文侯 · 三家分晋之一;赵籍|赵烈侯 · 赵氏宗主;韩虔|韩景侯 · 韩国开国君主"><strong>人物</strong> 3</button>
+                          <button class="related-pill" type="button" data-related-title="相关制度" data-related-items="诸侯|周礼名分中的封国君主;大夫|诸侯国高级贵族"><strong>制度</strong> 2</button>
+                        </div>
+                      </article>
+
+                      <article class="card passage">
+                        <div class="passage-title"><strong>臣光曰</strong><span>纲目评论</span></div>
+                        <section class="original">
+                          <div class="label">原文</div>
+                          <p>臣光曰：臣闻天子之职莫大于礼<button class="note-mark" data-note-title="礼" data-note-body="胡三省注：礼者，所以辨上下、定名分。">5</button>，礼莫大于分<button class="note-mark" data-note-title="分" data-note-body="胡三省注：分，谓君臣上下之分。">6</button>，分莫大于名<button class="note-mark" data-note-title="名" data-note-body="胡三省注：名以正实，名分既坏，则上下无统。">7</button>。</p>
+                        </section>
+                        <div class="annotation-list">
+                          <div class="annotation-item"><b>5</b><span><strong>礼：</strong>所以辨上下、定名分。</span></div>
+                          <div class="annotation-item"><b>6</b><span><strong>分：</strong>谓君臣上下之分。</span></div>
+                          <div class="annotation-item"><b>7</b><span><strong>名：</strong>名以正实，名分既坏，则上下无统。</span></div>
+                        </div>
+                        <section class="translation">
+                          <div class="label" style="color:var(--gold);background:var(--gold-soft)">译文</div>
+                          <p>司马光评论说：天子的职责没有比维护礼制更重要的；礼制的关键在于确定等级分际，而等级分际最要紧的是名义与身份。</p>
+                        </section>
+                        <div class="related-strip">
+                          <button class="related-pill" type="button" data-related-title="相关概念" data-related-items="礼|政治秩序原则;分|君臣上下边界;名|身份名义与合法性"><strong>概念</strong> 3</button>
+                        </div>
+                      </article>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="view" id="explore">
+                  <div class="scroll">
+                    <div class="top">
+                      <div>
+                        <h2>探索</h2>
+                        <p>百科知识与历史地图合并入口</p>
+                      </div>
+                      <div class="seal" style="background:var(--teal)">探</div>
+                    </div>
+                    <label class="search"><span>⌕</span><input placeholder="搜索人物、官职、地名、事件..." /></label>
+                    <div class="grid">
+                      <article class="card feature"><span class="mini">人</span><div><strong>人物</strong><span>人物库与关系图谱</span></div></article>
+                      <article class="card feature"><span class="mini">职</span><div><strong>官职</strong><span>品级制度与沿革</span></div></article>
+                      <article class="card feature"><span class="mini">事</span><div><strong>大事记</strong><span>历史事件时间线</span></div></article>
+                      <article class="card feature"><span class="mini">句</span><div><strong>典著名句</strong><span>经典语录摘录</span></div></article>
+                      <article class="card feature"><span class="mini">年</span><div><strong>年号对照</strong><span>帝王年号转换</span></div></article>
+                      <article class="card feature"><span class="mini">谱</span><div><strong>关系图谱</strong><span>人物、派系、亲缘</span></div></article>
+                    </div>
+
+                    <div class="section-title"><strong>历史地图</strong><span>地图 / 专题 / 图层</span></div>
+                    <article class="card map-card">
+                      <svg viewBox="0 0 320 190" aria-hidden="true">
+                        <path d="M45 132 C80 85, 110 96, 132 62 C160 22, 197 52, 220 34 C250 12, 282 28, 292 61 C304 99, 265 122, 230 116 C194 111, 185 158, 145 158 C101 158, 83 169, 45 132Z" fill="rgba(37,117,110,.22)" stroke="rgba(37,117,110,.72)" stroke-width="2" />
+                        <path d="M86 126 C118 99, 163 104, 207 72 C234 53, 258 58, 282 72" fill="none" stroke="rgba(167,66,56,.72)" stroke-width="3" stroke-dasharray="6 5" />
+                        <circle cx="92" cy="122" r="5" fill="#a74238" />
+                        <circle cx="204" cy="75" r="5" fill="#a74238" />
+                        <circle cx="279" cy="72" r="5" fill="#a74238" />
+                      </svg>
+                      <div class="map-caption"><strong>安史之乱</strong><span>755-763 · 唐</span></div>
+                    </article>
+                    <div class="list" style="margin-top:10px">
+                      <article class="card list-item"><span class="mini">名</span><div><strong>古今地名对照</strong><p class="meta">范阳、洛阳、长安</p></div><span>›</span></article>
+                      <article class="card list-item"><span class="mini">时</span><div><strong>时间轴地图</strong><p class="meta">随年份展示疆域变迁</p></div><span>›</span></article>
+                      <article class="card list-item"><span class="mini">线</span><div><strong>战役路线</strong><p class="meta">楚汉争霸、三国鼎立</p></div><span>›</span></article>
+                      <article class="card list-item"><span class="mini">层</span><div><strong>图层叠加</strong><p class="meta">行政区划、地形、水系、交通</p></div><span>›</span></article>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="view" id="community">
+                  <div class="scroll">
+                    <div class="top">
+                      <div>
+                        <h2>读书社区</h2>
+                        <p>讨论、提问、分享、公告</p>
+                      </div>
+                      <div class="row">
+                        <button class="icon-btn" type="button">铃</button>
+                        <button class="icon-btn" type="button">写</button>
+                      </div>
+                    </div>
+                    <div class="chips">
+                      <button class="chip active" type="button">全部</button>
+                      <button class="chip" type="button">讨论</button>
+                      <button class="chip" type="button">提问</button>
+                      <button class="chip" type="button">分享</button>
+                      <button class="chip" type="button">公告</button>
+                      <button class="chip" type="button">我的</button>
+                    </div>
+                    <article class="card post">
+                      <div class="post-top">
+                        <div class="avatar">陈</div>
+                        <div><strong>陈观史</strong><p class="meta">12 分钟前 · 讨论</p></div>
+                        <span class="tag">可编辑</span>
+                      </div>
+                      <h3>读到“创业垂统”，感觉像组织治理教材</h3>
+                      <p class="meta">这段对君臣关系的处理很有意思，制度如何抵抗个人性格的波动...</p>
+                      <div class="thumbs"><span class="thumb"></span><span class="thumb"></span><span class="thumb"></span></div>
+                      <div class="stats"><span>赞 23</span><span>评 6</span><span>收藏 4</span></div>
+                    </article>
+                    <article class="card post">
+                      <div class="post-top">
+                        <div class="avatar" style="background:var(--red)">李</div>
+                        <div><strong>李小注</strong><p class="meta">1 小时前 · 提问</p></div>
+                        <span class="tag">通知 3</span>
+                      </div>
+                      <h3>胡三省注里的这个地名，是现在的保定附近吗？</h3>
+                      <p class="meta">地图模式里能看到一条线，但我不确定对应的是郡还是县。</p>
+                      <div class="stats"><span>赞 9</span><span>评 11</span></div>
+                    </article>
+                  </div>
+                </section>
+
+                <section class="view" id="profile">
+                  <div class="scroll">
+                    <article class="card profile-card">
+                      <div class="big-avatar">游</div>
+                      <div><h2 style="font-size:22px">游客模式</h2><p class="meta">登录后同步阅读进度</p></div>
+                      <button class="primary" type="button">登录</button>
+                    </article>
+                    <div class="card stat-row">
+                      <div class="stat"><strong>12h</strong><span>累计阅读</span></div>
+                      <div class="stat"><strong>8天</strong><span>连续阅读</span></div>
+                      <div class="stat"><strong>34天</strong><span>总天数</span></div>
+                    </div>
+                    <article class="card list-item" style="background:linear-gradient(135deg,rgba(174,123,49,.22),rgba(255,250,241,.72)),var(--solid)">
+                      <span class="mini" style="color:var(--gold);background:var(--gold-soft)">冠</span>
+                      <div><strong>开通会员</strong><p class="meta">解锁全部功能，享受极致体验</p></div>
+                      <span>›</span>
+                    </article>
+                    <div class="section-title"><strong>快捷入口</strong><span>常用</span></div>
+                    <div class="grid">
+                      <article class="card feature"><span class="mini">卷</span><div><strong>全部卷目</strong><span>回到阅读目录</span></div></article>
+                      <article class="card feature"><span class="mini">签</span><div><strong>我的书签</strong><span>保存的位置</span></div></article>
+                      <article class="card feature"><span class="mini">注</span><div><strong>我的笔记</strong><span>划线与批注</span></div></article>
+                      <article class="card feature"><span class="mini">图</span><div><strong>阅读统计</strong><span>时长与连续天数</span></div></article>
+                    </div>
+                    <div class="section-title"><strong>设置与支持</strong><span></span></div>
+                    <div class="list">
+                      <article class="card list-item"><span class="mini">设</span><div><strong>通用设置 / 字体 / 深色模式</strong><p class="meta">偏好、主题、简繁字体</p></div><span>›</span></article>
+                      <article class="card list-item"><span class="mini">问</span><div><strong>意见反馈</strong><p class="meta">提交问题与建议</p></div><span>›</span></article>
+                      <article class="card list-item"><span class="mini">联</span><div><strong>联系作者</strong><p class="meta">帮助与支持</p></div><span>›</span></article>
+                      <article class="card list-item"><span class="mini">介</span><div><strong>关于资治通鉴</strong><p class="meta">版本 v1.0.0</p></div><span>›</span></article>
+                    </div>
+                  </div>
+                </section>
+
+                <nav class="nav" aria-label="主导航">
+                  <button class="active" type="button" data-view="reading" data-icon="卷">阅读</button>
+                  <button type="button" data-view="explore" data-icon="舆">探索</button>
+                  <button type="button" data-view="community" data-icon="谈">社区</button>
+                  <button type="button" data-view="profile" data-icon="我">我的</button>
+                </nav>
+
+                <aside class="drawer" aria-live="polite">
+                  <div class="drawer-head">
+                    <h3 class="drawer-title">阅读设置</h3>
+                    <button class="drawer-close" type="button" aria-label="关闭">×</button>
+                  </div>
+                  <div class="drawer-body"></div>
+                </aside>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const views = document.querySelectorAll(".view");
+      const navButtons = document.querySelectorAll(".nav button");
+      const drawer = document.querySelector(".drawer");
+      const drawerTitle = document.querySelector(".drawer-title");
+      const drawerBody = document.querySelector(".drawer-body");
+      const readerContent = document.querySelector(".reader-content");
+      const noteMarks = document.querySelectorAll(".note-mark");
+
+      const modes = {
+        all: "原文+译",
+        original: "纯原文",
+        note: "原文+胡注",
+        translation: "纯译文",
+      };
+
+      function showView(id) {
+        views.forEach((view) => view.classList.toggle("active", view.id === id));
+        navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === id || (id === "reader" && button.dataset.view === "reading")));
+        closeDrawer();
+      }
+
+      function closeDrawer() {
+        drawer.classList.remove("active");
+        noteMarks.forEach((mark) => mark.classList.remove("active"));
+      }
+
+      navButtons.forEach((button) => {
+        button.addEventListener("click", () => showView(button.dataset.view));
+      });
+
+      document.querySelectorAll("[data-open-reader]").forEach((button) => {
+        button.addEventListener("click", () => showView("reader"));
+      });
+
+      document.querySelector("[data-back-reader]").addEventListener("click", () => showView("reading"));
+      document.querySelector(".drawer-close").addEventListener("click", closeDrawer);
+
+      document.querySelector("[data-open-settings]").addEventListener("click", () => {
+        drawerTitle.textContent = "阅读设置";
+        drawerBody.innerHTML = `
+          <div class="settings-panel">
+            <div class="setting-group">
+              <div class="setting-label">内容模式</div>
+              <div class="mode-grid">
+                ${Object.entries(modes).map(([key, label]) => `<button class="mode-option${readerContent.dataset.mode === key ? " active" : ""}" type="button" data-mode="${key}">${label}</button>`).join("")}
+              </div>
+            </div>
+            <div class="setting-group">
+              <div class="setting-label">阅读工具</div>
+              <div class="mode-grid">
+                <button class="settings-action" type="button" data-tool="catalog">目录</button>
+                <button class="settings-action" type="button" data-tool="font">字体</button>
+                <button class="settings-action" type="button" data-tool="theme">背景</button>
+                <button class="settings-action" type="button" data-tool="tts">朗读</button>
+              </div>
+            </div>
+            <div class="setting-group">
+              <div class="setting-label">排版与文字</div>
+              <div class="mode-grid">
+                <button class="settings-action active" type="button">横排</button>
+                <button class="settings-action" type="button">竖排</button>
+                <button class="settings-action active" type="button">简体</button>
+                <button class="settings-action" type="button">繁体</button>
+              </div>
+            </div>
+            <div class="setting-group">
+              <div class="setting-label">阅读资产</div>
+              <div class="mode-grid">
+                <button class="settings-action" type="button">加书签</button>
+                <button class="settings-action" type="button">我的笔记</button>
+              </div>
+            </div>
+            <div class="switch-row">
+              <div><strong>显示段落关联</strong><span>人物、地名、制度等扩展入口</span></div>
+              <button class="switch${readerContent.classList.contains("show-related") ? " active" : ""}" type="button" data-toggle-related aria-label="显示段落关联"></button>
+            </div>
+          </div>
+        `;
+        drawer.classList.add("active");
+      });
+
+      drawerBody.addEventListener("click", (event) => {
+        const mode = event.target.closest("[data-mode]");
+        if (mode) {
+          readerContent.dataset.mode = mode.dataset.mode;
+          drawerBody.querySelectorAll("[data-mode]").forEach((button) => button.classList.toggle("active", button === mode));
+          return;
+        }
+
+        const toggle = event.target.closest("[data-toggle-related]");
+        if (toggle) {
+          readerContent.classList.toggle("show-related");
+          toggle.classList.toggle("active", readerContent.classList.contains("show-related"));
+          return;
+        }
+
+        const tool = event.target.closest("[data-tool]");
+        if (tool) {
+          const map = {
+            catalog: "目录：按帝王、年号、年份展开，点击后跳到对应段落。",
+            font: "字体：小 / 中 / 大 / 特大，宋体 / 系统字体，并保存到阅读偏好。",
+            theme: "背景：亮色、护眼、暗色，适配长时间阅读。",
+            tts: "朗读：选择音色、语速，按条目播放并高亮当前段落。",
+          };
+          drawerTitle.textContent = tool.textContent;
+          drawerBody.textContent = map[tool.dataset.tool];
+        }
+      });
+
+      noteMarks.forEach((mark) => {
+        mark.addEventListener("click", () => {
+          noteMarks.forEach((item) => item.classList.toggle("active", item === mark));
+          drawerTitle.textContent = `胡三省注 · ${mark.dataset.noteTitle}`;
+          drawerBody.textContent = mark.dataset.noteBody;
+          drawer.classList.add("active");
+        });
+      });
+
+      document.querySelectorAll(".related-pill").forEach((pill) => {
+        pill.addEventListener("click", () => {
+          const items = pill.dataset.relatedItems.split(";").map((entry) => {
+            const [name, detail] = entry.split("|");
+            return `<article class="card list-item"><span class="mini">${name.slice(0, 1)}</span><div><strong>${name}</strong><p class="meta">${detail}</p></div><span>›</span></article>`;
+          });
+          drawerTitle.textContent = pill.dataset.relatedTitle;
+          drawerBody.innerHTML = `<div class="list">${items.join("")}</div>`;
+          drawer.classList.add("active");
+        });
+      });
+
+      document.querySelectorAll(".chips .chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          chip.parentElement.querySelectorAll(".chip").forEach((item) => item.classList.remove("active"));
+          chip.classList.add("active");
+        });
+      });
+    </script>
+  </body>
+</html>

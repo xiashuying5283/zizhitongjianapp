@@ -62,8 +62,7 @@ export default function VipScreen() {
   ];
 
   const handleSubscribe = () => {
-    // 对接支付SDK（待开发）
-    alert('功能开发中，敬请期待');
+    alert('会员功能仍在筹备中，当前页面用于展示规划权益。');
   };
 
   return (
@@ -83,10 +82,10 @@ export default function VipScreen() {
             <FontAwesome6 name="crown" size={40} color="#FFD700" />
           </View>
           <ThemedText variant="h2" color={theme.textPrimary} style={styles.vipTitle}>
-            开通会员
+            会员功能规划
           </ThemedText>
           <ThemedText variant="body" color={theme.textSecondary} style={styles.vipSubtitle}>
-            解锁全部功能，享受极致阅读体验
+            会员体系仍在筹备中，以下为计划中的权益方向
           </ThemedText>
         </View>
 
@@ -165,14 +164,14 @@ export default function VipScreen() {
 
         {/* Subscribe Button */}
         <TouchableOpacity style={styles.subscribeButton} onPress={handleSubscribe}>
-          <ThemedText variant="body" color={theme.buttonPrimaryText}>立即开通</ThemedText>
+          <ThemedText variant="body" color={theme.buttonPrimaryText}>查看上线说明</ThemedText>
         </TouchableOpacity>
 
         {/* Terms */}
         <View style={styles.terms}>
           <ThemedText variant="caption" color={theme.textMuted} style={styles.termsText}>
-            开通即表示同意《会员服务协议》{'\n'}
-            会员权益有效期内可享受所有会员特权
+            当前暂未开放购买，页面内容为功能规划展示{'\n'}
+            实际上线权益请以后续正式说明为准
           </ThemedText>
         </View>
       </ScrollView>

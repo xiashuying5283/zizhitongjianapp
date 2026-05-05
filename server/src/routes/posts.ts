@@ -14,6 +14,7 @@ function attachUser(rows: any[], userMap: Map<number, any>) {
       id: userMap.get(row.user_id).id,
       username: userMap.get(row.user_id).username,
       nickname: userMap.get(row.user_id).nickname,
+      avatar: userMap.get(row.user_id).avatar,
     } : null,
   }));
 }
@@ -51,7 +52,7 @@ router.get('/', async (req, res) => {
     // 获取帖子
     const result = await pool.query(
       `SELECT p.id, p.title, p.content, p.category, p.like_count, p.comment_count, p.is_pinned, p.created_at, p.updated_at, p.user_id,
-              u.id as user_id_col, u.username, u.nickname
+              u.id as user_id_col, u.username, u.nickname, u.avatar
        FROM posts p
        LEFT JOIN users u ON p.user_id = u.id
        ${where}
@@ -75,6 +76,7 @@ router.get('/', async (req, res) => {
         id: row.user_id_col,
         username: row.username,
         nickname: row.nickname,
+        avatar: row.avatar,
       } : null,
     }));
 
@@ -107,7 +109,7 @@ router.get('/:id', async (req, res) => {
 
     const result = await pool.query(
       `SELECT p.id, p.title, p.content, p.category, p.like_count, p.comment_count, p.is_pinned, p.created_at, p.updated_at, p.user_id,
-              u.id as user_id_col, u.username, u.nickname
+              u.id as user_id_col, u.username, u.nickname, u.avatar
        FROM posts p
        LEFT JOIN users u ON p.user_id = u.id
        WHERE p.id = $1`,
@@ -133,6 +135,7 @@ router.get('/:id', async (req, res) => {
         id: row.user_id_col,
         username: row.username,
         nickname: row.nickname,
+        avatar: row.avatar,
       } : null,
     };
 
@@ -173,7 +176,7 @@ router.post('/', async (req, res) => {
     const row = result.rows[0];
 
     // 获取用户信息
-    const userResult = await pool.query('SELECT id, username, nickname FROM users WHERE id = $1', [userId]);
+    const userResult = await pool.query('SELECT id, username, nickname, avatar FROM users WHERE id = $1', [userId]);
 
     const post = {
       ...row,
@@ -181,6 +184,7 @@ router.post('/', async (req, res) => {
         id: userResult.rows[0].id,
         username: userResult.rows[0].username,
         nickname: userResult.rows[0].nickname,
+        avatar: userResult.rows[0].avatar,
       } : null,
     };
 

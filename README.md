@@ -52,6 +52,7 @@ pnpm dev
 ```
 
 前端默认地址: `http://localhost:8081`，后端 API: `http://localhost:9091`
+开发启动时，`client` 会自动识别当前电脑的局域网 IP，并把 `EXPO_PUBLIC_BACKEND_BASE_URL` 指向 `http://<当前IP>:9091`，所以换电脑或换网络后通常不需要手改地址。
 
 ## 环境配置
 
@@ -60,6 +61,6 @@ pnpm dev
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/zizhitongjian
 PORT=9091
-EXPO_PUBLIC_BACKEND_BASE_URL=http://localhost:9091
+EXPO_PUBLIC_BACKEND_BASE_URL=
 APP_NAME=资治通鉴深度阅读App
 ```

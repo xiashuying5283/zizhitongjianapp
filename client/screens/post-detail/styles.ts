@@ -4,13 +4,15 @@ import { Spacing, BorderRadius, Theme } from '@/constants/theme';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export const createStyles = (theme: Theme) => {
+  const isClassic = false;
+
   return StyleSheet.create({
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: Spacing["2xl"],
-      paddingVertical: Spacing.lg,
+      paddingHorizontal: isClassic ? Spacing.lg : Spacing["2xl"],
+      paddingVertical: isClassic ? Spacing.md : Spacing.lg,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.border,
     },
@@ -27,11 +29,11 @@ export const createStyles = (theme: Theme) => {
     },
     scrollContent: {
       flexGrow: 1,
-      paddingBottom: Spacing["5xl"],
+      paddingBottom: isClassic ? Spacing.lg : Spacing["2xl"],
     },
     postContainer: {
-      padding: Spacing["2xl"],
-      borderBottomWidth: Spacing.md,
+      padding: isClassic ? Spacing.lg : Spacing["2xl"],
+      borderBottomWidth: isClassic ? StyleSheet.hairlineWidth : Spacing.md,
       borderBottomColor: theme.backgroundTertiary,
     },
     postHeader: {
@@ -46,6 +48,11 @@ export const createStyles = (theme: Theme) => {
       backgroundColor: theme.primary,
       justifyContent: 'center',
       alignItems: 'center',
+      overflow: 'hidden',
+    },
+    avatarImage: {
+      width: '100%',
+      height: '100%',
     },
     smallAvatar: {
       width: 32,
@@ -67,8 +74,8 @@ export const createStyles = (theme: Theme) => {
     },
     singleImage: {
       width: '100%',
-      height: 200,
-      borderRadius: BorderRadius.md,
+      height: isClassic ? 184 : 200,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
       marginTop: Spacing.md,
     },
     grid2: {
@@ -79,7 +86,7 @@ export const createStyles = (theme: Theme) => {
     gridImage2: {
       flex: 1,
       height: 120,
-      borderRadius: BorderRadius.md,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
     },
     imageGrid: {
       flexDirection: 'row',
@@ -95,7 +102,7 @@ export const createStyles = (theme: Theme) => {
     gridImage: {
       width: '100%',
       height: '100%',
-      borderRadius: BorderRadius.md,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
     },
     moreImagesOverlay: {
       position: 'absolute',
@@ -104,7 +111,7 @@ export const createStyles = (theme: Theme) => {
       width: '100%',
       height: '100%',
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      borderRadius: BorderRadius.md,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -118,7 +125,7 @@ export const createStyles = (theme: Theme) => {
       gap: Spacing.xs,
     },
     commentsSection: {
-      padding: Spacing["2xl"],
+      padding: isClassic ? Spacing.lg : Spacing["2xl"],
     },
     commentsTitle: {
       marginBottom: Spacing.lg,
@@ -128,51 +135,176 @@ export const createStyles = (theme: Theme) => {
       alignItems: 'center',
     },
     commentItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
       marginBottom: Spacing.lg,
-      padding: Spacing.lg,
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.lg,
     },
-    replyItem: {
-      marginLeft: Spacing["3xl"],
-      marginTop: Spacing.sm,
-      marginBottom: Spacing.sm,
-      padding: Spacing.md,
-      backgroundColor: theme.backgroundTertiary,
+    commentAvatar: {
+      width: 40,
+      height: 40,
+      marginTop: 2,
     },
-    commentHeader: {
+    commentBody: {
+      flex: 1,
+      minWidth: 0,
+      marginLeft: Spacing.md,
+    },
+    commentSurface: {
+      paddingTop: 2,
+    },
+    commentNameRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: Spacing.sm,
+      flexWrap: 'wrap',
+      gap: Spacing.xs,
     },
-    commentMeta: {
-      marginLeft: Spacing.sm,
-      flex: 1,
-    },
-    deleteCommentButton: {
-      padding: Spacing.xs,
+    authorBadge: {
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.primaryLight,
     },
     highlightedComment: {
-      backgroundColor: theme.accent + '15', // 半透明背景
-      borderWidth: 1.5,
+      backgroundColor: theme.accent + '10',
+      borderWidth: 1,
       borderColor: theme.accent,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: Spacing.xs,
     },
     commentContent: {
-      lineHeight: 22,
-      marginBottom: Spacing.sm,
+      lineHeight: 28,
+      marginTop: 6,
+      fontSize: 18,
     },
-    commentActions: {
+    commentFooter: {
       flexDirection: 'row',
-      gap: Spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: Spacing.xs,
+    },
+    commentMetaLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+    },
+    replyLikeAction: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      minWidth: 40,
+      justifyContent: 'flex-end',
     },
     repliesContainer: {
       marginTop: Spacing.sm,
+      paddingLeft: 0,
+    },
+    threadReplyRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      minWidth: 0,
+    },
+    threadReplyGap: {
+      marginTop: Spacing.md,
+    },
+    replyAvatar: {
+      width: 28,
+      height: 28,
+      marginTop: 2,
+    },
+    threadReplyBody: {
+      flex: 1,
+      minWidth: 0,
+      marginLeft: Spacing.sm,
+    },
+    threadReplyItem: {
+      paddingTop: 2,
+    },
+    replyContentText: {
+      lineHeight: 24,
+      marginTop: 4,
+    },
+    richContentBlock: {
+      gap: Spacing.sm,
+      marginTop: 4,
+    },
+    highlightedReply: {
+      backgroundColor: theme.accent + '12',
+      borderWidth: 1,
+      borderColor: theme.accent,
+      borderRadius: isClassic ? BorderRadius.sm : BorderRadius.md,
+      paddingHorizontal: Spacing.sm,
+    },
+    threadReplyMetaBar: {
+      display: 'none',
     },
     commentInputContainer: {
-      padding: Spacing.lg,
+      paddingTop: Spacing.md,
+      paddingHorizontal: Spacing.lg,
+      paddingBottom: Spacing.sm,
       backgroundColor: theme.backgroundDefault,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: theme.border,
+    },
+    collapsedComposer: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    collapsedComposerField: {
+      flex: 1,
+      minHeight: 40,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundSecondary,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: Spacing.md,
+    },
+    collapsedComposerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+    },
+    collapsedActionButton: {
+      width: 36,
+      height: 36,
+      borderRadius: BorderRadius.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.backgroundSecondary,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    commentImagePreviewRow: {
+      gap: Spacing.sm,
+      paddingBottom: Spacing.sm,
+      paddingRight: Spacing.xs,
+    },
+    commentImagePreviewItem: {
+      width: 64,
+      height: 64,
+      borderRadius: BorderRadius.md,
+      overflow: 'hidden',
+      position: 'relative',
+    },
+    commentImagePreview: {
+      width: '100%',
+      height: '100%',
+    },
+    commentImageRemoveButton: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: 'rgba(0,0,0,0.62)',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     replyingTo: {
       flexDirection: 'row',
@@ -186,38 +318,131 @@ export const createStyles = (theme: Theme) => {
       alignItems: 'flex-end',
       gap: Spacing.sm,
     },
+    commentComposer: {
+      flex: 1,
+      backgroundColor: theme.backgroundSecondary,
+      borderRadius: BorderRadius.xl,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: Spacing.md,
+      paddingTop: Spacing.sm,
+      paddingBottom: Spacing.xs,
+    },
     input: {
       flex: 1,
-      minHeight: 40,
-      maxHeight: 100,
-      padding: Spacing.md,
-      backgroundColor: theme.backgroundTertiary,
-      borderRadius: BorderRadius.lg,
+      minHeight: 52,
+      maxHeight: 108,
+      paddingTop: Spacing.xs,
+      paddingBottom: Spacing.sm,
       fontSize: 16,
       color: theme.textPrimary,
+      lineHeight: 22,
+    },
+    commentToolsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.lg,
+      paddingTop: Spacing.xs,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.borderLight,
+    },
+    commentToolButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
     },
     submitButton: {
-      paddingHorizontal: Spacing.lg,
-      paddingVertical: Spacing.md,
+      width: 42,
+      height: 42,
       backgroundColor: theme.primary,
-      borderRadius: BorderRadius.lg,
+      borderRadius: BorderRadius.full,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     submitButtonDisabled: {
       backgroundColor: theme.backgroundTertiary,
     },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
+    emojiPicker: {
+      marginTop: Spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.border,
+      paddingTop: Spacing.sm,
     },
-    menuContainer: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: BorderRadius.lg,
-      minWidth: 200,
+    emojiGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: Spacing.xs,
+    },
+    emojiItem: {
+      width: '10.8%',
+      aspectRatio: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: BorderRadius.md,
+      backgroundColor: theme.backgroundSecondary,
+    },
+    mentionPicker: {
+      marginTop: Spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.border,
+      paddingTop: Spacing.sm,
+      gap: Spacing.sm,
+    },
+    mentionPickerTitle: {
+      paddingHorizontal: Spacing.xs,
+    },
+    mentionRow: {
+      gap: Spacing.sm,
+      paddingRight: Spacing.sm,
+    },
+    mentionChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundSecondary,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    mentionAvatar: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
       overflow: 'hidden',
     },
-    menuItem: {
+    actionSheetOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.32)',
+      justifyContent: 'flex-end',
+    },
+    actionSheet: {
+      backgroundColor: theme.backgroundDefault,
+      borderTopLeftRadius: BorderRadius.xl,
+      borderTopRightRadius: BorderRadius.xl,
+      paddingTop: Spacing.sm,
+      paddingHorizontal: Spacing.lg,
+      paddingBottom: Spacing.xl,
+    },
+    actionSheetHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.border,
+      alignSelf: 'center',
+      marginBottom: Spacing.md,
+    },
+    actionSheetHeader: {
+      gap: Spacing.xs,
+      paddingBottom: Spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.border,
+      marginBottom: Spacing.sm,
+    },
+    actionSheetItem: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.md,
@@ -225,8 +450,15 @@ export const createStyles = (theme: Theme) => {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.border,
     },
-    menuItemDestructive: {
+    actionSheetItemDanger: {
       borderBottomWidth: 0,
+    },
+    actionSheetCancel: {
+      marginTop: Spacing.md,
+      paddingVertical: Spacing.lg,
+      alignItems: 'center',
+      backgroundColor: theme.backgroundTertiary,
+      borderRadius: BorderRadius.lg,
     },
     imageModalOverlay: {
       flex: 1,

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, ViewProps, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 
-type BackgroundLevel = 'root' | 'default' | 'tertiary';
+type BackgroundLevel = 'root' | 'default' | 'tertiary' | 'card';
 
 interface ThemedViewProps extends ViewProps {
   level?: BackgroundLevel;
@@ -13,6 +13,7 @@ const backgroundMap: Record<BackgroundLevel, string> = {
   root: 'backgroundRoot',
   default: 'backgroundDefault',
   tertiary: 'backgroundTertiary',
+  card: 'backgroundCard',
 };
 
 export function ThemedView({

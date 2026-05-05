@@ -1,10 +1,10 @@
-import { Colors } from '@/constants/theme';
+import { ThemePalettes } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useSettings } from '@/contexts/SettingsContext';
 
-function getTheme(colorScheme?: 'dark' | 'light' | null) {
+function getTheme(themeVariant: keyof typeof ThemePalettes, colorScheme?: 'dark' | 'light' | null) {
   const isDark = colorScheme === 'dark';
-  const theme = Colors[colorScheme ?? 'light'];
+  const theme = ThemePalettes[themeVariant][colorScheme ?? 'light'];
 
   return {
     theme,
@@ -26,7 +26,7 @@ function useTheme() {
   // 'system' 模式下使用系统设置
 
   return {
-    ...getTheme(colorScheme),
+    ...getTheme(settings.themeVariant, colorScheme),
     fontSize: settings.fontSize,
   };
 }

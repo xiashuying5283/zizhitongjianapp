@@ -1,77 +1,235 @@
-export const Colors = {
+export const ThemePalettes = {
+  vermilion: {
   light: {
-    // === 文字层级（灰度区分） ===
-    textPrimary: "#1A1A1A", // 原文 - 纯黑（最高优先级）
-    textSecondary: "#333333", // 译文/次要 - 深灰
-    textMuted: "#555555", // 辅助文字 - 中灰（提高对比度）
-    text: "#1A1A1A", // 通用文字 - 纯黑
-    // === 主题色 ===
-    primary: "#1A1A1A", // 主色 - 纯黑
-    primaryLight: "#E8E6E2", // 主色浅底
-    accent: "#1A365D", // 辅色 - 低饱和藏蓝（链接/交互）
-    success: "#2D5A3D", // 成功 - 低饱和绿
-    error: "#8B3A3A", // 错误 - 低饱和红
-    warning: "#B45309", // 警告 - 琥珀色
-    // === 背景层级 ===
-    backgroundRoot: "#F8F6F2", // 根背景 - 米白/宣纸色
-    backgroundDefault: "#FDFCFA", // 卡片背景 - 近白
-    backgroundSecondary: "#FFFFFF", // 次级背景 - 纯白
-    backgroundTertiary: "#F2F0EC", // 三级背景 - 浅米灰
-    // === 按钮 ===
-    buttonPrimaryText: "#FFFFFF", // 主按钮文字 - 白色
-    // === Tab ===
-    tabIconSelected: "#1A1A1A", // Tab 选中图标 - 纯黑
-    // === 边框 ===
-    border: "#E8E6E2", // 边框 - 细线灰
-    borderLight: "#F0EEE8", // 浅色边框
-    // === 阅读区专用 ===
-    textOriginal: "#1A1A1A", // 原文 - 纯黑粗体
-    textAnnotation: "#B44A4A", // 胡三省注 - 浅红（古注色）
-    textTranslation: "#444444", // 译文 - 中灰
-    backgroundAnnotation: "#F5F3EF", // 注文背景
-    backgroundTranslation: "#FAF8F4", // 译文背景
-    // === 状态色 ===
-    statusReading: "#D97706", // 在读 - 琥珀色
-    statusRead: "#059669", // 已读 - 翠绿
-    statusUnread: "#9CA3AF", // 未读 - 浅灰
+    textPrimary: "#26221D",
+    textSecondary: "#4E473F",
+    textMuted: "#7D7365",
+    text: "#26221D",
+    primary: "#A74238",
+    primaryLight: "#F2D8D4",
+    primarySoft: "rgba(167, 66, 56, 0.12)",
+    accent: "#25756E",
+    accentSoft: "#D8ECE8",
+    success: "#2F7A52",
+    error: "#A74238",
+    warning: "#AE7B31",
+    gold: "#AE7B31",
+    goldSoft: "#F1E0BF",
+    info: "#365F8F",
+    infoSoft: "#DBE7F4",
+    backgroundRoot: "#F5EFE4",
+    backgroundDefault: "#FFFAF1",
+    backgroundSecondary: "#FFFDF8",
+    backgroundTertiary: "#EBE0CF",
+    backgroundCard: "rgba(255, 252, 246, 0.86)",
+    backgroundOverlay: "rgba(255, 252, 246, 0.86)",
+    buttonPrimaryText: "#FFF9F0",
+    tabIconSelected: "#A74238",
+    tabBarBackground: "rgba(255, 250, 241, 0.94)",
+    border: "rgba(58, 48, 34, 0.14)",
+    borderLight: "rgba(58, 48, 34, 0.08)",
+    textOriginal: "#26221D",
+    textAnnotation: "#A74238",
+    textTranslation: "#4E473F",
+    backgroundAnnotation: "#F7F0E5",
+    backgroundTranslation: "#FBF5EB",
+    statusReading: "#AE7B31",
+    statusRead: "#25756E",
+    statusUnread: "#9A8D7A",
   },
   dark: {
-    // === 文字层级（深色模式） ===
-    textPrimary: "#FAFAF9", // 主要文字 - 纸张白
-    textSecondary: "#D4D4D4", // 次要文字 - 浅灰（提高对比度）
-    textMuted: "#A3A3A3", // 辅助文字 - 中灰（提高对比度）
-    text: "#FAFAF9", // 通用文字 - 纸张白
-    // === 主题色 ===
-    primary: "#FAFAF9", // 主色 - 纸张白
-    primaryLight: "#2A2A2A", // 主色浅底
-    accent: "#A3B8CC", // 辅色 - 浅藏蓝
-    success: "#6EE7B7", // 成功 - 浅绿
-    error: "#FCA5A5", // 错误 - 浅红
-    warning: "#FBBF24", // 警告 - 琥珀色
-    // === 背景层级 ===
-    backgroundRoot: "#121212", // 根背景 - 深灰（护眼）
-    backgroundDefault: "#1E1E1E", // 卡片背景
-    backgroundSecondary: "#252525", // 次级背景
-    backgroundTertiary: "#2A2A2A", // 三级背景
-    // === 按钮 ===
-    buttonPrimaryText: "#121212", // 主按钮文字 - 深灰
-    // === Tab ===
-    tabIconSelected: "#FAFAF9", // Tab 选中图标 - 纸张白
-    // === 边框 ===
-    border: "#3A3A3A", // 边框（提高对比度）
-    borderLight: "#2A2A2A", // 浅色边框
-    // === 阅读区专用 ===
-    textOriginal: "#FAFAF9", // 原文 - 纸张白
-    textAnnotation: "#D48888", // 胡三省注 - 浅红（古注色）
-    textTranslation: "#CCCCCC", // 译文 - 浅灰
-    backgroundAnnotation: "#1A1A1A", // 注文背景
-    backgroundTranslation: "#161616", // 译文背景
-    // === 状态色 ===
-    statusReading: "#FBBF24", // 在读 - 琥珀色
-    statusRead: "#34D399", // 已读 - 翠绿
-    statusUnread: "#6B7280", // 未读 - 浅灰
+    textPrimary: "#F5EFE4",
+    textSecondary: "#DDD1C0",
+    textMuted: "#B8A992",
+    text: "#F5EFE4",
+    primary: "#D4887D",
+    primaryLight: "rgba(212, 136, 125, 0.18)",
+    primarySoft: "rgba(212, 136, 125, 0.14)",
+    accent: "#6FB2AA",
+    accentSoft: "rgba(111, 178, 170, 0.16)",
+    success: "#78C4A0",
+    error: "#D4887D",
+    warning: "#D4B06A",
+    gold: "#D4B06A",
+    goldSoft: "rgba(212, 176, 106, 0.18)",
+    info: "#83A9D6",
+    infoSoft: "rgba(131, 169, 214, 0.16)",
+    backgroundRoot: "#171310",
+    backgroundDefault: "#221C17",
+    backgroundSecondary: "#2A231D",
+    backgroundTertiary: "#312821",
+    backgroundCard: "rgba(34, 28, 23, 0.9)",
+    backgroundOverlay: "rgba(34, 28, 23, 0.9)",
+    buttonPrimaryText: "#171310",
+    tabIconSelected: "#D4887D",
+    tabBarBackground: "rgba(34, 28, 23, 0.96)",
+    border: "rgba(245, 239, 228, 0.12)",
+    borderLight: "rgba(245, 239, 228, 0.06)",
+    textOriginal: "#F5EFE4",
+    textAnnotation: "#D4887D",
+    textTranslation: "#DDD1C0",
+    backgroundAnnotation: "#1E1915",
+    backgroundTranslation: "#1B1612",
+    statusReading: "#D4B06A",
+    statusRead: "#6FB2AA",
+    statusUnread: "#8C7A67",
+  },
+  },
+  jade: {
+    light: {
+      textPrimary: "#1F2A2A",
+      textSecondary: "#425757",
+      textMuted: "#6C8180",
+      text: "#1F2A2A",
+      primary: "#2E6F68",
+      primaryLight: "#D8ECE9",
+      primarySoft: "rgba(46, 111, 104, 0.12)",
+      accent: "#4B5F8A",
+      accentSoft: "#E0E7F4",
+      success: "#33765F",
+      error: "#9C4F3D",
+      warning: "#9A7A3E",
+      gold: "#9A7A3E",
+      goldSoft: "#EEE2C6",
+      info: "#3E6F8C",
+      infoSoft: "#DDEAF2",
+      backgroundRoot: "#EEF4F1",
+      backgroundDefault: "#FBFEFC",
+      backgroundSecondary: "#F4F9F6",
+      backgroundTertiary: "#DCE8E4",
+      backgroundCard: "rgba(251, 254, 252, 0.9)",
+      backgroundOverlay: "rgba(251, 254, 252, 0.9)",
+      buttonPrimaryText: "#F6FCFA",
+      tabIconSelected: "#2E6F68",
+      tabBarBackground: "rgba(251, 254, 252, 0.96)",
+      border: "rgba(31, 42, 42, 0.12)",
+      borderLight: "rgba(31, 42, 42, 0.06)",
+      textOriginal: "#1F2A2A",
+      textAnnotation: "#2E6F68",
+      textTranslation: "#425757",
+      backgroundAnnotation: "#EFF6F3",
+      backgroundTranslation: "#F6FBF8",
+      statusReading: "#9A7A3E",
+      statusRead: "#2E6F68",
+      statusUnread: "#8A9795",
+    },
+    dark: {
+      textPrimary: "#E8F1EE",
+      textSecondary: "#C5D6D1",
+      textMuted: "#95ADA7",
+      text: "#E8F1EE",
+      primary: "#78BBB3",
+      primaryLight: "rgba(120, 187, 179, 0.18)",
+      primarySoft: "rgba(120, 187, 179, 0.14)",
+      accent: "#94A7D6",
+      accentSoft: "rgba(148, 167, 214, 0.16)",
+      success: "#7BC2AB",
+      error: "#D18B7A",
+      warning: "#D2B47A",
+      gold: "#D2B47A",
+      goldSoft: "rgba(210, 180, 122, 0.18)",
+      info: "#7CB3D4",
+      infoSoft: "rgba(124, 179, 212, 0.16)",
+      backgroundRoot: "#121918",
+      backgroundDefault: "#1A2423",
+      backgroundSecondary: "#202D2B",
+      backgroundTertiary: "#263432",
+      backgroundCard: "rgba(26, 36, 35, 0.92)",
+      backgroundOverlay: "rgba(26, 36, 35, 0.92)",
+      buttonPrimaryText: "#10201E",
+      tabIconSelected: "#78BBB3",
+      tabBarBackground: "rgba(26, 36, 35, 0.96)",
+      border: "rgba(232, 241, 238, 0.12)",
+      borderLight: "rgba(232, 241, 238, 0.06)",
+      textOriginal: "#E8F1EE",
+      textAnnotation: "#78BBB3",
+      textTranslation: "#C5D6D1",
+      backgroundAnnotation: "#17211F",
+      backgroundTranslation: "#15201E",
+      statusReading: "#D2B47A",
+      statusRead: "#78BBB3",
+      statusUnread: "#728581",
+    },
+  },
+  monochrome: {
+    light: {
+      textPrimary: "#161616",
+      textSecondary: "#3B3B3B",
+      textMuted: "#767676",
+      text: "#161616",
+      primary: "#111111",
+      primaryLight: "#E8E8E8",
+      primarySoft: "rgba(17, 17, 17, 0.08)",
+      accent: "#4A4A4A",
+      accentSoft: "#EFEFEF",
+      success: "#2F2F2F",
+      error: "#2A2A2A",
+      warning: "#5C5C5C",
+      gold: "#5C5C5C",
+      goldSoft: "#ECECEC",
+      info: "#424242",
+      infoSoft: "#EEEEEE",
+      backgroundRoot: "#F2F2F0",
+      backgroundDefault: "#FCFCFA",
+      backgroundSecondary: "#F5F5F3",
+      backgroundTertiary: "#E3E3E0",
+      backgroundCard: "rgba(252, 252, 250, 0.92)",
+      backgroundOverlay: "rgba(252, 252, 250, 0.92)",
+      buttonPrimaryText: "#FAFAF8",
+      tabIconSelected: "#111111",
+      tabBarBackground: "rgba(252, 252, 250, 0.96)",
+      border: "rgba(22, 22, 22, 0.14)",
+      borderLight: "rgba(22, 22, 22, 0.07)",
+      textOriginal: "#161616",
+      textAnnotation: "#3B3B3B",
+      textTranslation: "#4B4B4B",
+      backgroundAnnotation: "#F3F3F1",
+      backgroundTranslation: "#F8F8F6",
+      statusReading: "#4F4F4F",
+      statusRead: "#222222",
+      statusUnread: "#8A8A8A",
+    },
+    dark: {
+      textPrimary: "#F3F3F1",
+      textSecondary: "#D6D6D4",
+      textMuted: "#A7A7A4",
+      text: "#F3F3F1",
+      primary: "#F1F1EE",
+      primaryLight: "rgba(241, 241, 238, 0.14)",
+      primarySoft: "rgba(241, 241, 238, 0.12)",
+      accent: "#C9C9C6",
+      accentSoft: "rgba(201, 201, 198, 0.16)",
+      success: "#E0E0DC",
+      error: "#E0E0DC",
+      warning: "#BEBEBA",
+      gold: "#BEBEBA",
+      goldSoft: "rgba(190, 190, 186, 0.14)",
+      info: "#D2D2CF",
+      infoSoft: "rgba(210, 210, 207, 0.14)",
+      backgroundRoot: "#111111",
+      backgroundDefault: "#1A1A1A",
+      backgroundSecondary: "#222222",
+      backgroundTertiary: "#2A2A2A",
+      backgroundCard: "rgba(26, 26, 26, 0.94)",
+      backgroundOverlay: "rgba(26, 26, 26, 0.94)",
+      buttonPrimaryText: "#111111",
+      tabIconSelected: "#F1F1EE",
+      tabBarBackground: "rgba(26, 26, 26, 0.97)",
+      border: "rgba(243, 243, 241, 0.12)",
+      borderLight: "rgba(243, 243, 241, 0.06)",
+      textOriginal: "#F3F3F1",
+      textAnnotation: "#8A94A2",
+      textTranslation: "#C9C9C6",
+      backgroundAnnotation: "#202020",
+      backgroundTranslation: "#181818",
+      statusReading: "#C9C9C6",
+      statusRead: "#F1F1EE",
+      statusUnread: "#8E8E8B",
+    },
   },
 };
+
+export const Colors = ThemePalettes.vermilion;
 
 export const Spacing = {
   xs: 4,
@@ -88,13 +246,13 @@ export const Spacing = {
 
 export const BorderRadius = {
   xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  "2xl": 24,
-  "3xl": 28,
-  "4xl": 32,
+  sm: 6,
+  md: 8,
+  lg: 8,
+  xl: 12,
+  "2xl": 16,
+  "3xl": 20,
+  "4xl": 24,
   full: 9999,
 };
 
@@ -103,13 +261,13 @@ export const Typography = {
     fontSize: 112,
     lineHeight: 112,
     fontWeight: "200" as const,
-    letterSpacing: -4,
+    letterSpacing: 0,
   },
   displayLarge: {
     fontSize: 112,
     lineHeight: 112,
     fontWeight: "200" as const,
-    letterSpacing: -2,
+    letterSpacing: 0,
   },
   displayMedium: {
     fontSize: 48,
@@ -175,21 +333,21 @@ export const Typography = {
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "500" as const,
-    letterSpacing: 2,
+    letterSpacing: 0,
     textTransform: "uppercase" as const,
   },
   labelSmall: {
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "500" as const,
-    letterSpacing: 1,
+    letterSpacing: 0,
     textTransform: "uppercase" as const,
   },
   labelTitle: {
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "700" as const,
-    letterSpacing: 2,
+    letterSpacing: 0,
     textTransform: "uppercase" as const,
   },
   link: {
@@ -232,8 +390,8 @@ export const Typography = {
     fontSize: 11,
     lineHeight: 14,
     fontWeight: "500" as const,
-    letterSpacing: 1,
+    letterSpacing: 0,
   },
 };
 
-export type Theme = typeof Colors.light;
+export type Theme = typeof ThemePalettes.vermilion.light;

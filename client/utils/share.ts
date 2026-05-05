@@ -25,7 +25,7 @@ const APP_INFO = {
  */
 function isExpoGo(): boolean {
   // Expo Go 环境检测
-  const expo = (global as any).expo;
+  const expo = (globalThis as any).expo;
   return !!expo?.modules?.ExponentConstants?.appOwnership;
 }
 

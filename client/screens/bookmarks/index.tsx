@@ -9,7 +9,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { createStyles } from './styles';
-import { getDeviceId } from '@/utils/deviceId';
+import { getUserIdentity } from '@/utils/userIdentity';
 
 interface Bookmark {
   id: number;
@@ -43,11 +43,18 @@ export default function BookmarksScreen() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const deviceId = await getDeviceId();
+      const identity = await getUserIdentity();
+      const queryParams = new URLSearchParams();
+      if (identity.userId) {
+        queryParams.append('userId', identity.userId.toString());
+      } else if (identity.deviceId) {
+        queryParams.append('deviceId', identity.deviceId);
+      }
+      const identityQuery = queryParams.toString();
 
       // 获取书签列表
       const bookmarksRes = await fetch(
-        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks?deviceId=${deviceId}`
+        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks?${identityQuery}`
       );
 
       if (bookmarksRes.ok) {
@@ -59,7 +66,7 @@ export default function BookmarksScreen() {
 
       // 获取标签列表
       const tagsRes = await fetch(
-        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks/tags?deviceId=${deviceId}`
+        `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks/tags?${identityQuery}`
       );
 
       if (tagsRes.ok) {
@@ -115,9 +122,15 @@ export default function BookmarksScreen() {
           text: '删除',
           style: 'destructive',
           onPress: async () => {
-            const deviceId = await getDeviceId();
+            const identity = await getUserIdentity();
+            const queryParams = new URLSearchParams();
+            if (identity.userId) {
+              queryParams.append('userId', identity.userId.toString());
+            } else if (identity.deviceId) {
+              queryParams.append('deviceId', identity.deviceId);
+            }
             const res = await fetch(
-              `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks/${bookmark.id}?deviceId=${deviceId}`,
+              `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks/${bookmark.id}?${queryParams.toString()}`,
               { method: 'DELETE' }
             );
 

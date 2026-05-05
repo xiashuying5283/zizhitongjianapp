@@ -1,17 +1,4 @@
-import { getDeviceId } from './deviceId';
-import { getStoredUser } from './auth';
-
-/**
- * 获取用户标识（优先用户ID，其次设备ID）
- */
-export async function getUserIdentity(): Promise<{ userId?: number; deviceId?: string }> {
-  const user = await getStoredUser();
-  if (user) {
-    return { userId: user.id };
-  }
-  const deviceId = await getDeviceId();
-  return { deviceId };
-}
+import { getUserIdentity } from './userIdentity';
 
 // 用户笔记数据结构
 export interface UserNote {

@@ -3,6 +3,7 @@ import { View, ScrollView, TouchableOpacity, ActivityIndicator, Text, Modal, Tex
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useScriptText } from '@/hooks/useScriptText';
 import { Screen } from '@/components/Screen';
@@ -10,18 +11,17 @@ import { VerticalReader } from '@/components/VerticalReader';
 import { HorizontalReader } from '@/components/HorizontalReader';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import Toast from 'react-native-toast-message';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { createAudioPlayer, AudioPlayer, AudioStatus } from 'expo-audio';
-import { Spacing, BorderRadius } from '@/constants/theme';
+import { Spacing, BorderRadius, ThemePalettes } from '@/constants/theme';
 import { createStyles } from './styles';
 import { updateReadingProgress, getReadingRecords } from '@/utils/readingProgress';
 import { getDeviceId } from '@/utils/deviceId';
+import { copyToClipboard } from '@/utils/share';
 import {
   loadReadingSettings,
   getCachedSettings,
-  saveFontSize as saveFontSizeToStorage,
-  saveBackgroundTheme as saveBackgroundThemeToStorage,
-  saveViewMode as saveViewModeToStorage,
   saveTextLayout as saveTextLayoutToStorage,
   saveTtsVoice as saveTtsVoiceToStorage,
   saveTtsSpeed as saveTtsSpeedToStorage,
@@ -60,8 +60,15 @@ interface VolumeMeta {
 
 type ViewMode = 'original' | 'original+annotation' | 'original+translation' | 'original+annotation+translation' | 'translation';
 type TextLayout = 'horizontal' | 'vertical';
-type BackgroundTheme = 'light' | 'dark' | 'sepia';
 type SettingsTab = 'catalog' | 'font' | 'background' | 'viewMode' | 'tts' | null;
+
+const VIEW_MODE_LABELS: Record<ViewMode, string> = {
+  original: '纯原文',
+  'original+annotation': '原文+注释',
+  'original+translation': '原文+译文',
+  'original+annotation+translation': '原文+注译',
+  translation: '纯译文',
+};
 
 const FONT_SIZES = [
   { label: '小', value: 16 },
@@ -69,12 +76,6 @@ const FONT_SIZES = [
   { label: '大', value: 20 },
   { label: '特大', value: 22 },
 ];
-
-const BACKGROUND_THEMES: Record<BackgroundTheme, { background: string; text: string; name: string; color: string }> = {
-  light: { background: '#FFFFFF', text: '#1E1E1E', name: '亮色', color: '#FFFFFF' },
-  dark: { background: '#121212', text: '#E8E8E8', name: '暗色', color: '#121212' },
-  sepia: { background: '#F5E6D3', text: '#4A3C31', name: '护眼', color: '#F5E6D3' },
-};
 
 // TTS音色选项
 const TTS_VOICES = [
@@ -94,8 +95,20 @@ const TTS_SPEEDS = [
 ];
 
 export default function VolumeDetailScreen() {
-  const { theme } = useTheme();
-  const { scriptMode, setScriptMode, fontFamily, setFontFamily } = useSettings();
+  const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const {
+    scriptMode,
+    setScriptMode,
+    fontSize,
+    setFontSize,
+    fontFamily,
+    setFontFamily,
+    themeVariant,
+    setThemeVariant,
+    readingMode,
+    setReadingMode,
+  } = useSettings();
   const { t } = useScriptText();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
@@ -116,7 +129,7 @@ export default function VolumeDetailScreen() {
   const lastTitleTapTime = useRef(0);  // 用于双击标题检测
 
   // 工具栏和面板状态
-  const [showToolbar, setShowToolbar] = useState(false);
+  const [showToolbar, setShowToolbar] = useState(true);
   const [activeTab, setActiveTab] = useState<SettingsTab>(null);
   const [swipeHint, setSwipeHint] = useState<'prev' | 'next' | null>(null);  // 滑动提示
 
@@ -129,6 +142,7 @@ export default function VolumeDetailScreen() {
 
   // 当前可见位置（用于书签定位和阅读进度保存）
   const [currentVisibleYear, setCurrentVisibleYear] = useState<{ yearMark: string; emperor: string } | null>(null);
+  const [readerPosition, setReaderPosition] = useState({ paragraphId: 0, globalIndex: 0 });
   const currentVisibleParagraphIdRef = useRef<number>(0);  // 当前可见的第一个段落ID（用于保存阅读进度）
   const totalParagraphsRef = useRef<number>(0);  // 总段落数（用于计算进度）
 
@@ -148,12 +162,10 @@ export default function VolumeDetailScreen() {
 
   // 阅读偏好设置（从缓存初始化）
   const cachedSettings = getCachedSettings();
-  const [fontSize, setFontSize] = useState(cachedSettings.fontSize);
-  const [backgroundTheme, setBackgroundTheme] = useState<BackgroundTheme>(cachedSettings.backgroundTheme);
-  const [viewMode, setViewMode] = useState<ViewMode>(cachedSettings.viewMode);
   const [textLayout, setTextLayout] = useState<TextLayout>(cachedSettings.textLayout);
   const [ttsVoice, setTtsVoice] = useState(cachedSettings.ttsVoice);
   const [ttsSpeed, setTtsSpeed] = useState(cachedSettings.ttsSpeed);
+  const viewMode = readingMode as ViewMode;
 
   // 同步 textLayoutRef
   useEffect(() => {
@@ -168,10 +180,10 @@ export default function VolumeDetailScreen() {
 
   // 文本选择状态
   const [textSelection, setTextSelection] = useState<TextSelection | null>(null);
+  const [selectionActionMode, setSelectionActionMode] = useState<'quick' | 'mark'>('quick');
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteContent, setNoteContent] = useState('');
   const [savingNote, setSavingNote] = useState(false);
-  const [showMarkMenu, setShowMarkMenu] = useState(false);
   const [selectedMarkType, setSelectedMarkType] = useState<'background' | 'underline' | 'wavy'>('background');
   const [selectedMarkColor, setSelectedMarkColor] = useState('#FECACA');
 
@@ -191,22 +203,14 @@ export default function VolumeDetailScreen() {
   const loadedParagraphsRef = useRef(0);
   const pendingJumpRef = useRef<{ bcYear: number | null; yearName?: string; emperorName?: string } | null>(null);
   // 字体大小切换
-  const handleSetFontSize = useCallback(async (size: number) => {
+  const handleSetFontSize = useCallback((size: number) => {
     setFontSize(size);
-    await saveFontSizeToStorage(size);
-  }, []);
-
-  // 背景主题切换
-  const handleSetBackgroundTheme = useCallback(async (theme: BackgroundTheme) => {
-    setBackgroundTheme(theme);
-    await saveBackgroundThemeToStorage(theme);
-  }, []);
+  }, [setFontSize]);
 
   // 显示模式切换
-  const handleSetViewMode = useCallback(async (mode: ViewMode) => {
-    setViewMode(mode);
-    await saveViewModeToStorage(mode);
-  }, []);
+  const handleSetViewMode = useCallback((mode: ViewMode) => {
+    setReadingMode(mode);
+  }, [setReadingMode]);
 
   // 文字排版方向切换
   const handleSetTextLayout = useCallback(async (layout: TextLayout) => {
@@ -308,7 +312,7 @@ export default function VolumeDetailScreen() {
 
   // ==================== 阅读统计 ====================
   const readingStartTimeRef = useRef<number>(0);  // 开始阅读的时间戳
-  const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);  // 定时提交
+  const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);  // 定时提交
   const lastSubmitTimeRef = useRef<number>(0);  // 上次提交时间
   const isTrackingTimeRef = useRef<boolean>(false);  // 是否正在计时
 
@@ -710,16 +714,83 @@ export default function VolumeDetailScreen() {
     audioCacheRef.current.clear();
   }, []);
 
-  const currentTheme = BACKGROUND_THEMES[backgroundTheme];
+  const currentTheme = useMemo(() => ({
+    background: theme.backgroundRoot,
+    text: theme.textPrimary,
+    textMuted: theme.textMuted,
+    name: '当前主题',
+    color: theme.backgroundRoot,
+    headerSurface: theme.backgroundCard,
+    cardSurface: theme.backgroundOverlay,
+    statusBarStyle: (isDark ? 'light' : 'dark') as 'light' | 'dark',
+  }), [isDark, theme]);
+  const readerHeaderSurface = currentTheme.headerSurface;
+  const readerCardSurface = currentTheme.cardSurface;
+  const readerMutedText = currentTheme.textMuted;
+  const volumeTimeRange = volumeMeta?.time_range
+    || (
+      volumeMeta?.year_start !== null
+      && volumeMeta?.year_start !== undefined
+      && volumeMeta?.year_end !== null
+      && volumeMeta?.year_end !== undefined
+        ? `${volumeMeta.year_start} - ${volumeMeta.year_end}`
+        : '资治通鉴'
+    );
+  const readerModeLabel = VIEW_MODE_LABELS[viewMode];
+  const textLayoutLabel = textLayout === 'vertical' ? '竖排' : '横排';
 
   // 根据阅读主题确定注解颜色
   const getAnnotationColor = () => {
-    if (backgroundTheme === 'sepia') {
-      return '#8B5A3C'; // 护眼模式 - 棕红古注色
-    }
     return theme.textAnnotation || theme.textSecondary;
   };
   const annotationColorForReader = getAnnotationColor();
+  const themePreviewMode = isDark ? 'dark' : 'light';
+  const themeVariantOptions = useMemo(() => ([
+    { key: 'vermilion' as const, label: '朱砂典藏' },
+    { key: 'jade' as const, label: '青玉札记' },
+    { key: 'monochrome' as const, label: '黑白刻本' },
+  ]).map((option) => ({
+    ...option,
+    palette: ThemePalettes[option.key][themePreviewMode],
+  })), [themePreviewMode]);
+  const resolveYearByGlobalIndex = useCallback((globalIndex: number) => {
+    if (!volumeData?.years?.length) return null;
+
+    let paragraphCount = 0;
+    for (const year of volumeData.years) {
+      paragraphCount += year.paragraphs.length;
+      if (globalIndex < paragraphCount) {
+        return {
+          yearMark: year.year_mark,
+          emperor: year.emperor,
+        };
+      }
+    }
+
+    const lastYear = volumeData.years[volumeData.years.length - 1];
+    return lastYear
+      ? {
+          yearMark: lastYear.year_mark,
+          emperor: lastYear.emperor,
+        }
+      : null;
+  }, [volumeData?.years]);
+  const totalParagraphs = totalParagraphsRef.current;
+  const readingProgressPercent = totalParagraphs > 0
+    ? Math.min(100, Math.max(0, Math.round(((readerPosition.globalIndex + 1) / totalParagraphs) * 100)))
+    : 0;
+  const readingPositionLabel = totalParagraphs > 0
+    ? `${Math.min(readerPosition.globalIndex + 1, totalParagraphs)}/${totalParagraphs}`
+    : '--';
+  const currentYearLabel = currentVisibleYear
+    ? `${currentVisibleYear.emperor} · ${currentVisibleYear.yearMark}`
+    : volumeTimeRange;
+  const overlayBottomInset = Math.max(insets.bottom, 8);
+  const overlayHeaderInset = insets.top + Spacing.lg;
+  const ttsBarStackHeight = 76 + overlayBottomInset;
+  const toolbarBottomOffset = (isPlaying || playingProgress) ? ttsBarStackHeight : 0;
+  const panelBottomOffset = (isPlaying || playingProgress) ? ttsBarStackHeight : 0;
+  const panelContentBottomPadding = Spacing["3xl"] + overlayBottomInset;
 
   // 用 ref 存储 volumeData 用于合并，避免 useCallback 依赖导致无限循环
   const volumeDataRef = useRef<VolumeData | null>(null);
@@ -871,7 +942,12 @@ export default function VolumeDetailScreen() {
       if (!isSameVolume) {
         loadedParagraphsRef.current = 0;
         currentVisibleParagraphIdRef.current = 0;  // 重置段落ID
+        globalIndexRef.current = 0;
         hasRestoredPositionRef.current = false;    // 重置恢复标志
+        setReaderPosition({ paragraphId: 0, globalIndex: 0 });
+        setCurrentVisibleYear(null);
+        setActiveTab(null);
+        setShowToolbar(true);
         setVolumeData(null);
         setUserNotes([]);  // 重置标注数据
       }
@@ -882,9 +958,6 @@ export default function VolumeDetailScreen() {
       // 首次加载设置
       if (!initializedRef.current) {
         loadReadingSettings().then(settings => {
-          setFontSize(settings.fontSize);
-          setBackgroundTheme(settings.backgroundTheme);
-          setViewMode(settings.viewMode);
           setTextLayout(settings.textLayout);
           setTtsVoice(settings.ttsVoice);
           setTtsSpeed(settings.ttsSpeed);
@@ -912,13 +985,28 @@ export default function VolumeDetailScreen() {
       for (const year of volumeData.years) {
         totalP += year.paragraphs.length;
       }
+      totalParagraphsRef.current = totalP;
 
       // 初始化：如果还没有设置段落ID，设置为第一个年份的第一个段落
       if (currentVisibleParagraphIdRef.current === 0 && volumeData.years?.length > 0 && volumeData.years[0].paragraphs?.length > 0) {
         currentVisibleParagraphIdRef.current = volumeData.years[0].paragraphs[0].id;
       }
+
+      if (readerPosition.paragraphId === 0 && volumeData.years?.length > 0 && volumeData.years[0].paragraphs?.length > 0) {
+        setReaderPosition({
+          paragraphId: volumeData.years[0].paragraphs[0].id,
+          globalIndex: 0,
+        });
+      }
+
+      if (!currentVisibleYear && volumeData.years?.length > 0) {
+        setCurrentVisibleYear({
+          yearMark: volumeData.years[0].year_mark,
+          emperor: volumeData.years[0].emperor,
+        });
+      }
     }
-  }, [volumeData, catalogData]);
+  }, [catalogData, currentVisibleYear, readerPosition.paragraphId, volumeData]);
 
   // HTML 模式辅助：通过 WebView JS 滚动
   const injectScroll = useCallback((js: string) => {
@@ -1089,7 +1177,21 @@ export default function VolumeDetailScreen() {
   const handleVisibleParagraphChange = useCallback((pId: number, gIdx: number) => {
     currentVisibleParagraphIdRef.current = pId;
     globalIndexRef.current = gIdx;
-  }, []);
+    setReaderPosition(prev => (
+      prev.paragraphId === pId && prev.globalIndex === gIdx
+        ? prev
+        : { paragraphId: pId, globalIndex: gIdx }
+    ));
+
+    const visibleYear = resolveYearByGlobalIndex(gIdx);
+    if (visibleYear) {
+      setCurrentVisibleYear(prev => (
+        prev?.yearMark === visibleYear.yearMark && prev?.emperor === visibleYear.emperor
+          ? prev
+          : visibleYear
+      ));
+    }
+  }, [resolveYearByGlobalIndex]);
 
   // 滚动结果回调（使用 ref 避免重新创建）
   const handleScrollToResult = useCallback((targetId: number, success: boolean) => {
@@ -1102,6 +1204,7 @@ export default function VolumeDetailScreen() {
   const handleTextSelection = useCallback((selection: TextSelection | null) => {
     setTextSelection(selection);
     if (selection) {
+      setSelectionActionMode('quick');
       // 隐藏工具栏，显示选择菜单
       setShowToolbar(false);
     }
@@ -1110,13 +1213,37 @@ export default function VolumeDetailScreen() {
   // 取消文本选择
   const handleCancelSelection = useCallback(() => {
     setTextSelection(null);
+    setSelectionActionMode('quick');
     setNoteContent('');
+    setShowToolbar(true);
+  }, []);
+
+  // 展开标注面板
+  const handleOpenMarkPanel = useCallback(() => {
+    setSelectionActionMode('mark');
   }, []);
 
   // 打开标注输入框
   const handleOpenNoteModal = useCallback(() => {
     setShowNoteModal(true);
   }, []);
+
+  // 复制选中文字
+  const handleCopySelection = useCallback(async () => {
+    if (!textSelection?.selectedText) return;
+
+    const success = await copyToClipboard(textSelection.selectedText);
+    if (success) {
+      Toast.show({
+        type: 'success',
+        text1: '已复制所选文字',
+      });
+      handleCancelSelection();
+      return;
+    }
+
+    Alert.alert('复制失败', '请稍后重试');
+  }, [handleCancelSelection, textSelection]);
 
   // 点击标注下划线
   const handleNoteClick = useCallback((note: NoteMarker) => {
@@ -1169,7 +1296,10 @@ export default function VolumeDetailScreen() {
       } : null);
 
       setIsEditingNote(false);
-      Alert.alert('成功', '笔记已更新');
+      Toast.show({
+        type: 'success',
+        text1: '笔记已更新',
+      });
     } catch (error) {
       console.error('更新笔记失败:', error);
       Alert.alert('错误', '更新笔记失败，请重试');
@@ -1200,7 +1330,10 @@ export default function VolumeDetailScreen() {
 
               setShowNoteDetail(false);
               setClickedNote(null);
-              Alert.alert('成功', '标注已删除');
+              Toast.show({
+                type: 'success',
+                text1: '标注已删除',
+              });
             } catch (error) {
               console.error('删除笔记失败:', error);
               Alert.alert('错误', '删除笔记失败，请重试');
@@ -1238,8 +1371,13 @@ export default function VolumeDetailScreen() {
       // 重置状态
       setShowNoteModal(false);
       setTextSelection(null);
+      setSelectionActionMode('quick');
       setNoteContent('');
-      Alert.alert('成功', '标注已保存');
+      setShowToolbar(true);
+      Toast.show({
+        type: 'success',
+        text1: '标注已保存',
+      });
     } catch (error) {
       console.error('保存标注失败:', error);
       Alert.alert('错误', '保存标注失败，请重试');
@@ -1284,8 +1422,13 @@ export default function VolumeDetailScreen() {
       fetchUserNotesForVolume(volumeData.volume_number);
 
       // 重置状态
-      setShowMarkMenu(false);
       setTextSelection(null);
+      setSelectionActionMode('quick');
+      setShowToolbar(true);
+      Toast.show({
+        type: 'success',
+        text1: '已添加标记',
+      });
     } catch (error) {
       console.error('画线失败:', error);
       Alert.alert('错误', '画线失败，请重试');
@@ -1293,11 +1436,6 @@ export default function VolumeDetailScreen() {
       setSavingNote(false);
     }
   }, [textSelection, volumeData, fetchUserNotesForVolume, selectedMarkType, selectedMarkColor]);
-
-  // 打开画线菜单
-  const handleOpenMarkMenu = useCallback(() => {
-    setShowMarkMenu(true);
-  }, []);
 
   // 导航到上一卷
   const goToPreviousVolume = useCallback(() => {
@@ -1348,9 +1486,15 @@ export default function VolumeDetailScreen() {
     if (activeTab === tab) {
       setActiveTab(null);
     } else {
+      setShowToolbar(true);
       setActiveTab(tab);
     }
   }, [activeTab]);
+
+  const handleToggleToolbarVisibility = useCallback(() => {
+    setActiveTab(null);
+    setShowToolbar(prev => !prev);
+  }, []);
 
   // 渲染目录面板
   const renderCatalogPanel = () => {
@@ -1362,14 +1506,18 @@ export default function VolumeDetailScreen() {
     };
 
     return (
-    <View style={[styles.panel, { backgroundColor: currentTheme.background }]}>
+    <View style={[styles.panel, { backgroundColor: currentTheme.background, bottom: panelBottomOffset }]}>
       <View style={styles.panelHeader}>
         <ThemedText variant="h4" color={currentTheme.text}>目录</ThemedText>
         <TouchableOpacity onPress={() => setActiveTab(null)}>
           <FontAwesome6 name="xmark" size={18} color={currentTheme.text} />
         </TouchableOpacity>
       </View>
-      <ScrollView style={styles.panelContent} nestedScrollEnabled>
+      <ScrollView
+        style={styles.panelContent}
+        contentContainerStyle={[styles.panelScrollContent, { paddingBottom: panelContentBottomPadding }]}
+        nestedScrollEnabled
+      >
         {catalogData?.catalog.map((group) => (
           <View key={group.emperor.id} style={styles.emperorGroup}>
             {/* 帝王标题 */}
@@ -1396,7 +1544,7 @@ export default function VolumeDetailScreen() {
                     <ThemedText variant="small" color={currentTheme.text}>
                       {year.year_display || year.year_name}
                     </ThemedText>
-                    <ThemedText variant="caption" color={theme.textMuted}>
+                    <ThemedText variant="caption" color={readerMutedText}>
                       {formatYear(year.bc_year)}
                     </ThemedText>
                   </TouchableOpacity>
@@ -1420,16 +1568,20 @@ export default function VolumeDetailScreen() {
   ];
 
   const renderFontPanel = () => (
-    <View style={[styles.panel, { backgroundColor: currentTheme.background }]}>
+    <View style={[styles.panel, { backgroundColor: currentTheme.background, bottom: panelBottomOffset }]}>
       <View style={styles.panelHeader}>
         <ThemedText variant="h4" color={currentTheme.text}>字体设置</ThemedText>
         <TouchableOpacity onPress={() => setActiveTab(null)}>
           <FontAwesome6 name="xmark" size={18} color={currentTheme.text} />
         </TouchableOpacity>
       </View>
-      <ScrollView style={styles.panelContent} contentContainerStyle={styles.panelScrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.panelContent}
+        contentContainerStyle={[styles.panelScrollContent, { paddingBottom: panelContentBottomPadding }]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* 字体大小 */}
-        <ThemedText variant="smallMedium" color={theme.textMuted} style={{ marginBottom: 8 }}>
+        <ThemedText variant="smallMedium" color={readerMutedText} style={{ marginBottom: 8 }}>
           字体大小
         </ThemedText>
         <View style={styles.fontSizeList}>
@@ -1460,7 +1612,7 @@ export default function VolumeDetailScreen() {
         </View>
 
         {/* 字体风格 */}
-        <ThemedText variant="smallMedium" color={theme.textMuted} style={{ marginTop: 16, marginBottom: 8 }}>
+        <ThemedText variant="smallMedium" color={readerMutedText} style={{ marginTop: 16, marginBottom: 8 }}>
           字体风格
         </ThemedText>
         <View style={styles.fontFamilyList}>
@@ -1469,7 +1621,7 @@ export default function VolumeDetailScreen() {
               key={option.value}
               style={[
                 styles.fontFamilyItem,
-                { borderColor: fontFamily === option.value ? theme.primary : theme.border },
+                { borderColor: fontFamily === option.value ? theme.primary : currentTheme.textMuted + '55' },
                 fontFamily === option.value && { backgroundColor: theme.primary + '10' },
               ]}
               onPress={() => setFontFamily(option.value)}
@@ -1482,7 +1634,7 @@ export default function VolumeDetailScreen() {
               </ThemedText>
               <ThemedText
                 variant="caption"
-                color={theme.textMuted}
+                color={readerMutedText}
               >
                 {option.desc}
               </ThemedText>
@@ -1495,33 +1647,32 @@ export default function VolumeDetailScreen() {
 
   // 渲染背景设置面板
   const renderBackgroundPanel = () => (
-    <View style={[styles.panel, { backgroundColor: currentTheme.background }]}>
+    <View style={[styles.panel, { backgroundColor: currentTheme.background, bottom: panelBottomOffset }]}>
       <View style={styles.panelHeader}>
-        <ThemedText variant="h4" color={currentTheme.text}>背景主题</ThemedText>
+        <ThemedText variant="h4" color={currentTheme.text}>主题风格</ThemedText>
         <TouchableOpacity onPress={() => setActiveTab(null)}>
           <FontAwesome6 name="xmark" size={18} color={currentTheme.text} />
         </TouchableOpacity>
       </View>
-      <View style={styles.panelContent}>
+      <View style={[styles.panelContent, { paddingBottom: Spacing.lg + overlayBottomInset }]}>
         <View style={styles.backgroundList}>
-          {(Object.keys(BACKGROUND_THEMES) as BackgroundTheme[]).map(key => {
-            const bg = BACKGROUND_THEMES[key];
+          {themeVariantOptions.map(({ key, label, palette }) => {
             return (
               <TouchableOpacity
                 key={key}
                 style={[
                   styles.backgroundItem,
-                  { backgroundColor: bg.color },
-                  backgroundTheme === key && { borderColor: theme.primary, borderWidth: 2 },
+                  { backgroundColor: palette.backgroundRoot },
+                  themeVariant === key && { borderColor: theme.primary, borderWidth: 2 },
                 ]}
-                onPress={() => handleSetBackgroundTheme(key)}
+                onPress={() => setThemeVariant(key)}
               >
                 <Text style={[
                   styles.backgroundName,
-                  { color: bg.text },
-                  backgroundTheme === key && { fontWeight: '600' },
+                  { color: palette.textPrimary },
+                  themeVariant === key && { fontWeight: '600' },
                 ]}>
-                  {t(bg.name)}
+                  {t(label)}
                 </Text>
               </TouchableOpacity>
             );
@@ -1533,14 +1684,18 @@ export default function VolumeDetailScreen() {
 
   // 渲染视图模式面板
   const renderViewModePanel = () => (
-    <View style={[styles.panel, { backgroundColor: currentTheme.background }]}>
+    <View style={[styles.panel, { backgroundColor: currentTheme.background, bottom: panelBottomOffset }]}>
       <View style={styles.panelHeader}>
         <ThemedText variant="h4" color={currentTheme.text}>显示模式</ThemedText>
         <TouchableOpacity onPress={() => setActiveTab(null)}>
           <FontAwesome6 name="xmark" size={18} color={currentTheme.text} />
         </TouchableOpacity>
       </View>
-      <ScrollView style={styles.panelContent} nestedScrollEnabled>
+      <ScrollView
+        style={styles.panelContent}
+        contentContainerStyle={[styles.panelScrollContent, { paddingBottom: panelContentBottomPadding }]}
+        nestedScrollEnabled
+      >
         <View style={styles.viewModeList}>
           {[
             { key: 'original' as ViewMode, label: '纯原文', desc: '仅显示原文' },
@@ -1579,7 +1734,7 @@ export default function VolumeDetailScreen() {
         </View>
 
         {/* 排版方向 */}
-        <View style={[styles.divider, { backgroundColor: theme.border }]} />
+        <View style={[styles.divider, { backgroundColor: currentTheme.textMuted + '33' }]} />
         <View style={styles.scriptModeSection}>
           <Text style={[styles.sectionLabel, { color: currentTheme.text }]}>{t('排版')}</Text>
           <View style={styles.scriptModeButtons}>
@@ -1615,7 +1770,7 @@ export default function VolumeDetailScreen() {
         </View>
         
         {/* 简繁切换 */}
-        <View style={[styles.divider, { backgroundColor: theme.border }]} />
+        <View style={[styles.divider, { backgroundColor: currentTheme.textMuted + '33' }]} />
         <View style={styles.scriptModeSection}>
           <Text style={[styles.sectionLabel, { color: currentTheme.text }]}>{t('字体')}</Text>
           <View style={styles.scriptModeButtons}>
@@ -1655,14 +1810,18 @@ export default function VolumeDetailScreen() {
 
   // 渲染TTS朗读设置面板
   const renderTtsPanel = () => (
-    <View style={[styles.panel, { backgroundColor: currentTheme.background }]}>
+    <View style={[styles.panel, { backgroundColor: currentTheme.background, bottom: panelBottomOffset }]}>
       <View style={styles.panelHeader}>
         <ThemedText variant="h4" color={currentTheme.text}>朗读设置</ThemedText>
         <TouchableOpacity onPress={() => setActiveTab(null)}>
           <FontAwesome6 name="xmark" size={18} color={currentTheme.text} />
         </TouchableOpacity>
       </View>
-      <ScrollView style={styles.panelContent} nestedScrollEnabled>
+      <ScrollView
+        style={styles.panelContent}
+        contentContainerStyle={[styles.panelScrollContent, { paddingBottom: panelContentBottomPadding }]}
+        nestedScrollEnabled
+      >
         {/* 音色选择 */}
         <Text style={[styles.sectionLabel, { color: currentTheme.text }]}>{t('朗读音色')}</Text>
         <View style={styles.ttsVoiceList}>
@@ -1695,7 +1854,7 @@ export default function VolumeDetailScreen() {
         </View>
 
         {/* 语速选择 */}
-        <View style={[styles.divider, { backgroundColor: theme.border }]} />
+        <View style={[styles.divider, { backgroundColor: currentTheme.textMuted + '33' }]} />
         <Text style={[styles.sectionLabel, { color: currentTheme.text }]}>{t('朗读语速')}</Text>
         <View style={styles.ttsSpeedList}>
           {TTS_SPEEDS.map(speed => (
@@ -1724,99 +1883,68 @@ export default function VolumeDetailScreen() {
   const renderToolbar = () => {
     if (!showToolbar) return null;
 
+    const toolbarItems: Array<{ key: NonNullable<SettingsTab>; label: string; icon: React.ComponentProps<typeof FontAwesome6>['name'] }> = [
+      { key: 'catalog', label: t('目录'), icon: 'list' },
+      { key: 'font', label: t('字体'), icon: 'font' },
+      { key: 'background', label: t('背景'), icon: 'palette' },
+      { key: 'viewMode', label: t('模式'), icon: 'eye' },
+      { key: 'tts', label: t('朗读'), icon: 'headphones' },
+    ];
+
     return (
-      <View style={[styles.toolbar, { backgroundColor: currentTheme.background }]}>
-        <TouchableOpacity
-          style={styles.toolbarButton}
-          onPress={() => handleTabPress('catalog')}
-        >
-          <FontAwesome6
-            name="list"
-            size={20}
-            color={activeTab === 'catalog' ? theme.primary : currentTheme.text}
-          />
-          <Text style={[
-            styles.toolbarButtonText,
-            { color: activeTab === 'catalog' ? theme.primary : currentTheme.text },
-          ]}>
-            {t('目录')}
-          </Text>
-        </TouchableOpacity>
+      <View
+        style={[
+          styles.toolbar,
+          {
+            backgroundColor: readerCardSurface,
+            borderColor: currentTheme.textMuted + '33',
+            bottom: toolbarBottomOffset,
+            paddingBottom: overlayBottomInset + Spacing.sm,
+          },
+        ]}
+      >
+        {toolbarItems.map(item => {
+          const isActive = activeTab === item.key;
 
-        <TouchableOpacity
-          style={styles.toolbarButton}
-          onPress={() => handleTabPress('font')}
-        >
-          <FontAwesome6
-            name="font"
-            size={20}
-            color={activeTab === 'font' ? theme.primary : currentTheme.text}
-          />
-          <Text style={[
-            styles.toolbarButtonText,
-            { color: activeTab === 'font' ? theme.primary : currentTheme.text },
-          ]}>
-            {t('字体')}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.toolbarButton}
-          onPress={() => handleTabPress('background')}
-        >
-          <FontAwesome6
-            name="palette"
-            size={20}
-            color={activeTab === 'background' ? theme.primary : currentTheme.text}
-          />
-          <Text style={[
-            styles.toolbarButtonText,
-            { color: activeTab === 'background' ? theme.primary : currentTheme.text },
-          ]}>
-            {t('背景')}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.toolbarButton}
-          onPress={() => handleTabPress('viewMode')}
-        >
-          <FontAwesome6
-            name="eye"
-            size={20}
-            color={activeTab === 'viewMode' ? theme.primary : currentTheme.text}
-          />
-          <Text style={[
-            styles.toolbarButtonText,
-            { color: activeTab === 'viewMode' ? theme.primary : currentTheme.text },
-          ]}>
-            {t('模式')}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.toolbarButton}
-          onPress={() => handleTabPress('tts')}
-        >
-          <FontAwesome6
-            name="headphones"
-            size={20}
-            color={activeTab === 'tts' ? theme.primary : currentTheme.text}
-          />
-          <Text style={[
-            styles.toolbarButtonText,
-            { color: activeTab === 'tts' ? theme.primary : currentTheme.text },
-          ]}>
-            {t('朗读')}
-          </Text>
-        </TouchableOpacity>
+          return (
+            <TouchableOpacity
+              key={item.key}
+              style={[
+                styles.toolbarButton,
+                isActive && { backgroundColor: theme.primarySoft },
+              ]}
+              onPress={() => handleTabPress(item.key)}
+            >
+              <View
+                style={[
+                  styles.toolbarIconBadge,
+                  isActive && { backgroundColor: theme.primary },
+                ]}
+              >
+                <FontAwesome6
+                  name={item.icon}
+                  size={15}
+                  color={isActive ? theme.buttonPrimaryText : currentTheme.text}
+                />
+              </View>
+              <Text
+                style={[
+                  styles.toolbarButtonText,
+                  { color: isActive ? theme.primary : currentTheme.text },
+                ]}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   };
 
   if (loading) {
     return (
-      <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
+      <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={currentTheme.statusBarStyle}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={currentTheme.text} />
         </View>
@@ -1826,7 +1954,7 @@ export default function VolumeDetailScreen() {
 
   if (error || !volumeData) {
     return (
-      <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
+      <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={currentTheme.statusBarStyle}>
         <View style={styles.centerContainer}>
           <FontAwesome6 name="circle-exclamation" size={32} color={currentTheme.text} />
           <ThemedText variant="body" color={currentTheme.text} style={{ marginTop: Spacing.md }}>
@@ -1846,7 +1974,12 @@ export default function VolumeDetailScreen() {
   const hasYears = volumeData.years && volumeData.years.length > 0;
 
   return (
-    <Screen preset="fixed" backgroundColor={currentTheme.background} statusBarStyle={backgroundTheme === 'dark' ? 'light' : 'dark'}>
+    <Screen
+      preset="fixed"
+      backgroundColor={currentTheme.background}
+      statusBarStyle={currentTheme.statusBarStyle}
+      safeAreaEdges={['left', 'right']}
+    >
       {/* 滑动切换章节提示 */}
       {swipeHint && (
         <View style={[
@@ -1865,61 +1998,164 @@ export default function VolumeDetailScreen() {
         </View>
       )}
       
-      {/* 顶部栏 - 标题始终占位，按钮联动显示/隐藏 */}
-      <View style={[styles.header, { backgroundColor: currentTheme.background }]}>
-        {showToolbar ? (
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <FontAwesome6 name="arrow-left" size={18} color={currentTheme.text} />
-          </TouchableOpacity>
-        ) : (
-          <View style={[styles.backButton, { backgroundColor: 'transparent' }]} />
-        )}
-        <TouchableOpacity
-          style={styles.headerTitle}
-          onPress={handleTitleDoubleTap}
-          activeOpacity={0.7}
-        >
-          <ThemedText variant="h4" color={currentTheme.text}>
-            第{volumeData.volume_number}卷 · {volumeMeta?.volume_name}
-          </ThemedText>
-        </TouchableOpacity>
-        {showToolbar ? (
-          <TouchableOpacity
-            style={styles.bookmarkButton}
-            onPress={handleOpenBookmarkModal}
-            activeOpacity={0.7}
-          >
-            <FontAwesome6
-              name={isBookmarked ? "bookmark" : "bookmark"}
-              size={18}
-              color={isBookmarked ? theme.primary : currentTheme.text}
-              solid={isBookmarked}
-            />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.bookmarkButton} />
-        )}
+      {showToolbar && (
+        <View
+          style={[
+            styles.header,
+          {
+            backgroundColor: readerHeaderSurface,
+            borderBottomColor: currentTheme.textMuted + '33',
+            paddingTop: overlayHeaderInset,
+          },
+        ]}
+      >
+          <View style={styles.readerNav}>
+            <TouchableOpacity
+              style={[
+                styles.backButton,
+                {
+                  backgroundColor: readerCardSurface,
+                  borderColor: currentTheme.textMuted + '33',
+                },
+              ]}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+            >
+              <FontAwesome6 name="arrow-left" size={16} color={currentTheme.text} />
+            </TouchableOpacity>
 
-        {/* 播放按钮 */}
-        {showToolbar ? (
-          <TouchableOpacity
-            style={styles.playButton}
-            onPress={handleTogglePlay}
-            activeOpacity={0.7}
-          >
-            <FontAwesome6
-              name={isPlaying ? "pause" : "play"}
-              size={18}
-              color={theme.primary}
-            />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.playButton} />
-        )}
-      </View>
+            <TouchableOpacity
+              style={styles.headerTitle}
+              onPress={handleTitleDoubleTap}
+              activeOpacity={0.7}
+            >
+              <ThemedText variant="bodyMedium" color={currentTheme.text} numberOfLines={1}>
+                第{volumeData.volume_number}卷 · {volumeMeta?.volume_name}
+              </ThemedText>
+              <ThemedText variant="caption" color={readerMutedText} style={styles.readerSubtitle} numberOfLines={1}>
+                {volumeTimeRange}
+              </ThemedText>
+            </TouchableOpacity>
 
-      {/* 内容区域 */}
-      <View style={{ flex: 1 }}>
+            <View style={styles.readerActionGroup}>
+              <TouchableOpacity
+                style={[
+                  styles.readerActionButton,
+                  {
+                    backgroundColor: readerCardSurface,
+                  borderColor: currentTheme.textMuted + '33',
+                  },
+                ]}
+                onPress={handleOpenBookmarkModal}
+                activeOpacity={0.8}
+              >
+                <FontAwesome6
+                  name="bookmark"
+                  size={15}
+                  color={isBookmarked ? theme.primary : currentTheme.text}
+                  solid={isBookmarked}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.readerActionButton,
+                  {
+                    backgroundColor: readerCardSurface,
+                  borderColor: currentTheme.textMuted + '33',
+                  },
+                ]}
+                onPress={handleTogglePlay}
+                activeOpacity={0.8}
+              >
+                <FontAwesome6
+                  name={isPlaying ? 'pause' : 'play'}
+                  size={15}
+                  color={theme.primary}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.readerActionButton,
+                  {
+                    backgroundColor: theme.primarySoft,
+                    borderColor: theme.primaryLight,
+                  },
+                ]}
+                onPress={handleToggleToolbarVisibility}
+                activeOpacity={0.8}
+              >
+                <FontAwesome6
+                  name="xmark"
+                  size={15}
+                  color={theme.primary}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.readerMetaCard,
+              {
+                backgroundColor: readerCardSurface,
+                borderColor: currentTheme.textMuted + '33',
+              },
+            ]}
+          >
+            <View style={styles.readerMetaTopRow}>
+              <View style={styles.readerMetaTextWrap}>
+                <ThemedText variant="caption" color={readerMutedText}>
+                  当前纪年
+                </ThemedText>
+                <ThemedText variant="smallMedium" color={currentTheme.text} numberOfLines={1}>
+                  {currentYearLabel}
+                </ThemedText>
+              </View>
+              <View style={styles.readerMetaStats}>
+                <View style={[styles.readerMetaBadge, { backgroundColor: theme.primarySoft }]}>
+                  <ThemedText variant="tiny" color={theme.primary}>
+                    {readerModeLabel}
+                  </ThemedText>
+                </View>
+                <View style={[styles.readerMetaBadge, { backgroundColor: theme.accentSoft }]}>
+                  <ThemedText variant="tiny" color={theme.accent}>
+                    {textLayoutLabel}
+                  </ThemedText>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.readerProgressRow}>
+              <View style={[styles.readerProgressTrack, { backgroundColor: currentTheme.textMuted + '22' }]}>
+                <View
+                  style={[
+                    styles.readerProgressFill,
+                    {
+                      backgroundColor: theme.primary,
+                      width: `${readingProgressPercent}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <ThemedText variant="captionMedium" color={readerMutedText}>
+                {readingProgressPercent}%
+              </ThemedText>
+            </View>
+
+            <View style={styles.readerMetaBottomRow}>
+              <ThemedText variant="tiny" color={readerMutedText}>
+                已读 {readingPositionLabel}
+              </ThemedText>
+              <ThemedText variant="tiny" color={readerMutedText}>
+                轻触正文收起设置
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* 内容区域：为正文本体预留顶部安全区，避免刘海/灵动岛遮挡首屏文字 */}
+      <View style={{ flex: 1, paddingTop: insets.top + Spacing.sm }}>
         {(textLayout === 'vertical' || textLayout === 'horizontal') && volumeData && hasYears ? (
           textLayout === 'vertical' ? (
               <VerticalReader
@@ -1934,7 +2170,7 @@ export default function VolumeDetailScreen() {
                 annotationColor={annotationColorForReader}
                 translationColor={theme.textTranslation || theme.textSecondary}
                 accentColor={theme.accent}
-                textMuted={theme.textMuted}
+                textMuted={readerMutedText}
                 highlightKeyword={keyword}
                 highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
                 userNotes={userNotes}
@@ -1961,7 +2197,7 @@ export default function VolumeDetailScreen() {
                   annotationColor={annotationColorForReader}
                   translationColor={theme.textTranslation || theme.textSecondary}
                   accentColor={theme.accent}
-                  textMuted={theme.textMuted}
+                  textMuted={readerMutedText}
                   highlightKeyword={keyword}
                   highlightedParagraphId={highlightedParagraphId || (highlightId ? parseInt(highlightId) : null)}
                   userNotes={userNotes}
@@ -1990,7 +2226,17 @@ export default function VolumeDetailScreen() {
 
       {/* TTS 播放控制条 */}
       {(isPlaying || playingProgress) && (
-        <View style={[styles.ttsControlBar, { backgroundColor: theme.backgroundDefault }]}>
+        <View
+        style={[
+          styles.ttsControlBar,
+          {
+            backgroundColor: readerCardSurface,
+            borderColor: currentTheme.textMuted + '33',
+            bottom: 0,
+            paddingBottom: overlayBottomInset + Spacing.sm,
+          },
+        ]}
+      >
           {/* 上一条 */}
           <TouchableOpacity 
             style={styles.ttsControlBtn}
@@ -2000,7 +2246,7 @@ export default function VolumeDetailScreen() {
             <FontAwesome6 
               name="backward-step" 
               size={20} 
-              color={currentPlayingIndex <= 0 ? theme.textMuted : theme.primary} 
+              color={currentPlayingIndex <= 0 ? readerMutedText : theme.primary} 
             />
           </TouchableOpacity>
 
@@ -2029,7 +2275,7 @@ export default function VolumeDetailScreen() {
             <FontAwesome6 
               name="forward-step" 
               size={20} 
-              color={currentPlayingIndex >= totalSegments - 1 ? theme.textMuted : theme.primary} 
+              color={currentPlayingIndex >= totalSegments - 1 ? readerMutedText : theme.primary} 
             />
           </TouchableOpacity>
 
@@ -2038,7 +2284,7 @@ export default function VolumeDetailScreen() {
             <ThemedText variant="smallMedium" color={theme.textPrimary} numberOfLines={1}>
               {playingProgress === '加载中...' ? '加载中...' : playingProgress}
             </ThemedText>
-            <ThemedText variant="tiny" color={theme.textMuted}>
+            <ThemedText variant="tiny" color={readerMutedText}>
               {totalSegments > 0 ? `${currentPlayingIndex + 1}/${totalSegments}条` : ''}
             </ThemedText>
           </View>
@@ -2048,7 +2294,7 @@ export default function VolumeDetailScreen() {
             style={styles.ttsStopBtn}
             onPress={handleStopPlay}
           >
-            <FontAwesome6 name="xmark" size={18} color={theme.textMuted} />
+            <FontAwesome6 name="xmark" size={18} color={readerMutedText} />
           </TouchableOpacity>
         </View>
       )}
@@ -2057,6 +2303,12 @@ export default function VolumeDetailScreen() {
       {renderToolbar()}
 
       {/* 设置面板 */}
+      {activeTab && (
+        <Pressable
+          style={styles.panelBackdrop}
+          onPress={() => setActiveTab(null)}
+        />
+      )}
       {activeTab === 'catalog' && renderCatalogPanel()}
       {activeTab === 'font' && renderFontPanel()}
       {activeTab === 'background' && renderBackgroundPanel()}
@@ -2087,33 +2339,33 @@ export default function VolumeDetailScreen() {
 
                 {/* Modal Body */}
                 <View style={styles.modalBody}>
-                  <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
+                  <ThemedText variant="small" color={readerMutedText} style={styles.inputLabel}>
                     标题（可选）
                   </ThemedText>
                   <TextInput
                     style={[styles.textInput, { 
                       backgroundColor: theme.backgroundTertiary,
                       color: currentTheme.text,
-                      borderColor: theme.border,
+                      borderColor: currentTheme.textMuted + '33',
                     }]}
                     placeholder="默认使用卷名"
-                    placeholderTextColor={theme.textMuted}
+                    placeholderTextColor={readerMutedText}
                     value={bookmarkTitle}
                     onChangeText={setBookmarkTitle}
                     maxLength={100}
                   />
 
-                  <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
+                  <ThemedText variant="small" color={readerMutedText} style={styles.inputLabel}>
                     备注（可选）
                   </ThemedText>
                   <TextInput
                     style={[styles.textInput, styles.textArea, { 
                       backgroundColor: theme.backgroundTertiary,
                       color: currentTheme.text,
-                      borderColor: theme.border,
+                      borderColor: currentTheme.textMuted + '33',
                     }]}
                     placeholder="添加备注..."
-                    placeholderTextColor={theme.textMuted}
+                    placeholderTextColor={readerMutedText}
                     value={bookmarkNote}
                     onChangeText={setBookmarkNote}
                     multiline
@@ -2149,132 +2401,152 @@ export default function VolumeDetailScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* 文本选择菜单 - 固定在底部 */}
-      {textSelection && !showMarkMenu && (
+      {/* 标注工具栏 */}
+      {textSelection && !showNoteModal && (
         <>
-          {/* 透明遮罩层，点击关闭 */}
           <Pressable
             style={styles.selectionOverlay}
             onPress={handleCancelSelection}
           />
-          {/* 底部菜单 */}
-          <View style={styles.selectionMenu}>
-            <TouchableOpacity
-              style={[styles.selectionMenuItem, { backgroundColor: theme.primary }]}
-              onPress={handleOpenMarkMenu}
-            >
-              <FontAwesome6 name="highlighter" size={14} color="#FFFFFF" />
-              <ThemedText variant="bodyMedium" color="#FFFFFF">标注</ThemedText>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+          {selectionActionMode === 'quick' ? (
+            <View style={[styles.selectionActionSheet, { backgroundColor: currentTheme.background }]}>
+              <View style={styles.markMenuHeader}>
+                <View style={[styles.markPreviewCard, { backgroundColor: theme.backgroundSecondary }]}>
+                  <ThemedText variant="tiny" color={readerMutedText}>
+                    已选 {textSelection.selectedText.length} 字
+                  </ThemedText>
+                  <ThemedText variant="body" color={currentTheme.text} numberOfLines={2}>
+                    {textSelection.selectedText}
+                  </ThemedText>
+                </View>
+                <TouchableOpacity style={styles.markMenuClose} onPress={handleCancelSelection}>
+                  <FontAwesome6 name="xmark" size={18} color={readerMutedText} />
+                </TouchableOpacity>
+              </View>
 
-      {/* 标注菜单 */}
-      {textSelection && showMarkMenu && (
-        <>
-          <Pressable
-            style={styles.selectionOverlay}
-            onPress={() => setShowMarkMenu(false)}
-          />
-          <View style={[styles.markMenu, { backgroundColor: currentTheme.background }]}>
-            {/* 画线类型 - 三选一 */}
-            <View style={styles.markSectionLabel}>
-              <ThemedText variant="small" color={theme.textMuted}>画线样式</ThemedText>
-            </View>
-            <View style={styles.markTypeRow}>
-              {MARK_TYPES.map(item => (
+              <View style={styles.selectionPrimaryActions}>
                 <TouchableOpacity
-                  key={item.type}
-                  style={[
-                    styles.markTypeItem,
-                    selectedMarkType === item.type && { backgroundColor: theme.primary + '15' },
-                  ]}
-                  onPress={() => setSelectedMarkType(item.type)}
+                  style={[styles.selectionPrimaryButton, { backgroundColor: theme.backgroundSecondary, borderColor: currentTheme.textMuted + '33' }]}
+                  onPress={handleCopySelection}
                 >
-                  <View style={[
-                    styles.markTypeIcon,
-                    { backgroundColor: selectedMarkType === item.type ? theme.primary : theme.backgroundSecondary },
-                  ]}>
+                  <FontAwesome6 name="copy" size={16} color={currentTheme.text} />
+                  <ThemedText variant="bodyMedium" color={currentTheme.text}>复制</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.selectionPrimaryButton, { backgroundColor: theme.primary }]}
+                  onPress={handleOpenMarkPanel}
+                >
+                  <FontAwesome6 name="highlighter" size={16} color="#FFFFFF" />
+                  <ThemedText variant="bodyMedium" color="#FFFFFF">标注</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.markMenu, { backgroundColor: currentTheme.background }]}>
+              <View style={styles.markMenuHeader}>
+                <View style={[styles.markPreviewCard, { backgroundColor: theme.backgroundSecondary }]}>
+                  <ThemedText variant="tiny" color={readerMutedText}>
+                    已选 {textSelection.selectedText.length} 字
+                  </ThemedText>
+                  <ThemedText variant="body" color={currentTheme.text} numberOfLines={2}>
+                    {textSelection.selectedText}
+                  </ThemedText>
+                </View>
+                <TouchableOpacity
+                  style={[styles.markMenuClose, { backgroundColor: theme.backgroundSecondary }]}
+                  onPress={() => setSelectionActionMode('quick')}
+                >
+                  <FontAwesome6 name="arrow-left" size={16} color={readerMutedText} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.markMenuClose} onPress={handleCancelSelection}>
+                  <FontAwesome6 name="xmark" size={18} color={readerMutedText} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.markSectionLabel}>
+                <ThemedText variant="small" color={readerMutedText}>标记样式</ThemedText>
+              </View>
+              <View style={styles.markTypeRow}>
+                {MARK_TYPES.map(item => (
+                  <TouchableOpacity
+                    key={item.type}
+                    style={[
+                      styles.markTypeItem,
+                      {
+                        borderColor: selectedMarkType === item.type ? theme.primary : currentTheme.textMuted + '33',
+                        backgroundColor: selectedMarkType === item.type ? theme.primary + '12' : theme.backgroundSecondary,
+                      },
+                    ]}
+                    onPress={() => setSelectedMarkType(item.type)}
+                  >
                     <FontAwesome6
                       name={item.icon}
-                      size={16}
-                      color={selectedMarkType === item.type ? '#FFFFFF' : theme.textPrimary}
+                      size={15}
+                      color={selectedMarkType === item.type ? theme.primary : readerMutedText}
                     />
-                  </View>
-                  <ThemedText
-                    variant="tiny"
-                    color={selectedMarkType === item.type ? theme.primary : theme.textMuted}
-                  >
-                    {item.label}
-                  </ThemedText>
-                </TouchableOpacity>
-              ))}
-            </View>
+                    <ThemedText
+                      variant="smallMedium"
+                      color={selectedMarkType === item.type ? theme.primary : readerMutedText}
+                    >
+                      {item.label}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-            {/* 分隔线 */}
-            <View style={[styles.markDivider, { backgroundColor: theme.border }]} />
+              {/* 分隔线 */}
+              <View style={[styles.markDivider, { backgroundColor: currentTheme.textMuted + '33' }]} />
 
-            {/* 颜色选择 */}
-            <View style={styles.markSectionLabel}>
-              <ThemedText variant="small" color={theme.textMuted}>选择颜色</ThemedText>
-            </View>
-            <View style={styles.markColorRow}>
-              {MARK_COLORS.map(item => (
+              {/* 颜色选择 */}
+              <View style={styles.markSectionLabel}>
+                <ThemedText variant="small" color={readerMutedText}>选择颜色</ThemedText>
+              </View>
+              <View style={styles.markColorRow}>
+                {MARK_COLORS.map(item => (
+                  <TouchableOpacity
+                    key={item.value}
+                    style={[
+                      styles.markColorItem,
+                      { backgroundColor: item.value },
+                      selectedMarkColor === item.value && { borderColor: theme.primary, borderWidth: 2 },
+                    ]}
+                    onPress={() => setSelectedMarkColor(item.value)}
+                  />
+                ))}
+              </View>
+
+              {/* 分隔线 */}
+              <View style={[styles.markDivider, { backgroundColor: currentTheme.textMuted + '33' }]} />
+
+              {/* 操作按钮 */}
+              <View style={styles.markActionRow}>
+                {/* 完成按钮 - 只画线不加笔记 */}
                 <TouchableOpacity
-                  key={item.value}
-                  style={[
-                    styles.markColorItem,
-                    { backgroundColor: item.value },
-                    selectedMarkColor === item.value && { borderColor: theme.primary, borderWidth: 2 },
-                  ]}
-                  onPress={() => setSelectedMarkColor(item.value)}
-                />
-              ))}
+                  style={[styles.markActionButton, { backgroundColor: theme.primary }]}
+                  onPress={handleQuickMark}
+                  disabled={savingNote}
+                >
+                  {savingNote ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <FontAwesome6 name="check" size={16} color="#FFFFFF" />
+                      <ThemedText variant="bodyMedium" color="#FFFFFF">完成</ThemedText>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* 添加笔记按钮 */}
+                <TouchableOpacity
+                  style={[styles.markActionButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.primary, borderWidth: 1 }]}
+                  onPress={handleOpenNoteModal}
+                >
+                  <FontAwesome6 name="pen-to-square" size={16} color={theme.primary} />
+                  <ThemedText variant="bodyMedium" color={theme.primary}>添加笔记</ThemedText>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            {/* 分隔线 */}
-            <View style={[styles.markDivider, { backgroundColor: theme.border }]} />
-
-            {/* 操作按钮 */}
-            <View style={styles.markActionRow}>
-              {/* 完成按钮 - 只画线不加笔记 */}
-              <TouchableOpacity
-                style={[styles.markActionButton, { backgroundColor: theme.primary }]}
-                onPress={handleQuickMark}
-                disabled={savingNote}
-              >
-                {savingNote ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <FontAwesome6 name="check" size={16} color="#FFFFFF" />
-                    <ThemedText variant="bodyMedium" color="#FFFFFF">完成</ThemedText>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {/* 添加笔记按钮 */}
-              <TouchableOpacity
-                style={[styles.markActionButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.primary, borderWidth: 1 }]}
-                onPress={() => {
-                  setShowMarkMenu(false);
-                  setShowNoteModal(true);
-                }}
-              >
-                <FontAwesome6 name="pen-to-square" size={16} color={theme.primary} />
-                <ThemedText variant="bodyMedium" color={theme.primary}>添加笔记</ThemedText>
-              </TouchableOpacity>
-            </View>
-
-            {/* 取消按钮 */}
-            <TouchableOpacity
-              style={styles.markCancelButton}
-              onPress={() => setShowMarkMenu(false)}
-            >
-              <ThemedText variant="bodyMedium" color={theme.textMuted}>取消</ThemedText>
-            </TouchableOpacity>
-          </View>
+          )}
         </>
       )}
 
@@ -2301,24 +2573,24 @@ export default function VolumeDetailScreen() {
 
                 {/* 选中的文字 */}
                 <View style={[styles.selectedTextContainer, { backgroundColor: theme.backgroundSecondary }]}>
-                  <ThemedText variant="small" color={theme.textMuted}>选中文字：</ThemedText>
+                  <ThemedText variant="small" color={readerMutedText}>选中文字：</ThemedText>
                   <ThemedText variant="body" color={currentTheme.text} style={styles.selectedText}>
                     {textSelection?.selectedText}
                   </ThemedText>
                 </View>
 
                 {/* 笔记输入 */}
-                <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
+                <ThemedText variant="small" color={readerMutedText} style={styles.inputLabel}>
                   笔记（可选）
                 </ThemedText>
                 <TextInput
                   style={[styles.textInput, styles.textArea, {
                     backgroundColor: theme.backgroundTertiary,
                     color: currentTheme.text,
-                    borderColor: theme.border,
+                    borderColor: currentTheme.textMuted + '33',
                   }]}
                   placeholder="添加笔记..."
-                  placeholderTextColor={theme.textMuted}
+                  placeholderTextColor={readerMutedText}
                   value={noteContent}
                   onChangeText={setNoteContent}
                   multiline
@@ -2390,10 +2662,53 @@ export default function VolumeDetailScreen() {
                       </ThemedText>
                     </View>
 
-                    {/* 画线类型选择 - 始终显示 */}
+                    {isEditingNote ? (
+                      <View style={styles.modalBody}>
+                        <ThemedText variant="small" color={readerMutedText} style={styles.inputLabel}>
+                          笔记内容
+                        </ThemedText>
+                        <TextInput
+                          style={[styles.textInput, styles.textAreaLarge, {
+                            backgroundColor: theme.backgroundTertiary,
+                            color: currentTheme.text,
+                            borderColor: currentTheme.textMuted + '33',
+                          }]}
+                          placeholder="添加笔记..."
+                          placeholderTextColor={readerMutedText}
+                          value={editNoteContent}
+                          onChangeText={setEditNoteContent}
+                          multiline
+                          numberOfLines={6}
+                          maxLength={1000}
+                          textAlignVertical="top"
+                          autoFocus
+                        />
+                      </View>
+                    ) : (
+                      <View style={styles.modalBody}>
+                        <ThemedText variant="small" color={readerMutedText} style={styles.inputLabel}>
+                          我的笔记
+                        </ThemedText>
+                        {clickedNote?.noteContent ? (
+                          <View style={[styles.noteContentBox, { backgroundColor: theme.backgroundSecondary }]}>
+                            <ThemedText variant="body" color={currentTheme.text}>
+                              {clickedNote.noteContent}
+                            </ThemedText>
+                          </View>
+                        ) : (
+                          <View style={[styles.noteContentBox, { backgroundColor: theme.backgroundSecondary }]}>
+                            <ThemedText variant="small" color={readerMutedText}>
+                              暂无笔记内容，可直接编辑补充想法
+                            </ThemedText>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* 样式调整 */}
                     <View style={styles.modalBody}>
-                      <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
-                        画线样式
+                      <ThemedText variant="small" color={readerMutedText} style={styles.inputLabel}>
+                        标注样式
                       </ThemedText>
                       <View style={styles.editMarkTypeRow}>
                         {MARK_TYPES.map(item => (
@@ -2405,7 +2720,6 @@ export default function VolumeDetailScreen() {
                             ]}
                             onPress={() => {
                               setEditNoteMarkType(item.type);
-                              // 立即保存
                               if (clickedNote) {
                                 updateUserNote(clickedNote.id, { markType: item.type });
                                 setUserNotes(prev => prev.map(n =>
@@ -2418,11 +2732,11 @@ export default function VolumeDetailScreen() {
                             <FontAwesome6
                               name={item.icon}
                               size={14}
-                              color={editNoteMarkType === item.type ? theme.primary : theme.textMuted}
+                              color={editNoteMarkType === item.type ? theme.primary : readerMutedText}
                             />
                             <ThemedText
                               variant="tiny"
-                              color={editNoteMarkType === item.type ? theme.primary : theme.textMuted}
+                              color={editNoteMarkType === item.type ? theme.primary : readerMutedText}
                             >
                               {item.label}
                             </ThemedText>
@@ -2430,8 +2744,7 @@ export default function VolumeDetailScreen() {
                         ))}
                       </View>
 
-                      {/* 颜色选择 - 始终显示 */}
-                      <ThemedText variant="small" color={theme.textMuted} style={[styles.inputLabel, { marginTop: 12 }]}>
+                      <ThemedText variant="small" color={readerMutedText} style={[styles.inputLabel, { marginTop: 12 }]}>
                         标注颜色
                       </ThemedText>
                       <View style={styles.editColorRow}>
@@ -2445,7 +2758,6 @@ export default function VolumeDetailScreen() {
                             ]}
                             onPress={() => {
                               setEditNoteColor(item.value);
-                              // 立即保存
                               if (clickedNote) {
                                 updateUserNote(clickedNote.id, { color: item.value });
                                 setUserNotes(prev => prev.map(n =>
@@ -2458,50 +2770,6 @@ export default function VolumeDetailScreen() {
                         ))}
                       </View>
                     </View>
-
-                    {/* 笔记内容 - 查看/编辑模式 */}
-                    {isEditingNote ? (
-                      <View style={styles.modalBody}>
-                        <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
-                          编辑笔记
-                        </ThemedText>
-                        <TextInput
-                          style={[styles.textInput, styles.textAreaLarge, {
-                            backgroundColor: theme.backgroundTertiary,
-                            color: currentTheme.text,
-                            borderColor: theme.border,
-                          }]}
-                          placeholder="添加笔记..."
-                          placeholderTextColor={theme.textMuted}
-                          value={editNoteContent}
-                          onChangeText={setEditNoteContent}
-                          multiline
-                          numberOfLines={6}
-                          maxLength={1000}
-                          textAlignVertical="top"
-                          autoFocus
-                        />
-                      </View>
-                    ) : (
-                      clickedNote?.noteContent ? (
-                        <View style={styles.modalBody}>
-                          <ThemedText variant="small" color={theme.textMuted} style={styles.inputLabel}>
-                            我的笔记
-                          </ThemedText>
-                          <View style={[styles.noteContentBox, { backgroundColor: theme.backgroundSecondary }]}>
-                            <ThemedText variant="body" color={currentTheme.text}>
-                              {clickedNote.noteContent}
-                            </ThemedText>
-                          </View>
-                        </View>
-                      ) : (
-                        <View style={styles.modalBody}>
-                          <ThemedText variant="small" color={theme.textMuted}>
-                            暂无笔记内容，点击编辑添加
-                          </ThemedText>
-                        </View>
-                      )
-                    )}
                   </View>
                 </TouchableWithoutFeedback>
               </ScrollView>

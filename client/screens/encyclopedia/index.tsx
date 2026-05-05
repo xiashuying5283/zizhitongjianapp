@@ -4,20 +4,21 @@ import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { Spacing, BorderRadius } from '@/constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 import { createStyles } from './styles';
 
 interface CategoryItem {
   id: string;
   title: string;
   description: string;
+  stamp: string;
   icon: string;
   color: string;
-  gradient: string[];
-  route: string;
+  route?: string;
   count?: number;
+  statusLabel?: string;
+  disabled?: boolean;
 }
 
 export default function EncyclopediaScreen() {
@@ -49,14 +50,14 @@ export default function EncyclopediaScreen() {
     fetchStats();
   }, []);
 
-  const categories: CategoryItem[] = [
+  const knowledgeCategories: CategoryItem[] = [
     {
       id: 'characters',
       title: '人物',
       description: '历史人物与关系图谱',
+      stamp: '人',
       icon: 'users',
       color: theme.primary,
-      gradient: ['#6366F1', '#4F46E5'],
       route: '/characters',
       count: stats.characters,
     },
@@ -64,9 +65,9 @@ export default function EncyclopediaScreen() {
       id: 'titles',
       title: '官职',
       description: '历代官职与品级制度',
+      stamp: '职',
       icon: 'scroll',
       color: theme.accent,
-      gradient: ['#A78BFA', '#7C3AED'],
       route: '/titles',
       count: stats.titles,
     },
@@ -74,9 +75,9 @@ export default function EncyclopediaScreen() {
       id: 'geography',
       title: '地理数据',
       description: '州郡山川关隘宫殿',
+      stamp: '地',
       icon: 'mountain-sun',
-      color: '#0891B2',
-      gradient: ['#06B6D4', '#0891B2'],
+      color: theme.info,
       route: '/geography',
       count: stats.geography,
     },
@@ -84,41 +85,79 @@ export default function EncyclopediaScreen() {
       id: 'quotes',
       title: '典著名句',
       description: '资治通鉴经典语录',
+      stamp: '句',
       icon: 'quote-left',
-      color: '#10B981',
-      gradient: ['#34D399', '#10B981'],
+      color: theme.success,
       route: '/quotes',
     },
     {
       id: 'era-names',
       title: '年号对照',
       description: '帝王年号与纪年转换',
+      stamp: '年',
       icon: 'calendar-days',
-      color: '#EF4444',
-      gradient: ['#F87171', '#EF4444'],
+      color: theme.warning,
       route: '/era-names',
     },
+    {
+      id: 'institutions',
+      title: '典章制度',
+      description: '礼制、兵制、赋税与政务制度整理中',
+      stamp: '制',
+      icon: 'landmark',
+      color: theme.gold,
+      statusLabel: '待整理',
+      disabled: true,
+    },
+  ];
+
+  const chatEntries: CategoryItem[] = [
     {
       id: 'group-chat',
       title: '历史群聊',
       description: '与历史人物对话',
+      stamp: '聊',
       icon: 'message',
-      color: '#8B5CF6',
-      gradient: ['#A78BFA', '#8B5CF6'],
+      color: theme.primary,
       route: '/group-chat',
     },
     {
       id: 'chat-rooms',
       title: '我的群聊',
       description: '查看历史群聊记录',
+      stamp: '录',
       icon: 'comments',
-      color: '#F59E0B',
-      gradient: ['#FBBF24', '#F59E0B'],
+      color: theme.accent,
       route: '/chat-rooms',
     },
   ];
 
+  const mapEntries = [
+    {
+      id: 'geography',
+      stamp: '名',
+      title: '古今地名对照',
+      description: '范阳、洛阳、长安等地理检索',
+      route: '/geography',
+    },
+    {
+      id: 'dynasty',
+      stamp: '时',
+      title: '时间轴地图',
+      description: '按朝代与年份查看疆域演变',
+      route: '/historical-maps/dynasty',
+    },
+    {
+      id: 'topic',
+      stamp: '线',
+      title: '战役路线',
+      description: '楚汉争霸、安史之乱、三国鼎立',
+      route: '/historical-maps/topic',
+    },
+  ];
+
   const handleCategoryPress = (category: CategoryItem) => {
+    if (!category.route || category.disabled) return;
     router.push(category.route);
   };
 
@@ -131,51 +170,100 @@ export default function EncyclopediaScreen() {
   const renderCategory = (category: CategoryItem) => (
       <TouchableOpacity
           key={category.id}
-          style={[styles.categoryCard, { borderColor: category.color }]}
+          style={[
+            styles.categoryCard,
+            category.disabled && styles.categoryCardDisabled,
+          ]}
           onPress={() => handleCategoryPress(category)}
-          activeOpacity={0.7}
+          activeOpacity={category.disabled ? 1 : 0.7}
+          disabled={category.disabled}
       >
-        <View style={[styles.categoryIcon, { backgroundColor: category.color }]}>
-          <FontAwesome6 name={category.icon as any} size={24} color="#FFFFFF" />
+        <View style={styles.categoryTop}>
+          <View style={[styles.categoryStamp, { backgroundColor: `${category.color}20` }]}>
+            <ThemedText variant="tiny" color={category.color}>
+              {category.stamp}
+            </ThemedText>
+          </View>
+          <FontAwesome6 name={category.icon as any} size={16} color={category.color} />
         </View>
-        <View style={styles.categoryContent}>
-          <View style={styles.categoryHeader}>
-            <ThemedText variant="h4" color={theme.textPrimary}>
+        <View style={styles.categoryBody}>
+          <View>
+            <ThemedText variant="bodyMedium" color={theme.textPrimary}>
               {category.title}
             </ThemedText>
-            {category.count !== undefined && (
-                <ThemedText variant="caption" color={category.color} style={styles.categoryCount}>
-                  {category.count}
-                </ThemedText>
-            )}
+            <ThemedText variant="caption" color={theme.textSecondary}>
+              {category.description}
+            </ThemedText>
           </View>
-          <ThemedText variant="body" color={theme.textSecondary}>
-            {category.description}
-          </ThemedText>
+          {category.count !== undefined ? (
+            <View style={styles.categoryCount}>
+              <ThemedText variant="tiny" color={category.color}>
+                {category.count}
+              </ThemedText>
+            </View>
+          ) : category.statusLabel ? (
+            <View style={styles.categoryCount}>
+              <ThemedText variant="tiny" color={theme.textMuted}>
+                {category.statusLabel}
+              </ThemedText>
+            </View>
+          ) : (
+            <ThemedText variant="tiny" color={theme.textMuted}>
+              进入
+            </ThemedText>
+          )}
         </View>
-        <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
       </TouchableOpacity>
   );
 
-  return (
-      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Header */}
-          <ThemedView level="root" style={styles.header}>
-            <ThemedText variant="h2" color={theme.textPrimary}>
-              资治通鉴百科
-            </ThemedText>
-            <ThemedText variant="body" color={theme.textSecondary} style={styles.headerSubtitle}>
-              探索历史的智慧
-            </ThemedText>
-          </ThemedView>
+  const renderMapEntry = (entry: typeof mapEntries[number]) => (
+    <TouchableOpacity
+      key={entry.id}
+      style={styles.listItem}
+      onPress={() => router.push(entry.route)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.listStamp}>
+        <ThemedText variant="tiny" color={theme.accent}>
+          {entry.stamp}
+        </ThemedText>
+      </View>
+      <View style={styles.listContent}>
+        <ThemedText variant="bodyMedium" color={theme.textPrimary}>
+          {entry.title}
+        </ThemedText>
+        <ThemedText variant="caption" color={theme.textSecondary}>
+          {entry.description}
+        </ThemedText>
+      </View>
+      <FontAwesome6 name="chevron-right" size={14} color={theme.textMuted} />
+    </TouchableOpacity>
+  );
 
-          {/* Search Bar */}
+  return (
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark" safeAreaEdges={['top', 'left', 'right']}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <View style={styles.headerRow}>
+              <View style={styles.headerText}>
+                <ThemedText variant="h1" color={theme.textPrimary}>
+                  探索
+                </ThemedText>
+                <ThemedText variant="small" color={theme.textMuted} style={styles.headerSubtitle}>
+                  人物、制度、地图与历史对话入口
+                </ThemedText>
+              </View>
+              <View style={styles.seal}>
+                <ThemedText variant="title" color={theme.buttonPrimaryText}>探</ThemedText>
+              </View>
+            </View>
+          </View>
+
           <View style={styles.searchContainer}>
             <FontAwesome6 name="magnifying-glass" size={16} color={theme.textMuted} />
             <TextInput
                 style={styles.searchInput}
-                placeholder="搜索人物、官职、事件..."
+                placeholder="搜索人物、官职、地名、事件..."
                 placeholderTextColor={theme.textMuted}
                 value={searchText}
                 onChangeText={setSearchText}
@@ -189,54 +277,105 @@ export default function EncyclopediaScreen() {
             )}
           </View>
 
-          {/* Categories */}
-          <View style={styles.categoriesContainer}>
-            <ThemedText variant="h4" color={theme.textPrimary} style={styles.sectionTitle}>
+          <View style={styles.sectionHeader}>
+            <ThemedText variant="smallMedium" color={theme.textPrimary}>
               知识分区
             </ThemedText>
-            {categories.map(category => renderCategory(category))}
+            <ThemedText variant="caption" color={theme.textMuted}>
+              {knowledgeCategories.length} 个入口
+            </ThemedText>
+          </View>
+          <View style={styles.categoriesWrap}>
+            {knowledgeCategories.map(category => renderCategory(category))}
           </View>
 
-          {/* Quick Stats */}
-          <ThemedView level="default" style={styles.statsCard}>
-            <ThemedText variant="labelSmall" color={theme.textMuted} style={styles.statsTitle}>
+          <View style={styles.sectionHeader}>
+            <ThemedText variant="smallMedium" color={theme.textPrimary}>
+              群聊互动
+            </ThemedText>
+            <ThemedText variant="caption" color={theme.textMuted}>
+              历史对话 / 我的群聊
+            </ThemedText>
+          </View>
+          <View style={styles.categoriesWrap}>
+            {chatEntries.map(category => renderCategory(category))}
+          </View>
+
+          <View style={styles.sectionHeader}>
+            <ThemedText variant="smallMedium" color={theme.textPrimary}>
+              历史地图
+            </ThemedText>
+            <ThemedText variant="caption" color={theme.textMuted}>
+              地图 / 专题 / 图层
+            </ThemedText>
+          </View>
+          <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/map-event', { id: 'an-shi-zhi-luan' })}>
+            <LinearGradient
+              colors={[theme.accentSoft, theme.goldSoft]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.mapCard}
+            >
+              <View style={styles.mapCardTop}>
+                <View style={styles.mapBadge}>
+                  <ThemedText variant="tiny" color={theme.accent}>专题地图</ThemedText>
+                </View>
+                <FontAwesome6 name="map-location-dot" size={18} color={theme.accent} />
+              </View>
+              <View style={styles.mapCaption}>
+                <ThemedText variant="title" color={theme.textPrimary}>
+                  安史之乱
+                </ThemedText>
+                <ThemedText variant="caption" color={theme.textSecondary} style={styles.mapCaptionMeta}>
+                  755-763 · 唐 · 叛军南下与长安失守路线
+                </ThemedText>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <View style={styles.listGroup}>
+            {mapEntries.map(renderMapEntry)}
+          </View>
+
+          <View style={styles.statsCard}>
+            <ThemedText variant="smallMedium" color={theme.textPrimary}>
               数据统计
             </ThemedText>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <ThemedText variant="h2" color={theme.primary}>
+                <ThemedText variant="h4" color={theme.primary}>
                   294
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
-                  卷
+                  卷目总数
                 </ThemedText>
               </View>
               <View style={styles.statItem}>
-                <ThemedText variant="h2" color={theme.accent}>
+                <ThemedText variant="h4" color={theme.accent}>
                   {stats.characters}
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
-                  人物
+                  人物词条
                 </ThemedText>
               </View>
               <View style={styles.statItem}>
-                <ThemedText variant="h2" color="#F59E0B">
+                <ThemedText variant="h4" color={theme.warning}>
                   {stats.titles}
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
-                  官职
+                  官职条目
                 </ThemedText>
               </View>
               <View style={styles.statItem}>
-                <ThemedText variant="h2" color="#0891B2">
+                <ThemedText variant="h4" color={theme.info}>
                   {stats.geography}
                 </ThemedText>
                 <ThemedText variant="caption" color={theme.textSecondary}>
-                  地理
+                  地理节点
                 </ThemedText>
               </View>
             </View>
-          </ThemedView>
+          </View>
         </ScrollView>
       </Screen>
   );

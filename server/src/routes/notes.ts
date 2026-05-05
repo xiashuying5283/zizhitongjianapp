@@ -130,7 +130,6 @@ router.get('/list', async (req: Request, res: Response) => {
        FROM user_notes n
        LEFT JOIN zizhitongjian_volumes v ON n.volume_number = v.volume_number
        WHERE ${userId ? 'n.user_id = $1' : 'n.device_id = $1'}
-         AND n.note_content IS NOT NULL
        ORDER BY n.created_at DESC
        LIMIT $2 OFFSET $3`,
       [userId || deviceId, limitNum, offsetNum]
@@ -138,7 +137,7 @@ router.get('/list', async (req: Request, res: Response) => {
 
     const countResult = await pool.query(
       `SELECT COUNT(*) as count FROM user_notes 
-       WHERE ${userId ? 'user_id = $1' : 'device_id = $1'} AND note_content IS NOT NULL`,
+       WHERE ${userId ? 'user_id = $1' : 'device_id = $1'}`,
       [userId || deviceId]
     );
     const total = parseInt(countResult.rows[0]?.count || '0', 10);

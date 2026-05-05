@@ -18,8 +18,52 @@ function commentRowToObject(row: any) {
       id: row.user_id_col,
       username: row.username,
       nickname: row.nickname,
+      avatar: row.avatar,
     } : null,
   };
+}
+
+function sortCommentReplies(comments: any[]) {
+  comments.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  comments.forEach((comment) => {
+    if (comment.replies?.length) {
+      sortCommentReplies(comment.replies);
+    }
+  });
+}
+
+function buildCommentTree(rows: any[]) {
+  const comments = rows.map((row) => ({
+    ...commentRowToObject(row),
+    replies: [] as any[],
+    reply_to_user: null as null | {
+      id: number;
+      username: string;
+      nickname: string;
+    },
+  }));
+
+  const commentMap = new Map<number, any>();
+  comments.forEach((comment) => {
+    commentMap.set(comment.id, comment);
+  });
+
+  const roots: any[] = [];
+
+  comments.forEach((comment) => {
+    if (comment.parent_id && commentMap.has(comment.parent_id)) {
+      const parent = commentMap.get(comment.parent_id);
+      comment.reply_to_user = parent.user ?? null;
+      parent.replies.push(comment);
+    } else {
+      roots.push(comment);
+    }
+  });
+
+  sortCommentReplies(roots);
+  roots.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  return roots;
 }
 
 /**
@@ -40,44 +84,24 @@ router.get('/post/:postId', async (req, res) => {
     );
     const total = parseInt(countResult.rows[0].count);
 
-    // 获取顶级评论
+    // 获取帖子的全部评论，构建楼中楼评论树后再按顶级评论分页
     const result = await pool.query(
       `SELECT c.id, c.content, c.like_count, c.created_at, c.updated_at, c.parent_id, c.user_id,
-              u.id as user_id_col, u.username, u.nickname
+              u.id as user_id_col, u.username, u.nickname, u.avatar
        FROM comments c
        LEFT JOIN users u ON c.user_id = u.id
-       WHERE c.post_id = $1 AND c.parent_id IS NULL
-       ORDER BY c.created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [parseInt(postId), limitNum, offset]
+       WHERE c.post_id = $1
+       ORDER BY c.created_at ASC`,
+      [parseInt(postId)]
     );
 
-    const comments = result.rows.map(commentRowToObject);
-
-    // 获取每个顶级评论的回复
-    const commentsWithReplies = await Promise.all(
-      comments.map(async (comment) => {
-        const repliesResult = await pool.query(
-          `SELECT c.id, c.content, c.like_count, c.created_at, c.updated_at, c.parent_id, c.user_id,
-                  u.id as user_id_col, u.username, u.nickname
-           FROM comments c
-           LEFT JOIN users u ON c.user_id = u.id
-           WHERE c.parent_id = $1
-           ORDER BY c.created_at ASC`,
-          [comment.id]
-        );
-
-        return {
-          ...comment,
-          replies: repliesResult.rows.map(commentRowToObject),
-        };
-      })
-    );
+    const commentTree = buildCommentTree(result.rows);
+    const paginatedComments = commentTree.slice(offset, offset + limitNum);
 
     res.json({
       success: true,
       data: {
-        comments: commentsWithReplies,
+        comments: paginatedComments,
         total,
         page: pageNum,
         limit: limitNum,
@@ -113,9 +137,12 @@ router.post('/', async (req, res) => {
     // 如果有父评论，检查是否存在并获取父评论作者
     let parentCommentAuthorId: number | null = null;
     if (parentId) {
-      const parentResult = await pool.query('SELECT id, user_id FROM comments WHERE id = $1', [parentId]);
+      const parentResult = await pool.query('SELECT id, user_id, post_id FROM comments WHERE id = $1', [parentId]);
       if (parentResult.rows.length === 0) {
         return res.status(404).json({ success: false, message: '回复的评论不存在' });
+      }
+      if (parentResult.rows[0].post_id !== postId) {
+        return res.status(400).json({ success: false, message: '回复评论与帖子不匹配' });
       }
       parentCommentAuthorId = parentResult.rows[0].user_id;
     }
@@ -129,7 +156,7 @@ router.post('/', async (req, res) => {
     );
 
     const commentRow = result.rows[0];
-    const userResult = await pool.query('SELECT id, username, nickname FROM users WHERE id = $1', [userId]);
+    const userResult = await pool.query('SELECT id, username, nickname, avatar FROM users WHERE id = $1', [userId]);
 
     const comment = {
       id: commentRow.id,
@@ -141,6 +168,7 @@ router.post('/', async (req, res) => {
         id: userResult.rows[0].id,
         username: userResult.rows[0].username,
         nickname: userResult.rows[0].nickname,
+        avatar: userResult.rows[0].avatar,
       } : null,
     };
 
@@ -151,7 +179,7 @@ router.post('/', async (req, res) => {
     );
 
     // 创建通知
-    if (parentId && parentCommentAuthorId) {
+    if (parentId && parentCommentAuthorId && parentCommentAuthorId !== userId) {
       // 回复评论：通知被回复的评论作者
       await createNotification({
         userId: parentCommentAuthorId,
@@ -210,13 +238,27 @@ router.delete('/:id', async (req, res) => {
       return res.status(403).json({ success: false, message: '无权删除此评论' });
     }
 
+    const commentId = parseInt(id);
+    const subtreeCountResult = await pool.query(
+      `WITH RECURSIVE comment_tree AS (
+         SELECT id FROM comments WHERE id = $1
+         UNION ALL
+         SELECT c.id
+         FROM comments c
+         INNER JOIN comment_tree ct ON c.parent_id = ct.id
+       )
+       SELECT COUNT(*)::int AS count FROM comment_tree`,
+      [commentId]
+    );
+    const deletedCount = subtreeCountResult.rows[0]?.count || 1;
+
     // 删除评论
-    await pool.query('DELETE FROM comments WHERE id = $1', [parseInt(id)]);
+    await pool.query('DELETE FROM comments WHERE id = $1', [commentId]);
 
     // 更新帖子评论数
     await pool.query(
-      'UPDATE posts SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = $1',
-      [postId]
+      'UPDATE posts SET comment_count = GREATEST(comment_count - $1, 0) WHERE id = $2',
+      [deletedCount, postId]
     );
 
     res.json({ success: true, message: '删除成功' });
