@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
@@ -51,7 +52,7 @@ export default function EncyclopediaSearchScreen() {
              * 接口：GET /api/v1/characters
              * Query 参数：search?: string, limit?: number
              */
-            const charRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/characters?search=${encodeURIComponent(query)}&limit=10`);
+            const charRes = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/characters?search=${encodeURIComponent(query)}&limit=10`);
             const charData = await charRes.json();
             if (charData.success && charData.data?.items) {
                 charData.data.items.forEach((item: any) => {
@@ -70,7 +71,7 @@ export default function EncyclopediaSearchScreen() {
              * 接口：GET /api/v1/geography
              * Query 参数：name?: string, limit?: number
              */
-            const geoRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography?name=${encodeURIComponent(query)}&limit=10`);
+            const geoRes = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography?name=${encodeURIComponent(query)}&limit=10`);
             const geoData = await geoRes.json();
             if (geoData.success && geoData.data?.items) {
                 geoData.data.items.forEach((item: any) => {
@@ -89,7 +90,7 @@ export default function EncyclopediaSearchScreen() {
              * 接口：GET /api/v1/encyclopedia/titles
              * Query 参数：search?: string, limit?: number
              */
-            const titleRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/titles?search=${encodeURIComponent(query)}&limit=10`);
+            const titleRes = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/titles?search=${encodeURIComponent(query)}&limit=10`);
             const titleData = await titleRes.json();
             if (titleData.success && titleData.data?.items) {
                 titleData.data.items.forEach((item: any) => {

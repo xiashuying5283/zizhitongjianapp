@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, ActivityIndicator, Text } from 'react-native';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
@@ -56,7 +57,7 @@ export default function EncyclopediaDetailScreen() {
       }
 
       const endpoint = type === 'character' ? 'characters' : 'titles';
-      const response = await fetch(
+      const response = await apiFetch(
         `${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/${endpoint}/${encodeURIComponent(name)}`
       );
 

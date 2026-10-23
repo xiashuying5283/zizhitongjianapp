@@ -28,7 +28,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     } else if (isAuthenticated && inLoginRoute) {
       router.replace('/');
     }
-  }, [rootState?.key, isAuthenticated, isLoading, segments]);
+  }, [rootState?.key, isAuthenticated, isLoading, segments, router]);
 
   return <>{children}</>;
 }

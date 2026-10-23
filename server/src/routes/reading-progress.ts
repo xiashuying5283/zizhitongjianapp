@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getPgPool();
 const router = Router();
 
 function formatYearRange(start: number | null, end: number | null): string {

@@ -1,10 +1,8 @@
 import express, { type Request, type Response } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
 const router = express.Router();
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+const pool = getPgPool();
 
 /**
  * 创建反馈表（如果不存在）
@@ -64,85 +62,6 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Submit feedback error:', error);
-    res.status(500).json({
-      success: false,
-      message: '服务器错误',
-    });
-  }
-});
-
-/**
- * GET /api/v1/feedback
- * 获取反馈列表（管理用）
- * Query: limit?, offset?
- */
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-    const offset = parseInt(req.query.offset as string) || 0;
-
-    const result = await pool.query(
-      `SELECT id, type, content, contact, device_id, status, created_at
-       FROM feedback
-       ORDER BY created_at DESC
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
-
-    const countResult = await pool.query('SELECT COUNT(*) FROM feedback');
-
-    res.json({
-      success: true,
-      data: result.rows,
-      total: parseInt(countResult.rows[0].count),
-    });
-  } catch (error) {
-    console.error('Get feedback list error:', error);
-    res.status(500).json({
-      success: false,
-      message: '服务器错误',
-    });
-  }
-});
-
-/**
- * PATCH /api/v1/feedback/:id/status
- * 更新反馈状态
- * Body: status
- */
-router.patch('/:id/status', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    const validStatuses = ['pending', 'processing', 'resolved', 'closed'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: '无效的状态值',
-      });
-    }
-
-    const result = await pool.query(
-      `UPDATE feedback SET status = $1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2
-       RETURNING id, status`,
-      [status, id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: '反馈不存在',
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.rows[0],
-    });
-  } catch (error) {
-    console.error('Update feedback status error:', error);
     res.status(500).json({
       success: false,
       message: '服务器错误',

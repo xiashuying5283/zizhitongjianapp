@@ -17,7 +17,7 @@ const upload = multer({
  */
 router.post('/avatar', upload.single('file'), async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = String(res.locals.userId);
     const file = req.file;
 
     if (!file) {
@@ -66,7 +66,7 @@ router.post('/avatar', upload.single('file'), async (req, res) => {
  */
 router.post('/image', upload.single('file'), async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = String(res.locals.userId);
     const file = req.file;
 
     if (!file) {

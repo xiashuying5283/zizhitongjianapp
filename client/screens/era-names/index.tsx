@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, SectionList, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, RefreshControl, Text } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -48,7 +49,7 @@ export default function EraNamesScreen() {
        * 接口：GET /api/v1/encyclopedia/era-groups
        * Query参数：dynasty（支持历史时期分组：周秦、兩漢、三國兩晉、南北朝、隋唐、五代）
        */
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       const result = await response.json();
       if (result.success && result.data) {
         // 转换为 SectionList 格式

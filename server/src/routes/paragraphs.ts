@@ -1,54 +1,9 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 import { getEraNameByYear } from '../utils/formatYearDisplay';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getPgPool();
 const router = Router();
-
-/**
- * GET /api/v1/paragraphs
- */
-router.get('/', async (req, res) => {
-  try {
-    const { volume_number, year_mark, event_index } = req.query;
-
-    const conditions: string[] = [];
-    const params: unknown[] = [];
-    let paramIndex = 1;
-
-    if (volume_number) {
-      conditions.push(`volume_number = $${paramIndex++}`);
-      params.push(parseInt(volume_number as string));
-    }
-    if (year_mark) {
-      conditions.push(`year_mark = $${paramIndex++}`);
-      params.push(year_mark);
-    }
-    if (event_index) {
-      conditions.push(`event_index = $${paramIndex++}`);
-      params.push(parseInt(event_index as string));
-    }
-
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const result = await pool.query(
-      `SELECT * FROM zizhitongjian_paragraphs ${where} ORDER BY volume_number ASC, bc_year ASC, event_index ASC, paragraph_index ASC`,
-      params
-    );
-
-    res.json({
-      success: true,
-      data: result.rows,
-      total: result.rows.length,
-    });
-  } catch (error) {
-    console.error('获取段落列表失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取段落列表失败',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
 
 /**
  * GET /api/v1/paragraphs/search

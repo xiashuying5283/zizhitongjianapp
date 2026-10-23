@@ -136,11 +136,6 @@ function generateHTML(props: HorizontalReaderProps): string {
   const showAnnotation = viewMode.includes('annotation');
   const hl = (text: string) => highlightText(text, kw);
 
-  const numberToChinese = (n: number): string => {
-    const digits = '〇一二三四五六七八九';
-    return String(n).split('').map(d => digits[parseInt(d)]).join('');
-  };
-
   const formatBcYear = (bcYear: number | null) => {
     if (bcYear === null || bcYear === undefined) return '';
     if (bcYear < 0) return `公元前${Math.abs(bcYear)}年`;
@@ -813,12 +808,7 @@ export const HorizontalReader = React.memo(function HorizontalReader(props: Hori
     }
   }, [readerWebViewRef]);
 
-  const html = useMemo(() => generateHTML(props), [
-    volumeData, volumeMeta, viewMode, scriptMode,
-    fontSize, fontFamily, textColor, bgColor, annotationColor,
-    translationColor, accentColor, textMuted,
-    highlightKeyword, highlightedParagraphId, userNotes,
-  ]);
+  const html = useMemo(() => generateHTML(props), [props]);
 
   const source = useMemo(() => ({ html }), [html]);
 

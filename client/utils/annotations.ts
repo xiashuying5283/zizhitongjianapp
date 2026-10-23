@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 
@@ -59,7 +60,7 @@ export async function fetchAnnotations(params: {
     queryParams.append('paragraphId', params.paragraphId.toString());
   }
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/annotations?${queryParams.toString()}`
   );
 
@@ -80,7 +81,7 @@ export async function createAnnotation(
   params: CreateAnnotationParams,
   deviceId: string
 ): Promise<Annotation> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/annotations`,
     {
       method: 'POST',
@@ -110,7 +111,7 @@ export async function updateAnnotation(
   id: number,
   annotation: string
 ): Promise<Annotation> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/annotations/${id}`,
     {
       method: 'PUT',
@@ -137,7 +138,7 @@ export async function deleteAnnotation(
   id: number,
   deviceId: string
 ): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/annotations/${id}?deviceId=${deviceId}`,
     {
       method: 'DELETE',

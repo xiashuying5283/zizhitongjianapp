@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -32,11 +33,11 @@ export default function EncyclopediaScreen() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const charRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/characters?limit=1`);
+        const charRes = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/characters?limit=1`);
         const charData = await charRes.json();
-        const titlesRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/titles?limit=1`);
+        const titlesRes = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/titles?limit=1`);
         const titlesData = await titlesRes.json();
-        const geoRes = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography?limit=1`);
+        const geoRes = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography?limit=1`);
         const geoData = await geoRes.json();
         setStats({
           characters: charData.data?.total || 0,

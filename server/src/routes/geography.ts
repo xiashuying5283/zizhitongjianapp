@@ -1,10 +1,8 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
 const router = Router();
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
+const pool = getPgPool();
 
 /**
  * GET /api/v1/geography
@@ -58,38 +56,6 @@ router.get('/', async (req, res) => {
     } catch (error) {
         console.error('获取地理数据失败:', error);
         res.status(500).json({ success: false, message: '获取地理数据失败', error: String(error) });
-    }
-});
-
-/**
- * GET /api/v1/geography/categories
- * 获取所有分类及计数
- */
-router.get('/categories', async (req, res) => {
-    try {
-        const result = await pool.query(
-            `SELECT category, count(*) as count FROM geography WHERE category IS NOT NULL GROUP BY category ORDER BY count DESC`
-        );
-        res.json({ success: true, data: result.rows });
-    } catch (error) {
-        console.error('获取分类失败:', error);
-        res.status(500).json({ success: false, message: '获取分类失败' });
-    }
-});
-
-/**
- * GET /api/v1/geography/dynasties
- * 获取所有朝代及计数
- */
-router.get('/dynasties', async (req, res) => {
-    try {
-        const result = await pool.query(
-            `SELECT dynasty, count(*) as count FROM geography WHERE dynasty IS NOT NULL GROUP BY dynasty ORDER BY count DESC`
-        );
-        res.json({ success: true, data: result.rows });
-    } catch (error) {
-        console.error('获取朝代失败:', error);
-        res.status(500).json({ success: false, message: '获取朝代失败' });
     }
 });
 

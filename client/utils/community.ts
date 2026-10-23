@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
 
 // 上传图片
@@ -15,7 +16,7 @@ export async function uploadImage(uri: string, userId: number): Promise<{ succes
     } as any);
     formData.append('userId', userId.toString());
 
-    const response = await fetch(`${BASE_URL}/api/v1/upload/image`, {
+    const response = await apiFetch(`${BASE_URL}/api/v1/upload/image`, {
       method: 'POST',
       body: formData,
       headers: {
@@ -105,7 +106,7 @@ export async function getPosts(params?: {
   if (params?.limit) queryParams.set('limit', params.limit.toString());
   if (params?.userId) queryParams.set('userId', params.userId.toString());
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${BASE_URL}/api/v1/posts?${queryParams.toString()}`
   );
   return response.json();
@@ -113,7 +114,7 @@ export async function getPosts(params?: {
 
 // 获取帖子详情
 export async function getPost(id: number): Promise<{ success: boolean; data: Post }> {
-  const response = await fetch(`${BASE_URL}/api/v1/posts/${id}`);
+  const response = await apiFetch(`${BASE_URL}/api/v1/posts/${id}`);
   return response.json();
 }
 
@@ -124,7 +125,7 @@ export async function createPost(data: {
   category?: string;
   userId: number;
 }): Promise<{ success: boolean; data: Post }> {
-  const response = await fetch(`${BASE_URL}/api/v1/posts`, {
+  const response = await apiFetch(`${BASE_URL}/api/v1/posts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -134,7 +135,7 @@ export async function createPost(data: {
 
 // 删除帖子
 export async function deletePost(id: number, userId: number): Promise<{ success: boolean }> {
-  const response = await fetch(`${BASE_URL}/api/v1/posts/${id}`, {
+  const response = await apiFetch(`${BASE_URL}/api/v1/posts/${id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId }),
@@ -149,7 +150,7 @@ export async function updatePost(id: number, data: {
   category?: string;
   userId: number;
 }): Promise<{ success: boolean; data: Post }> {
-  const response = await fetch(`${BASE_URL}/api/v1/posts/${id}`, {
+  const response = await apiFetch(`${BASE_URL}/api/v1/posts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -159,7 +160,7 @@ export async function updatePost(id: number, data: {
 
 // 点赞帖子
 export async function likePost(id: number, userId: number): Promise<{ success: boolean; data: { liked: boolean } }> {
-  const response = await fetch(`${BASE_URL}/api/v1/posts/${id}/like`, {
+  const response = await apiFetch(`${BASE_URL}/api/v1/posts/${id}/like`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId }),
@@ -176,7 +177,7 @@ export async function getComments(postId: number, params?: {
   if (params?.page) queryParams.set('page', params.page.toString());
   if (params?.limit) queryParams.set('limit', params.limit.toString());
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${BASE_URL}/api/v1/comments/post/${postId}?${queryParams.toString()}`
   );
   return response.json();
@@ -189,7 +190,7 @@ export async function createComment(data: {
   parentId?: number;
   userId: number;
 }): Promise<{ success: boolean; data: Comment }> {
-  const response = await fetch(`${BASE_URL}/api/v1/comments`, {
+  const response = await apiFetch(`${BASE_URL}/api/v1/comments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -199,7 +200,7 @@ export async function createComment(data: {
 
 // 删除评论
 export async function deleteComment(id: number, userId: number): Promise<{ success: boolean }> {
-  const response = await fetch(`${BASE_URL}/api/v1/comments/${id}`, {
+  const response = await apiFetch(`${BASE_URL}/api/v1/comments/${id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId }),
@@ -209,7 +210,7 @@ export async function deleteComment(id: number, userId: number): Promise<{ succe
 
 // 点赞评论
 export async function likeComment(id: number, userId: number): Promise<{ success: boolean; data: { liked: boolean } }> {
-  const response = await fetch(`${BASE_URL}/api/v1/comments/${id}/like`, {
+  const response = await apiFetch(`${BASE_URL}/api/v1/comments/${id}/like`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId }),
@@ -256,7 +257,7 @@ export async function getNotifications(params: {
   if (params?.page) queryParams.set('page', params.page.toString());
   if (params?.limit) queryParams.set('limit', params.limit.toString());
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${BASE_URL}/api/v1/notifications?${queryParams.toString()}`
   );
   return response.json();
@@ -264,14 +265,14 @@ export async function getNotifications(params: {
 
 // 获取未读通知数
 export async function getUnreadCount(userId: number): Promise<{ success: boolean; data: { unreadCount: number } }> {
-  const response = await fetch(`${BASE_URL}/api/v1/notifications?userId=${userId}&limit=1`);
+  const response = await apiFetch(`${BASE_URL}/api/v1/notifications?userId=${userId}&limit=1`);
   const result = await response.json();
   return { success: result.success, data: { unreadCount: result.data?.unreadCount || 0 } };
 }
 
 // 标记通知为已读
 export async function markNotificationsRead(userId: number, notificationIds?: number[]): Promise<{ success: boolean }> {
-  const response = await fetch(`${BASE_URL}/api/v1/notifications/read`, {
+  const response = await apiFetch(`${BASE_URL}/api/v1/notifications/read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId, notificationIds }),

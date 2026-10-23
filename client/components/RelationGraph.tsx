@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, TouchableOpacity, Dimensions, StyleSheet, PanResponder } from 'react-native';
 import Svg, { G, Circle, Path, Text as SvgText, Defs, RadialGradient, Stop, Filter, FeDropShadow } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -102,8 +102,6 @@ export default function RelationGraph({ nodes, edges, onNodePress, selectedNodeI
   const { theme } = useTheme();
   const [layoutNodes, setLayoutNodes] = useState<LayoutNode[]>([]);
   const [layoutEdges, setLayoutEdges] = useState<GraphEdge[]>([]);
-  const [draggingNodeId, setDraggingNodeId] = useState<number | null>(null);
-  const animationRef = useRef<any>(null);
   
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -231,17 +229,6 @@ export default function RelationGraph({ nodes, edges, onNodePress, selectedNodeI
     setLayoutNodes(finalNodes);
     setLayoutEdges(initializedEdges);
   }, [nodes, edges]);
-
-  // 更新单个节点位置（拖拽时）
-  const updateNodePosition = useCallback((nodeId: number, x: number, y: number) => {
-    setLayoutNodes(prev => 
-      prev.map(node => 
-        node.id === nodeId 
-          ? { ...node, x, y } 
-          : node
-      )
-    );
-  }, []);
 
   // 手势处理（整体缩放和拖动）
   const panGesture = Gesture.Pan()

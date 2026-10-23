@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 import { formatYearDisplay } from '../utils/formatYearDisplay';
 
 const router = Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getPgPool();
 
 /**
  * 格式化年份范围（处理公元前年份）
@@ -360,96 +360,6 @@ router.get('/emperor-groups', async (req, res) => {
 
 /**
  * 服务端文件：server/src/routes/volumes.ts
- * 接口：GET /api/v1/volumes/search
- * Query 参数：keyword: string, limit?: number, offset?: number
- * 全文搜索功能 - 搜索段落内容
- */
-router.get('/search', async (req, res) => {
-  try {
-    const { keyword, limit = 50, offset = 0 } = req.query;
-
-    if (!keyword || typeof keyword !== 'string') {
-      return res.status(400).json({
-        success: false,
-        message: '请输入搜索关键词',
-      });
-    }
-
-    const searchTerm = keyword.trim();
-    const limitNum = parseInt(limit as string);
-    const offsetNum = parseInt(offset as string);
-
-    // 搜索 zizhitongjian_paragraphs 表
-    const paragraphsResult = await pool.query(
-      `SELECT id, volume_number, volume_name, year_mark, emperor, bc_year, content, translation
-       FROM zizhitongjian_paragraphs
-       WHERE content ILIKE $1 OR translation ILIKE $1
-       ORDER BY volume_number ASC, id ASC
-       LIMIT $2 OFFSET $3`,
-      [`%${searchTerm}%`, limitNum, offsetNum]
-    );
-
-    const paragraphs = paragraphsResult.rows;
-
-    // 获取卷信息用于显示朝代
-    const volumeNumbers = [...new Set(paragraphs.map((p: any) => p.volume_number))];
-    let volumeMap = new Map<any, any>();
-    if (volumeNumbers.length > 0) {
-      const volResult = await pool.query(
-        'SELECT volume_number, dynasty FROM zizhitongjian_volumes WHERE volume_number = ANY($1)',
-        [volumeNumbers]
-      );
-      volumeMap = new Map(volResult.rows.map((v: any) => [v.volume_number, v]));
-    }
-
-    // 高亮关键词
-    const highlightText = (text: string | null) => {
-      if (!text) return null;
-      return text.replace(new RegExp(`(${searchTerm})`, 'gi'), '**$1**');
-    };
-
-    // 格式化搜索结果
-    const results = paragraphs.map((p: any) => {
-      const volume = volumeMap.get(p.volume_number);
-
-      return {
-        id: p.id,
-        volume_number: p.volume_number || 0,
-        volume_name: p.volume_name || '',
-        dynasty: volume?.dynasty || '',
-        emperor: p.emperor || '',
-        year_name: p.year_mark || '',
-        bc_year: p.bc_year,
-        content_highlight: highlightText(p.content),
-        translation_highlight: highlightText(p.translation),
-        context: getContext(p.content, searchTerm) || getContext(p.translation, searchTerm),
-      };
-    });
-
-    // 获取总数
-    const countResult = await pool.query(
-      'SELECT COUNT(*) FROM zizhitongjian_paragraphs WHERE content ILIKE $1 OR translation ILIKE $1',
-      [`%${searchTerm}%`]
-    );
-
-    res.json({
-      success: true,
-      data: results,
-      total: parseInt(countResult.rows[0].count),
-      keyword: searchTerm,
-    });
-  } catch (error) {
-    console.error('搜索失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '搜索失败',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * 服务端文件：server/src/routes/volumes.ts
  * 接口：GET /api/v1/volumes/:id
  * Path 参数：id: number
  */
@@ -608,78 +518,6 @@ router.get('/:id/catalog', async (req, res) => {
     res.status(500).json({
       success: false,
       message: '获取目录失败',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-// 获取上下文（关键词前后各50个字符）
-function getContext(text: string | null, keyword: string): string {
-  if (!text) return '';
-  const index = text.indexOf(keyword);
-  if (index === -1) return text.substring(0, 100);
-  
-  const start = Math.max(0, index - 50);
-  const end = Math.min(text.length, index + keyword.length + 50);
-  return (start > 0 ? '...' : '') + text.substring(start, end) + (end < text.length ? '...' : '');
-}
-
-/**
- * 服务端文件：server/src/routes/volumes.ts
- * 接口：GET /api/v1/volumes/emperor-notes/:emperorName
- * Path 参数：emperorName: string
- * 返回帝王注解（从 era_years 表获取）
- */
-router.get('/emperor-notes/:emperorName', async (req, res) => {
-  try {
-    const { emperorName } = req.params;
-    const decodedName = decodeURIComponent(emperorName);
-    
-    // 从 era_years 表获取帝王注解（只取元年的记录）
-    // 尝试多种匹配方式
-    let result = await pool.query(
-      `SELECT emperor_name, note FROM era_years 
-       WHERE emperor_name = $1 AND note IS NOT NULL 
-       ORDER BY gregorian_year LIMIT 1`,
-      [decodedName]
-    );
-    
-    // 如果精确匹配失败，尝试后缀匹配
-    if (result.rows.length === 0) {
-      result = await pool.query(
-        `SELECT emperor_name, note FROM era_years 
-         WHERE emperor_name LIKE $1 AND note IS NOT NULL 
-         ORDER BY gregorian_year LIMIT 1`,
-        [`%${decodedName}`]
-      );
-    }
-    
-    // 如果仍然失败，尝试 emperor_title 匹配
-    if (result.rows.length === 0) {
-      result = await pool.query(
-        `SELECT emperor_name, note FROM era_years 
-         WHERE emperor_title = $1 AND note IS NOT NULL 
-         ORDER BY gregorian_year LIMIT 1`,
-        [decodedName]
-      );
-    }
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: '未找到该帝王注解',
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.rows[0],
-    });
-  } catch (error) {
-    console.error('获取帝王注解失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取帝王注解失败',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }

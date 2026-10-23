@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import { getUserIdentity } from './userIdentity';
 
 // 用户笔记数据结构
@@ -65,7 +66,7 @@ export async function createUserNote(
 ): Promise<UserNote> {
   const identity = await getUserIdentity();
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes`,
     {
       method: 'POST',
@@ -118,7 +119,7 @@ export async function fetchUserNotes(params?: {
     queryParams.append('paragraphId', params.paragraphId.toString());
   }
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes?${queryParams.toString()}`
   );
 
@@ -141,7 +142,7 @@ export async function updateUserNote(
 ): Promise<void> {
   const identity = await getUserIdentity();
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes/${id}`,
     {
       method: 'PUT',
@@ -175,7 +176,7 @@ export async function deleteUserNote(
     queryParams.append('deviceId', identity.deviceId);
   }
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes/${id}?${queryParams.toString()}`,
     {
       method: 'DELETE',

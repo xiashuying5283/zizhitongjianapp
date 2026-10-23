@@ -30,7 +30,6 @@ const wrapWithInnerRef = <T extends React.ComponentType<any>>(Component: T, disp
     };
 
     // 使用 any 类型绕过类型检查
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return React.createElement(Component as any, { ...rest, innerRef: handleRef });
   });
   

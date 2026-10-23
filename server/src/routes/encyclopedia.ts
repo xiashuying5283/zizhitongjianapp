@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
 const router = Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getPgPool();
 
 /**
  * 获取人物百科
@@ -108,50 +108,6 @@ router.get('/titles/:name', async (req, res) => {
 });
 
 /**
- * 获取所有人物列表
- * GET /api/v1/encyclopedia/characters
- */
-router.get('/characters', async (req, res) => {
-    try {
-        const { dynasty, limit = 20, offset = 0 } = req.query;
-
-        let query = 'SELECT * FROM characters WHERE 1=1';
-        const params: any[] = [];
-        let paramIndex = 1;
-
-        if (dynasty) {
-            query += ` AND dynasty = $${paramIndex}`;
-            params.push(dynasty);
-            paramIndex++;
-        }
-
-        // 分页
-        query += ` ORDER BY id LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-        params.push(Number(limit));
-        params.push(Number(offset));
-
-        const result = await pool.query(query, params);
-
-        // 将 aliases 字段从字符串转换为数组
-        const processedData = result.rows.map((item: any) => ({
-            ...item,
-            aliases: item.aliases ? item.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
-        }));
-
-        res.json({
-            success: true,
-            data: processedData
-        });
-    } catch (error) {
-        console.error('获取人物列表失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
-    }
-});
-
-/**
  * 获取所有官职列表
  * GET /api/v1/encyclopedia/titles
  */
@@ -210,54 +166,6 @@ router.get('/titles', async (req, res) => {
         });
     } catch (error) {
         console.error('获取官职列表失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '服务器错误'
-        });
-    }
-});
-
-/**
- * 批量获取人物/官职信息（用于前端高亮）
- * POST /api/v1/encyclopedia/batch
- */
-router.post('/batch', async (req, res) => {
-    try {
-        const { names } = req.body; // names: string[]
-
-        if (!Array.isArray(names) || names.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: '参数错误'
-            });
-        }
-
-        // 并行查询人物和官职
-        const [characterResult, titleResult] = await Promise.all([
-            pool.query('SELECT * FROM characters WHERE name = ANY($1)', [names]),
-            pool.query('SELECT * FROM titles WHERE name = ANY($1)', [names])
-        ]);
-
-        // 合并结果，并将 aliases 字段从字符串转换为数组
-        const results = [
-            ...characterResult.rows.map((c: any) => ({
-                ...c,
-                type: 'character',
-                aliases: c.aliases ? c.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
-            })),
-            ...titleResult.rows.map((t: any) => ({
-                ...t,
-                type: 'title',
-                aliases: t.aliases ? t.aliases.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
-            }))
-        ];
-
-        res.json({
-            success: true,
-            data: results
-        });
-    } catch (error) {
-        console.error('批量获取失败:', error);
         res.status(500).json({
             success: false,
             error: '服务器错误'

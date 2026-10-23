@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator, Text, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, Alert, Pressable } from 'react-native';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
@@ -13,7 +14,8 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import Toast from 'react-native-toast-message';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { createAudioPlayer, AudioPlayer, AudioStatus } from 'expo-audio';
+import * as Speech from 'expo-speech';
+import { splitSpeechText } from '@/utils/speechText';
 import { Spacing, BorderRadius, ThemePalettes } from '@/constants/theme';
 import { createStyles } from './styles';
 import { updateReadingProgress, getReadingRecords } from '@/utils/readingProgress';
@@ -75,15 +77,6 @@ const FONT_SIZES = [
   { label: '中', value: 18 },
   { label: '大', value: 20 },
   { label: '特大', value: 22 },
-];
-
-// TTS音色选项
-const TTS_VOICES = [
-  { id: 'default', name: '小何', desc: '通用女声，清晰自然' },
-  { id: 'male', name: '云舟', desc: '标准男声，沉稳大气' },
-  { id: 'female', name: 'Vivi', desc: '中英双语女声' },
-  { id: 'audiobook', name: '有声书', desc: '有声书专用女声，适合长篇朗读' },
-  { id: 'elegant_male', name: '儒雅', desc: '儒雅男声，适合古文朗读' },
 ];
 
 // TTS语速选项
@@ -153,12 +146,12 @@ export default function VolumeDetailScreen() {
   const [playingProgress, setPlayingProgress] = useState(''); // 播放进度文字
   const [highlightedParagraphId, setHighlightedParagraphId] = useState<number | null>(null); // 当前高亮的条目ID
   
-  const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const ttsSegmentsRef = useRef<TTSSegment[]>([]); // TTS分段数据（按条目）
-  const audioCacheRef = useRef<Map<number, string>>(new Map()); // 音频缓存
   const isPlayingRef = useRef(false); // 播放状态引用
   const currentPlayingIndexRef = useRef(-1); // 当前播放索引引用
-  const preloadAbortRef = useRef<boolean>(false); // 预加载中断标志
+  const speechGenerationRef = useRef(0);
+  const speechPausedRef = useRef(false);
+  const [availableVoices, setAvailableVoices] = useState<Speech.Voice[]>([]);
 
   // 阅读偏好设置（从缓存初始化）
   const cachedSettings = getCachedSettings();
@@ -265,7 +258,7 @@ export default function VolumeDetailScreen() {
     setBookmarkSubmitting(true);
     try {
       const deviceId = await getDeviceId();
-      const res = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks`, {
+      const res = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -293,7 +286,7 @@ export default function VolumeDetailScreen() {
   const checkBookmarkStatus = useCallback(async () => {
     try {
       const deviceId = await getDeviceId();
-      const res = await fetch(
+      const res = await apiFetch(
         `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks?deviceId=${deviceId}&volumeNumber=${volumeNumber}`
       );
       if (res.ok) {
@@ -322,7 +315,7 @@ export default function VolumeDetailScreen() {
     
     try {
       const deviceId = await getDeviceId();
-      await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats`, {
+      await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -372,19 +365,6 @@ export default function VolumeDetailScreen() {
     }, [submitReadingStats])
   );
 
-  // 清理音频资源
-  useEffect(() => {
-    return () => {
-      preloadAbortRef.current = true;
-      isPlayingRef.current = false;
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.remove();
-        audioPlayerRef.current = null;
-      }
-      audioCacheRef.current.clear();
-    };
-  }, []);
-
   // 获取当前显示的文本内容
   const getDisplayText = useCallback((paragraph: Paragraph): string => {
     const showAnnotation = viewMode.includes('annotation');
@@ -428,292 +408,185 @@ export default function VolumeDetailScreen() {
     return segments;
   }, [volumeData, getDisplayText]);
 
-  // 获取单段音频（带缓存）
-  const fetchAudioForSegment = useCallback(async (index: number): Promise<string | null> => {
-    const segments = ttsSegmentsRef.current;
-    console.log('[TTS] fetchAudioForSegment called, index:', index, 'segments length:', segments.length);
-    if (index < 0 || index >= segments.length) return null;
-    
-    // 检查缓存
-    const cached = audioCacheRef.current.get(index);
-    if (cached) {
-      console.log('[TTS] Using cached audio for index:', index);
-      return cached;
-    }
-    
-    const segment = segments[index];
-    if (!segment?.text) {
-      console.log('[TTS] No text for segment:', index);
-      return null;
-    }
-    
-    console.log('[TTS] Fetching audio for text:', segment.text.substring(0, 50));
-    
-    try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/tts/synthesize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: segment.text.substring(0, 500), // 限制长度
-          speaker: ttsVoice,
-          speechRate: ttsSpeed,
-        }),
-      });
+  // Device voices vary by OS; the system default remains available everywhere.
+  useEffect(() => {
+    let active = true;
+    Speech.getAvailableVoicesAsync()
+      .then(voices => {
+        if (active) setAvailableVoices(voices.filter(voice => voice.language.toLowerCase().startsWith('zh')));
+      })
+      .catch(error => console.warn('读取系统音色失败:', error));
+    return () => { active = false; };
+  }, []);
 
-      if (!res.ok) {
-        console.log('[TTS] API response not ok:', res.status);
-        return null;
-      }
-      
-      const result = await res.json();
-      console.log('[TTS] API result:', result.success, 'audioUri:', result.data?.audioUri ? 'exists' : 'missing');
-      if (result.success && result.data?.audioUri) {
-        audioCacheRef.current.set(index, result.data.audioUri);
-        return result.data.audioUri;
-      }
-    } catch (error) {
-      console.error(`获取第${index}段音频失败:`, error);
-    }
-    return null;
-  }, [ttsVoice, ttsSpeed]);
+  useEffect(() => {
+    return () => {
+      speechGenerationRef.current += 1;
+      isPlayingRef.current = false;
+      void Speech.stop();
+    };
+  }, []);
 
-  // 预加载接下来的音频
-  const preloadNextSegments = useCallback(async (fromIndex: number, count: number = 3) => {
-    if (preloadAbortRef.current) return;
-    
-    const segments = ttsSegmentsRef.current;
-    for (let i = fromIndex; i < Math.min(fromIndex + count, segments.length); i++) {
-      if (preloadAbortRef.current) break;
-      if (!audioCacheRef.current.has(i)) {
-        await fetchAudioForSegment(i);
-      }
-    }
-  }, [fetchAudioForSegment]);
-
-  // 滚动到指定条目
   const scrollToParagraph = useCallback((yearIndex: number, paragraphIndex: number) => {
-    // 通过 WebView JS 滚动
-    const segments = ttsSegmentsRef.current;
-    const segment = segments.find(s => s.yearIndex === yearIndex && s.paragraphIndex === paragraphIndex);
+    const segment = ttsSegmentsRef.current.find(s => s.yearIndex === yearIndex && s.paragraphIndex === paragraphIndex);
     if (segment) {
-      injectScroll(`window.__scrollToParagraph && window.__scrollToParagraph(${segment.id});`);
+      injectScroll('window.__scrollToParagraph && window.__scrollToParagraph(' + segment.id + ');');
     } else {
-      injectScroll(`window.__scrollToYear && window.__scrollToYear(${yearIndex});`);
+      injectScroll('window.__scrollToYear && window.__scrollToYear(' + yearIndex + ');');
     }
   }, []);
 
-  // 播放指定索引的段落
-  const playSegment = useCallback(async (index: number) => {
+  const clearSpeechState = useCallback(() => {
+    isPlayingRef.current = false;
+    speechPausedRef.current = false;
+    currentPlayingIndexRef.current = -1;
+    setIsPlaying(false);
+    setCurrentPlayingIndex(-1);
+    setPlayingProgress('');
+    setHighlightedParagraphId(null);
+  }, []);
+
+  const playSegment = useCallback((index: number) => {
     const segments = ttsSegmentsRef.current;
-    console.log('[TTS] playSegment called, index:', index, 'segments length:', segments.length, 'isPlaying:', isPlayingRef.current);
-    
+    speechGenerationRef.current += 1;
+    const generation = speechGenerationRef.current;
+    const stopPromise = Speech.stop();
+
     if (index < 0 || index >= segments.length) {
-      // 播放完毕
-      console.log('[TTS] Playback finished');
-      isPlayingRef.current = false;
-      setIsPlaying(false);
-      setCurrentPlayingIndex(-1);
-      currentPlayingIndexRef.current = -1;
-      setPlayingProgress('');
-      setHighlightedParagraphId(null);
+      clearSpeechState();
       return;
     }
 
     const segment = segments[index];
-    console.log('[TTS] Playing segment:', segment.yearMark, 'text:', segment.text.substring(0, 30));
-    
-    // 更新状态
-    currentPlayingIndexRef.current = index;
-    setCurrentPlayingIndex(index);
-    setHighlightedParagraphId(segment.id); // 高亮当前条目
-    
-    // 更新进度显示（年份和条目信息）
-    const yearStartIndex = segments.findIndex(s => 
-      s.yearIndex === segment.yearIndex && s.paragraphIndex === 0
-    );
-    const itemInYear = index - yearStartIndex + 1;
-    const totalInYear = segments.filter(s => s.yearIndex === segment.yearIndex).length;
-    setPlayingProgress(`${segment.yearMark} · ${itemInYear}/${totalInYear}`);
-
-    // 获取音频URL
-    let audioUri: string | undefined = audioCacheRef.current.get(index);
-    console.log('[TTS] Cache check for index:', index, 'result:', audioUri ? 'found' : 'not found');
-    if (!audioUri) {
-      console.log('[TTS] Fetching audio for index:', index);
-      const fetchedUri = await fetchAudioForSegment(index);
-      audioUri = fetchedUri || undefined;
-      console.log('[TTS] Fetched audio result:', audioUri ? 'success' : 'failed');
-    }
-
-    console.log('[TTS] Before play check - audioUri:', !!audioUri, 'isPlayingRef:', isPlayingRef.current);
-    if (!audioUri || !isPlayingRef.current) {
-      console.log('[TTS] Stopping - no audio or not playing');
-      isPlayingRef.current = false;
-      setIsPlaying(false);
+    const chunks = splitSpeechText(segment.text, Math.min(800, Speech.maxSpeechInputLength || 800));
+    if (!chunks.length) {
+      clearSpeechState();
       return;
     }
 
-    // 滚动到当前条目（如果需要）
+    isPlayingRef.current = true;
+    speechPausedRef.current = false;
+    currentPlayingIndexRef.current = index;
+    setIsPlaying(true);
+    setCurrentPlayingIndex(index);
+    setHighlightedParagraphId(segment.id);
+    const yearStartIndex = segments.findIndex(s => s.yearIndex === segment.yearIndex);
+    const totalInYear = segments.filter(s => s.yearIndex === segment.yearIndex).length;
+    setPlayingProgress(segment.yearMark + ' · ' + (index - yearStartIndex + 1) + '/' + totalInYear);
     scrollToParagraph(segment.yearIndex, segment.paragraphIndex);
 
-    try {
-      // 卸载之前的音频
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.remove();
-        audioPlayerRef.current = null;
-      }
-
-      // 创建新的音频播放器
-      const player = createAudioPlayer({ uri: audioUri });
-      
-      // 监听播放状态变化
-      player.addListener('playbackStatusUpdate', async (status: AudioStatus) => {
-        if (status.didJustFinish) {
-          // 播放完毕，自动播放下一段
-          if (isPlayingRef.current) {
-            playSegment(currentPlayingIndexRef.current + 1);
-          }
-        }
-      });
-
-      audioPlayerRef.current = player;
-      
-      // 开始播放
-      player.play();
-
-      // 后台预加载接下来的段落
-      preloadNextSegments(index + 1, 2);
-    } catch (error) {
-      console.error('播放音频失败:', error);
-      // 跳过当前段，继续播放下一段
-      if (isPlayingRef.current) {
+    const voice = availableVoices.some(item => item.identifier === ttsVoice) ? ttsVoice : undefined;
+    const speakChunk = (chunkIndex: number) => {
+      if (speechGenerationRef.current !== generation || !isPlayingRef.current) return;
+      if (chunkIndex >= chunks.length) {
         playSegment(index + 1);
+        return;
       }
-    }
-  }, [fetchAudioForSegment, preloadNextSegments, scrollToParagraph]);
+      try {
+        Speech.speak(chunks[chunkIndex], {
+          language: 'zh-CN',
+          voice,
+          rate: 1 + ttsSpeed / 100,
+          onDone: () => speakChunk(chunkIndex + 1),
+          onError: error => {
+            if (speechGenerationRef.current !== generation) return;
+            console.error('朗读失败:', error);
+            speechGenerationRef.current += 1;
+            void Speech.stop();
+            clearSpeechState();
+            Alert.alert('朗读失败', '请检查设备是否安装了中文语音，以及媒体音量和静音设置。');
+          },
+        });
+      } catch (error) {
+        console.error('启动朗读失败:', error);
+        speechGenerationRef.current += 1;
+        clearSpeechState();
+        Alert.alert('朗读失败', '设备无法启动语音朗读，请检查中文语音是否可用。');
+      }
+    };
+    void stopPromise.then(() => {
+      if (speechGenerationRef.current === generation) speakChunk(0);
+    }).catch(error => {
+      if (speechGenerationRef.current !== generation) return;
+      console.error('重置朗读失败:', error);
+      clearSpeechState();
+      Alert.alert('朗读失败', '设备无法启动语音朗读。');
+    });
+  }, [availableVoices, ttsVoice, ttsSpeed, scrollToParagraph, clearSpeechState]);
 
-  // 开始朗读
-  const handleStartPlay = useCallback(async () => {
-    console.log('[TTS] handleStartPlay called');
-    if (!volumeData?.years) {
-      Alert.alert('提示', '没有可朗读的内容');
-      return;
-    }
-
+  const handleStartPlay = useCallback(() => {
     const segments = extractSegments();
-    console.log('[TTS] Extracted segments:', segments.length);
-    if (segments.length === 0) {
+    if (!segments.length) {
       Alert.alert('提示', '没有可朗读的内容');
       return;
     }
-
-    // 初始化
     ttsSegmentsRef.current = segments;
-    audioCacheRef.current.clear();
-    preloadAbortRef.current = false;
     setTotalSegments(segments.length);
+    const visibleIndex = segments.findIndex(segment => segment.id === currentVisibleParagraphIdRef.current);
+    playSegment(visibleIndex >= 0 ? visibleIndex : 0);
+  }, [extractSegments, playSegment]);
 
-    // 先预加载第一段
-    setPlayingProgress('加载中...');
-    console.log('[TTS] Pre-loading first segment...');
-    const firstAudio = await fetchAudioForSegment(0);
-    console.log('[TTS] First audio loaded:', !!firstAudio);
-    if (!firstAudio) {
-      Alert.alert('提示', '语音加载失败，请稍后重试');
-      setPlayingProgress('');
-      return;
-    }
-
-    // 开始播放
-    isPlayingRef.current = true;
-    setIsPlaying(true);
-    console.log('[TTS] Starting playback...');
-    playSegment(0);
-
-    // 后台预加载接下来的段落
-    preloadNextSegments(1, 3);
-  }, [volumeData, extractSegments, fetchAudioForSegment, playSegment, preloadNextSegments]);
-
-  // 跳转到上一个条目
   const handlePreviousItem = useCallback(() => {
-    if (currentPlayingIndexRef.current > 0) {
-      playSegment(currentPlayingIndexRef.current - 1);
-    }
+    if (currentPlayingIndexRef.current > 0) playSegment(currentPlayingIndexRef.current - 1);
   }, [playSegment]);
 
-  // 跳转到下一个条目
   const handleNextItem = useCallback(() => {
     if (currentPlayingIndexRef.current < ttsSegmentsRef.current.length - 1) {
       playSegment(currentPlayingIndexRef.current + 1);
     }
   }, [playSegment]);
 
-  // 暂停朗读
   const handlePausePlay = useCallback(() => {
-    if (audioPlayerRef.current) {
-      try {
-        audioPlayerRef.current.pause();
-      } catch (e) {
-        console.error('暂停失败:', e);
-      }
-    }
+    if (!isPlayingRef.current) return;
     isPlayingRef.current = false;
+    speechPausedRef.current = Platform.OS !== 'android';
     setIsPlaying(false);
-  }, []);
-
-  // 继续播放
-  const handleResumePlay = useCallback(() => {
-    if (audioPlayerRef.current) {
-      try {
-        if (!audioPlayerRef.current.playing) {
-          audioPlayerRef.current.play();
-          isPlayingRef.current = true;
-          setIsPlaying(true);
-          return;
-        }
-      } catch (e) {
-        console.error('继续播放失败:', e);
-      }
-    }
-    
-    // 如果没有音频或无法继续，从头开始
-    handleStartPlay();
-  }, [handleStartPlay]);
-
-  // 切换播放状态
-  const handleTogglePlay = useCallback(() => {
-    if (isPlaying) {
-      handlePausePlay();
+    if (Platform.OS === 'android') {
+      speechGenerationRef.current += 1;
+      void Speech.stop();
     } else {
-      if (currentPlayingIndex >= 0 && audioPlayerRef.current) {
-        handleResumePlay();
-      } else {
-        handleStartPlay();
-      }
+      void Speech.pause().catch(error => {
+        console.error('暂停朗读失败:', error);
+        speechPausedRef.current = false;
+        speechGenerationRef.current += 1;
+        void Speech.stop();
+      });
     }
-  }, [isPlaying, currentPlayingIndex, handlePausePlay, handleResumePlay, handleStartPlay]);
-
-  // 停止朗读
-  const handleStopPlay = useCallback(() => {
-    preloadAbortRef.current = true;
-    isPlayingRef.current = false;
-    
-    if (audioPlayerRef.current) {
-      try {
-        audioPlayerRef.current.remove();
-      } catch (e) {
-        console.error('停止播放失败:', e);
-      }
-      audioPlayerRef.current = null;
-    }
-    setIsPlaying(false);
-    setCurrentPlayingIndex(-1);
-    currentPlayingIndexRef.current = -1;
-    setPlayingProgress('');
-    setHighlightedParagraphId(null);
-    audioCacheRef.current.clear();
   }, []);
 
+  const handleResumePlay = useCallback(() => {
+    const index = currentPlayingIndexRef.current;
+    if (index < 0) {
+      handleStartPlay();
+      return;
+    }
+    if (speechPausedRef.current) {
+      speechPausedRef.current = false;
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      void Speech.resume().catch(error => {
+        console.error('继续朗读失败:', error);
+        playSegment(index);
+      });
+    } else {
+      playSegment(index);
+    }
+  }, [handleStartPlay, playSegment]);
+
+  const handleTogglePlay = useCallback(() => {
+    if (isPlayingRef.current) handlePausePlay();
+    else handleResumePlay();
+  }, [handlePausePlay, handleResumePlay]);
+
+  const handleStopPlay = useCallback(() => {
+    speechGenerationRef.current += 1;
+    void Speech.stop();
+    clearSpeechState();
+  }, [clearSpeechState]);
+
+  useFocusEffect(useCallback(() => () => {
+    handleStopPlay();
+  }, [handleStopPlay]));
   const currentTheme = useMemo(() => ({
     background: theme.backgroundRoot,
     text: theme.textPrimary,
@@ -824,7 +697,7 @@ export default function VolumeDetailScreen() {
       // 一次性加载所有数据，不再分页
       const url = `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/paragraphs/volume/${volumeNumber}`;
 
-      const response = await fetch(url);
+      const response = await apiFetch(url);
 
       if (!response.ok) {
         throw new Error('Failed to fetch volume data');
@@ -854,7 +727,7 @@ export default function VolumeDetailScreen() {
    */
   const fetchVolumeMeta = useCallback(async (volumeNumber: number) => {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/volumes/${volumeNumber}`);
+      const response = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/volumes/${volumeNumber}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch volume meta');
@@ -888,7 +761,7 @@ export default function VolumeDetailScreen() {
     if (catalogData) return;
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/volumes/${volumeNumber}/catalog`);
+      const response = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/volumes/${volumeNumber}/catalog`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch catalog');
@@ -1825,12 +1698,15 @@ export default function VolumeDetailScreen() {
         {/* 音色选择 */}
         <Text style={[styles.sectionLabel, { color: currentTheme.text }]}>{t('朗读音色')}</Text>
         <View style={styles.ttsVoiceList}>
-          {TTS_VOICES.map(voice => (
+          {[
+            { id: 'system', name: '系统默认', desc: '使用设备的中文语音' },
+            ...availableVoices.map(voice => ({ id: voice.identifier, name: voice.name, desc: voice.language })),
+          ].map(voice => (
             <TouchableOpacity
               key={voice.id}
               style={[
                 styles.ttsVoiceItem,
-                ttsVoice === voice.id && { backgroundColor: theme.primary + '20', borderColor: theme.primary },
+                (ttsVoice === voice.id || (voice.id === 'system' && !availableVoices.some(item => item.identifier === ttsVoice))) && { backgroundColor: theme.primary + '20', borderColor: theme.primary },
               ]}
               onPress={() => handleSetTtsVoice(voice.id)}
             >
@@ -1838,7 +1714,7 @@ export default function VolumeDetailScreen() {
                 <Text style={[
                   styles.ttsVoiceName,
                   { color: currentTheme.text },
-                  ttsVoice === voice.id && { fontWeight: '600' },
+                  (ttsVoice === voice.id || (voice.id === 'system' && !availableVoices.some(item => item.identifier === ttsVoice))) && { fontWeight: '600' },
                 ]}>
                   {voice.name}
                 </Text>
@@ -1846,7 +1722,7 @@ export default function VolumeDetailScreen() {
                   {voice.desc}
                 </Text>
               </View>
-              {ttsVoice === voice.id && (
+              {(ttsVoice === voice.id || (voice.id === 'system' && !availableVoices.some(item => item.identifier === ttsVoice))) && (
                 <FontAwesome6 name="check" size={16} color={theme.primary} />
               )}
             </TouchableOpacity>

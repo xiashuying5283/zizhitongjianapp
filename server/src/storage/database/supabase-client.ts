@@ -1,19 +1,5 @@
-import { Pool } from 'pg';
-
-let pgPool: Pool | null = null;
-
 /**
- * 获取 PostgreSQL 连接池（单例）
+ * 该文件已废弃，保留仅为兼容历史 import。
+ * 请直接使用 `getPgPool()`（见 ./pg-pool.ts）。
  */
-function getPgPool(): Pool {
-  if (!pgPool) {
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      throw new Error('DATABASE_URL environment variable is not set');
-    }
-    pgPool = new Pool({ connectionString });
-  }
-  return pgPool;
-}
-
-export { getPgPool };
+export { getPgPool, default } from './pg-pool';

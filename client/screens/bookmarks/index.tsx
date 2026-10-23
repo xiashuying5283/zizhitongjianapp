@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -53,7 +54,7 @@ export default function BookmarksScreen() {
       const identityQuery = queryParams.toString();
 
       // 获取书签列表
-      const bookmarksRes = await fetch(
+      const bookmarksRes = await apiFetch(
         `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks?${identityQuery}`
       );
 
@@ -65,7 +66,7 @@ export default function BookmarksScreen() {
       }
 
       // 获取标签列表
-      const tagsRes = await fetch(
+      const tagsRes = await apiFetch(
         `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks/tags?${identityQuery}`
       );
 
@@ -129,7 +130,7 @@ export default function BookmarksScreen() {
             } else if (identity.deviceId) {
               queryParams.append('deviceId', identity.deviceId);
             }
-            const res = await fetch(
+            const res = await apiFetch(
               `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/bookmarks/${bookmark.id}?${queryParams.toString()}`,
               { method: 'DELETE' }
             );

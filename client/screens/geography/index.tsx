@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { View, FlatList, TouchableOpacity, TextInput, RefreshControl } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -63,7 +64,7 @@ export default function GeographyScreen() {
              * 接口：GET /api/v1/geography
              * Query 参数：page?: number, limit?: number, name?: string
              */
-            const res = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography?${params.join('&')}`);
+            const res = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography?${params.join('&')}`);
             const data = await res.json();
 
             if (data.success) {

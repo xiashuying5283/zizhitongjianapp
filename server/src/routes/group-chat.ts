@@ -12,7 +12,7 @@ const openai = new OpenAI({
     baseURL: process.env.OPENAI_BASE_URL,
 });
 
-const MODEL = process.env.OPENAI_MODEL || 'doubao-seed-1-8-251228';
+const MODEL = process.env.OPENAI_MODEL || 'doubao-seed-2-0-lite-260428';
 
 // 上下文限制
 const MAX_CONTEXT_MESSAGES = 10;
@@ -691,13 +691,19 @@ router.post('/generate-next', async (req, res) => {
         const {
             topic,
             characters,
-            messages = [],
             mentionedId,
             replyCount = 0,  // 已回复数量
             autoMode = false, // 自动推演模式
             currentSceneId,  // 当前场景ID
             currentSequence = 1, // 当前场景序号
         } = req.body;
+        const messages: Array<{ role: string; content: string; characterName?: string }> =
+            Array.isArray(req.body.messages)
+                ? req.body.messages.filter((message: unknown): message is { role: string; content: string; characterName?: string } =>
+                    typeof message === 'object' && message !== null &&
+                    typeof (message as { role?: unknown }).role === 'string' &&
+                    typeof (message as { content?: unknown }).content === 'string')
+                : [];
 
         if (!topic || !characters || characters.length < 2) {
             return res.status(400).json({
@@ -815,7 +821,6 @@ router.post('/generate-next', async (req, res) => {
                     speakerName: '司马光',
                     content: controlContent,
                     isControlMessage: true,
-                    done: true,
                     done: true,
                 },
             });

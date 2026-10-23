@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import { Platform } from 'react-native';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -19,7 +20,7 @@ export async function createFormDataFile(
   mimeType: string
 ): Promise<File | { uri: string; type: string; name: string }> {
   if (Platform.OS === 'web') {
-    const response = await fetch(fileUri);
+    const response = await apiFetch(fileUri);
     const blob = await response.blob();
     return new File([blob], fileName, { type: mimeType });
   }

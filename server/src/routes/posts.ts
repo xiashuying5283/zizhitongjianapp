@@ -1,23 +1,10 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getPgPool();
 const router = Router();
 
 const VALID_CATEGORIES = ['discussion', 'question', 'sharing', 'notice'];
-
-// 辅助：将 posts 行附加 user 信息
-function attachUser(rows: any[], userMap: Map<number, any>) {
-  return rows.map((row: any) => ({
-    ...row,
-    user: userMap.get(row.user_id) ? {
-      id: userMap.get(row.user_id).id,
-      username: userMap.get(row.user_id).username,
-      nickname: userMap.get(row.user_id).nickname,
-      avatar: userMap.get(row.user_id).avatar,
-    } : null,
-  }));
-}
 
 /**
  * GET /api/v1/posts

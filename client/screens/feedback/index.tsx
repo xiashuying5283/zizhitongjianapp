@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useMemo, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -48,7 +49,7 @@ export default function FeedbackScreen() {
        * 接口：POST /api/v1/feedback
        * Body 参数：type: string, content: string, contact?: string, deviceId: string
        */
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/feedback`, {
+      const response = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

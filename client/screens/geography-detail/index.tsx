@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
@@ -41,7 +42,7 @@ export default function GeographyDetailScreen() {
              * 接口：GET /api/v1/geography/:id
              * Path 参数：id: number
              */
-            const res = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography/${params.id}`);
+            const res = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/geography/${params.id}`);
             const data = await res.json();
             if (data.success) {
                 setDetail(data.data);

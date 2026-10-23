@@ -32,7 +32,7 @@ const DEFAULT_SETTINGS: ReadingSettings = {
   backgroundTheme: 'system',
   viewMode: 'original+annotation',
   textLayout: 'horizontal',
-  ttsVoice: 'audiobook',
+  ttsVoice: 'system',
   ttsSpeed: 0,
 };
 

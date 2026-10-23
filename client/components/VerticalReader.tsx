@@ -113,7 +113,7 @@ function wrapVerticalPunctuation(text: string, useCustomFont: boolean): string {
   if (!useCustomFont) return text;
 
   // 竖排专用标点符号（需要用系统字体显示）
-  const punctuationRegex = /([「」『』【】《》〈〉（）〔〕""''，。、：；！？…—～·])/g;
+  const punctuationRegex = /[「」『』【】《》〈〉（）〔〕"'，。、：；！？…—～·]/;
 
   // 跳过 HTML 标签内的内容
   let result = '';
@@ -922,12 +922,7 @@ export const VerticalReader = React.memo(function VerticalReader(props: Vertical
     }
   }, [readerWebViewRef]);
 
-  const html = useMemo(() => generateHTML(props), [
-    volumeData, volumeMeta, viewMode, scriptMode,
-    fontSize, fontFamily, textColor, bgColor, annotationColor,
-    translationColor, accentColor, textMuted,
-    highlightKeyword, highlightedParagraphId, userNotes,
-  ]);
+  const html = useMemo(() => generateHTML(props), [props]);
 
   const source = useMemo(() => ({ html }), [html]);
 

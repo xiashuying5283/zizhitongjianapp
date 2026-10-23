@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -58,7 +59,7 @@ export default function NotesScreen() {
         queryParams.append('deviceId', identity.deviceId);
       }
 
-      const res = await fetch(
+      const res = await apiFetch(
         `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes/list?${queryParams.toString()}`
       );
 
@@ -112,7 +113,7 @@ export default function NotesScreen() {
               queryParams.append('deviceId', identity.deviceId);
             }
 
-            const res = await fetch(
+            const res = await apiFetch(
               `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/notes/${note.id}?${queryParams.toString()}`,
               { method: 'DELETE' }
             );

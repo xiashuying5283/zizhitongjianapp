@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getPgPool();
 const router = Router();
 
 /**
@@ -112,35 +112,6 @@ router.post('/read', async (req, res) => {
   } catch (error) {
     console.error('标记通知失败:', error);
     res.status(500).json({ success: false, message: '标记通知失败' });
-  }
-});
-
-/**
- * DELETE /api/v1/notifications/:id
- * 删除通知
- */
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ success: false, message: '请先登录' });
-    }
-
-    const result = await pool.query(
-      'DELETE FROM notifications WHERE id = $1 AND user_id = $2 RETURNING id',
-      [parseInt(id), userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '通知不存在' });
-    }
-
-    res.json({ success: true, message: '删除成功' });
-  } catch (error) {
-    console.error('删除通知失败:', error);
-    res.status(500).json({ success: false, message: '删除通知失败' });
   }
 });
 

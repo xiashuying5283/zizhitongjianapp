@@ -1,10 +1,23 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
 const router = Router();
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+const pool = getPgPool();
+
+router.param('roomId', async (req, res, next, roomId) => {
+    try {
+        const result = await pool.query(
+            'SELECT id FROM chat_rooms WHERE id = $1 AND device_id = $2',
+            [roomId, `user:${res.locals.userId}`]
+        );
+        if (result.rows.length === 0) {
+            res.status(404).json({ success: false, message: '会话不存在' });
+            return;
+        }
+        next();
+    } catch (error) {
+        next(error);
+    }
 });
 
 // 场景状态接口
@@ -247,28 +260,6 @@ router.delete('/:roomId/messages', async (req, res) => {
     } catch (error) {
         console.error('清空消息失败:', error);
         res.status(500).json({ success: false, message: '清空失败' });
-    }
-});
-
-/**
- * 服务端文件：server/src/routes/chat-history.ts
- * 接口：PUT /api/v1/chat-history/:roomId/status
- * 更新会话状态
- */
-router.put('/:roomId/status', async (req, res) => {
-    try {
-        const { roomId } = req.params;
-        const { status } = req.body;
-
-        await pool.query(
-            'UPDATE chat_rooms SET status = $1, updated_at = NOW() WHERE id = $2',
-            [status, roomId]
-        );
-
-        res.json({ success: true, message: '状态更新成功' });
-    } catch (error) {
-        console.error('更新状态失败:', error);
-        res.status(500).json({ success: false, message: '更新失败' });
     }
 });
 

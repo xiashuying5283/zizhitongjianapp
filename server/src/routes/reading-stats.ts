@@ -1,10 +1,8 @@
 import express, { type Request, type Response } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
 const router = express.Router();
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+const pool = getPgPool();
 
 /**
  * 服务端文件：server/src/routes/reading-stats.ts

@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useMemo, useState, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -66,7 +67,7 @@ export default function EditProfileScreen() {
        * 接口：POST /api/v1/upload/avatar
        * Body 参数：file (FormData), userId: string
        */
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/upload/avatar`, {
+      const response = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/upload/avatar`, {
         method: 'POST',
         body: formData,
       });

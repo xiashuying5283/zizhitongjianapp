@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -128,7 +129,7 @@ export default function ReadingScreen() {
         params.append('deviceId', identity.deviceId);
       }
 
-      const response = await fetch(
+      const response = await apiFetch(
         `${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/volumes/dynasty-groups?${params.toString()}`
       );
       const result = await response.json();
@@ -162,7 +163,7 @@ export default function ReadingScreen() {
 
     setSearching(true);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/paragraphs/search?keyword=${encodeURIComponent(keyword.trim())}&limit=20`
       );
       const result = await response.json();
@@ -272,15 +273,6 @@ export default function ReadingScreen() {
       case 'read': return '已读';
       case 'unread': return '未读';
       default: return '';
-    }
-  };
-
-  const getStatusIcon = (status: ReadingStatus) => {
-    switch (status) {
-      case 'reading': return 'bookmark';
-      case 'read': return 'star';
-      case 'unread': return 'circle';
-      default: return 'circle';
     }
   };
 

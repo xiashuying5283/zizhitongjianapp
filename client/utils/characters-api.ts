@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 /**
  * 人物数据管理
  * 从数据库获取人物信息
@@ -21,7 +22,7 @@ export interface Character {
 // 从数据库获取所有人物
 export async function fetchCharacters(): Promise<Character[]> {
     try {
-        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/historical-characters`);
+        const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/historical-characters`);
         const result = await response.json();
         if (result.success && result.data) {
             return result.data;
@@ -36,7 +37,7 @@ export async function fetchCharacters(): Promise<Character[]> {
 // 根据话题获取相关人物
 export async function fetchCharactersByTopic(topicId: string): Promise<Character[]> {
     try {
-        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/historical-characters/by-topic/${topicId}`);
+        const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/historical-characters/by-topic/${topicId}`);
         const result = await response.json();
         if (result.success && result.data) {
             return result.data;
@@ -51,7 +52,7 @@ export async function fetchCharactersByTopic(topicId: string): Promise<Character
 // 获取单个人物详情
 export async function fetchCharacterDetail(id: string): Promise<Character | null> {
     try {
-        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/characters/${id}`);
+        const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/characters/${id}`);
         const result = await response.json();
         if (result.success && result.data) {
             return result.data;

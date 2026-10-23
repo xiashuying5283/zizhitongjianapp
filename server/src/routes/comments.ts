@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 import { createNotification } from './notifications';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getPgPool();
 const router = Router();
 
 // 辅助：将评论行附加 user 信息

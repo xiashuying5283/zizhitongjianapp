@@ -1,10 +1,8 @@
 import express, { type Request, type Response } from 'express';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
 const router = express.Router();
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+const pool = getPgPool();
 
 // 确保 user_notes 表存在（包含 mark_type 字段）
 async function ensureNotesTable() {

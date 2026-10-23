@@ -6,12 +6,9 @@ import volumeRoutes from "./routes/volumes";
 import characterRoutes from "./routes/characters";
 import readingProgressRoutes from "./routes/reading-progress";
 import authRoutes from "./routes/auth";
-import fetchTestRoutes from "./routes/fetch-test";
-import fetchZizhitongjianRoutes from "./routes/fetch-zizhitongjian";
 import paragraphsRoutes from "./routes/paragraphs";
 import postsRoutes from "./routes/posts";
 import commentsRoutes from "./routes/comments";
-import fetchReferenceRoutes from "./routes/fetch-reference";
 import feedbackRoutes from "./routes/feedback";
 import uploadRoutes from "./routes/upload";
 import bookmarksRoutes from "./routes/bookmarks";
@@ -25,11 +22,13 @@ import customCharactersRoutes from "./routes/custom-characters";
 import chatHistoryRoutes from "./routes/chat-history";
 import groupChatRoutes from "./routes/group-chat";
 import geographyRoutes from "./routes/geography";
+import { assertSessionConfiguration, requireSession } from './auth-session';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+assertSessionConfiguration();
 const port = process.env.PORT || 9091;
 
 // Middleware
@@ -46,17 +45,23 @@ app.get('/api/v1/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// Authentication endpoints issue credentials; all other API requests require one.
+app.use('/api/v1', (req, res, next) => {
+  if (req.path === '/auth/login' || req.path === '/auth/register' || req.path === '/auth/check-username' || req.path === '/health') {
+    next();
+    return;
+  }
+  requireSession(req, res, next);
+});
+
 // Routes
 app.use('/api/v1/volumes', volumeRoutes);
 app.use('/api/v1/characters', characterRoutes);
 app.use('/api/v1/reading-progress', readingProgressRoutes);
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1', fetchTestRoutes);
-app.use('/api/v1/fetch-zizhitongjian', fetchZizhitongjianRoutes);
 app.use('/api/v1/paragraphs', paragraphsRoutes);
 app.use('/api/v1/posts', postsRoutes);
 app.use('/api/v1/comments', commentsRoutes);
-app.use('/api/v1/fetch-reference', fetchReferenceRoutes);
 app.use('/api/v1/feedback', feedbackRoutes);
 app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/bookmarks', bookmarksRoutes);
@@ -69,7 +74,6 @@ app.use('/api/v1/historical-characters', historicalCharactersRoutes);
 app.use('/api/v1/custom-characters', customCharactersRoutes);
 app.use('/api/v1/chat-history', chatHistoryRoutes);
 app.use('/api/v1/group-chat', groupChatRoutes);
-app.use('/api/v1/custom-characters', customCharactersRoutes);
 app.use('/api/v1/geography', geographyRoutes);
 
 app.listen(port, () => {

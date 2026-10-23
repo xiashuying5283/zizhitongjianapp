@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiFetch } from './apiFetch';
+import { getSessionToken, removeSessionToken, setSessionToken } from './sessionToken';
 
 const USER_KEY = 'zizhitongjian_user';
 
@@ -33,8 +35,8 @@ export async function register(
     });
     const result = await response.json();
 
-    if (result.success && result.data) {
-      await saveUser(result.data);
+    if (result.success && result.data && result.token) {
+      await saveUser(result.data, result.token);
       return { success: true, user: result.data };
     }
     return { success: false, message: result.message || '注册失败' };
@@ -61,8 +63,8 @@ export async function login(
     });
     const result = await response.json();
 
-    if (result.success && result.data) {
-      await saveUser(result.data);
+    if (result.success && result.data && result.token) {
+      await saveUser(result.data, result.token);
       return { success: true, user: result.data };
     }
     return { success: false, message: result.message || '登录失败' };
@@ -100,7 +102,7 @@ export async function updateProfile(
   data: { nickname?: string; avatar?: string }
 ): Promise<{ success: boolean; user?: User; message?: string }> {
   try {
-    const response = await fetch(`${BASE_URL}/api/v1/auth/profile`, {
+    const response = await apiFetch(`${BASE_URL}/api/v1/auth/profile`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, ...data }),
@@ -121,7 +123,8 @@ export async function updateProfile(
 /**
  * 保存用户信息到本地存储
  */
-export async function saveUser(user: User): Promise<void> {
+export async function saveUser(user: User, token?: string): Promise<void> {
+  if (token) await setSessionToken(token);
   cachedUser = user; // 更新缓存
   await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
 }
@@ -137,7 +140,7 @@ export async function getStoredUser(): Promise<User | null> {
 
   try {
     const userStr = await AsyncStorage.getItem(USER_KEY);
-    if (userStr) {
+    if (userStr && await getSessionToken()) {
       const parsed = JSON.parse(userStr) as User;
       cachedUser = parsed;
       return parsed;
@@ -155,5 +158,5 @@ export async function getStoredUser(): Promise<User | null> {
  */
 export async function clearUser(): Promise<void> {
   cachedUser = null; // 清除缓存
-  await AsyncStorage.removeItem(USER_KEY);
+  await Promise.all([AsyncStorage.removeItem(USER_KEY), removeSessionToken()]);
 }

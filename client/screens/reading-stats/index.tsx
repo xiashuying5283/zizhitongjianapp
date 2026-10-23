@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
@@ -65,9 +66,9 @@ export default function ReadingStatsScreen() {
 
       // 并行获取数据
       const [summaryRes, dailyRes, achievementsRes] = await Promise.all([
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/summary?${identityQuery}`),
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/daily?${identityQuery}&days=30`),
-        fetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/achievements?${identityQuery}`),
+        apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/summary?${identityQuery}`),
+        apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/daily?${identityQuery}&days=30`),
+        apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/achievements?${identityQuery}`),
       ]);
 
       if (summaryRes.ok) {

@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import { createFormDataFile } from '@/utils';
 
 const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
@@ -30,7 +31,7 @@ export async function uploadImage(uri: string, userId: string): Promise<UploadRe
     formData.append('file', file as any);
     formData.append('userId', userId);
 
-    const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/upload/image`, {
+    const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/upload/image`, {
       method: 'POST',
       body: formData,
     });
@@ -61,7 +62,7 @@ export async function uploadAvatar(uri: string, userId: string): Promise<UploadR
     formData.append('file', file as any);
     formData.append('userId', userId);
 
-    const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/upload/avatar`, {
+    const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/upload/avatar`, {
       method: 'POST',
       body: formData,
     });

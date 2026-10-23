@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
     View,
@@ -261,7 +262,7 @@ export default function GroupChatScreen() {
     // 获取话题对应的场景列表
     const fetchSceneList = async (topicId: string) => {
         try {
-            const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/scenes/${topicId}`);
+            const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/scenes/${topicId}`);
             const result = await response.json();
             if (result.success && result.data) {
                 setSceneList(result.data);
@@ -395,7 +396,7 @@ export default function GroupChatScreen() {
                     content: m.content,
                 }));
 
-                const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/generate-next`, {
+                const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/generate-next`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -579,7 +580,7 @@ export default function GroupChatScreen() {
                     content: m.content,
                 }));
 
-                const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/generate-next`, {
+                const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/generate-next`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -732,7 +733,7 @@ export default function GroupChatScreen() {
 
         // 5轮结束后场景仍未切换，强制推进
         if (!sceneChanged && initialSceneId) {
-            const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/advance-scene`, {
+            const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/advance-scene`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -798,7 +799,7 @@ export default function GroupChatScreen() {
                 setPhase('chatting');
 
                 // 调用 /start 接口获取开局消息
-                const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/start`, {
+                const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -925,7 +926,7 @@ export default function GroupChatScreen() {
                 },
             ];
 
-            const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/generate-next`, {
+            const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/group-chat/generate-next`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

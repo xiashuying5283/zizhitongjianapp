@@ -1,10 +1,31 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
+import { createSessionToken } from '../auth-session';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getPgPool();
 const router = Router();
 const SALT_ROUNDS = 10;
+
+router.get('/me', async (_req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, username, nickname, avatar, created_at FROM users WHERE id = $1',
+      [res.locals.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, message: '用户不存在' });
+    }
+    const user = result.rows[0];
+    res.json({ success: true, data: {
+      id: user.id, username: user.username, nickname: user.nickname,
+      avatar: user.avatar, createdAt: user.created_at,
+    } });
+  } catch (error) {
+    console.error('验证登录状态失败:', error);
+    res.status(500).json({ success: false, message: '验证登录状态失败' });
+  }
+});
 
 /**
  * POST /api/v1/auth/register
@@ -41,6 +62,7 @@ router.post('/register', async (req, res) => {
     const user = result.rows[0];
     res.json({
       success: true,
+      token: createSessionToken(user.id),
       data: {
         id: user.id,
         username: user.username,
@@ -84,6 +106,7 @@ router.post('/login', async (req, res) => {
 
     res.json({
       success: true,
+      token: createSessionToken(user.id),
       data: {
         id: user.id,
         username: user.username,
@@ -124,39 +147,6 @@ router.get('/check-username', async (req, res) => {
       success: true,
       data: { available: true },
     });
-  }
-});
-
-/**
- * GET /api/v1/auth/user/:id
- */
-router.get('/user/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await pool.query(
-      'SELECT id, username, nickname, avatar, created_at FROM users WHERE id = $1',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: '用户不存在' });
-    }
-
-    const user = result.rows[0];
-    res.json({
-      success: true,
-      data: {
-        id: user.id,
-        username: user.username,
-        nickname: user.nickname,
-        avatar: user.avatar,
-        createdAt: user.created_at,
-      },
-    });
-  } catch (error) {
-    console.error('获取用户信息失败:', error);
-    res.status(500).json({ success: false, message: '获取用户信息失败' });
   }
 });
 

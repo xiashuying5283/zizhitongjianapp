@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
 
 // 类型定义
@@ -91,7 +92,7 @@ export interface CharactersResponse {
 
 // 获取朝代列表
 export async function getEras(): Promise<{ success: boolean; data: Era[] }> {
-  const response = await fetch(`${BASE_URL}/api/v1/characters/eras`);
+  const response = await apiFetch(`${BASE_URL}/api/v1/characters/eras`);
   return response.json();
 }
 
@@ -108,7 +109,7 @@ export async function getCharacters(params?: {
   if (params?.page) queryParams.set('page', params.page.toString());
   if (params?.limit) queryParams.set('limit', params.limit.toString());
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${BASE_URL}/api/v1/characters?${queryParams.toString()}`
   );
   return response.json();
@@ -116,7 +117,7 @@ export async function getCharacters(params?: {
 
 // 获取人物详情
 export async function getCharacter(id: number): Promise<{ success: boolean; data: CharacterDetail }> {
-  const response = await fetch(`${BASE_URL}/api/v1/characters/${id}`);
+  const response = await apiFetch(`${BASE_URL}/api/v1/characters/${id}`);
   return response.json();
 }
 
@@ -128,13 +129,13 @@ export async function getCharacterRelations(id: number): Promise<{
     incoming: ReverseRelation[];
   };
 }> {
-  const response = await fetch(`${BASE_URL}/api/v1/characters/${id}/relations`);
+  const response = await apiFetch(`${BASE_URL}/api/v1/characters/${id}/relations`);
   return response.json();
 }
 
 // 获取人物事件
 export async function getCharacterEvents(id: number): Promise<{ success: boolean; data: CharacterEvent[] }> {
-  const response = await fetch(`${BASE_URL}/api/v1/characters/${id}/events`);
+  const response = await apiFetch(`${BASE_URL}/api/v1/characters/${id}/events`);
   return response.json();
 }
 
@@ -147,7 +148,7 @@ export async function getCharacterGraph(params?: {
   if (params?.era) queryParams.set('era', params.era);
   if (params?.characterId) queryParams.set('characterId', params.characterId.toString());
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${BASE_URL}/api/v1/characters/graph?${queryParams.toString()}`
   );
   return response.json();

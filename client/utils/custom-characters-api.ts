@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 /**
  * 自定义角色 API
  */
@@ -21,7 +22,7 @@ export interface CustomCharacter {
 // 获取所有自定义角色
 export async function fetchCustomCharacters(): Promise<CustomCharacter[]> {
     try {
-        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters`);
+        const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters`);
         const result = await response.json();
 
         if (result.success && result.data) {
@@ -37,7 +38,7 @@ export async function fetchCustomCharacters(): Promise<CustomCharacter[]> {
 // 获取单个自定义角色
 export async function fetchCustomCharacter(id: string): Promise<CustomCharacter | null> {
     try {
-        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters/${id}`);
+        const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters/${id}`);
         const result = await response.json();
 
         if (result.success && result.data) {
@@ -59,7 +60,7 @@ export async function createCustomCharacter(data: {
     speaking_style?: string;
 }): Promise<CustomCharacter | null> {
     try {
-        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters`, {
+        const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
@@ -88,7 +89,7 @@ export async function updateCustomCharacter(
     }
 ): Promise<CustomCharacter | null> {
     try {
-        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters/${id}`, {
+        const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
@@ -108,7 +109,7 @@ export async function updateCustomCharacter(
 // 删除自定义角色
 export async function deleteCustomCharacter(id: string): Promise<boolean> {
     try {
-        const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters/${id}`, {
+        const response = await apiFetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/custom-characters/${id}`, {
             method: 'DELETE',
         });
         const result = await response.json();

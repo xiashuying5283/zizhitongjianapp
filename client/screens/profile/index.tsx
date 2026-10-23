@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Image } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -42,7 +43,7 @@ export default function ProfileScreen() {
         params.append('deviceId', identity.deviceId);
       }
 
-      const response = await fetch(
+      const response = await apiFetch(
         `${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/reading-stats/summary?${params.toString()}`
       );
       const result = await response.json();

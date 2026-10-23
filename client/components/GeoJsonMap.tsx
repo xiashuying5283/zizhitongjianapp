@@ -445,29 +445,12 @@ function getBoundingBox(features: GeoJSONFeature[]): { minX: number; minY: numbe
     return { minX, minY, maxX, maxY };
 }
 
-/**
- * 计算多边形的质心
- */
-function calculateCentroid(geometry: GeoJSONFeature['geometry']): [number, number] | null {
-    const coords = extractAllCoordinates(geometry);
-    if (coords.length === 0) return null;
-
-    let sumLon = 0;
-    let sumLat = 0;
-    for (const [lon, lat] of coords) {
-        sumLon += lon;
-        sumLat += lat;
-    }
-
-    return [sumLon / coords.length, sumLat / coords.length];
-}
-
 // 清理 title（去掉括号内的年份信息）
 function cleanTitle(title: string | undefined): string {
     if (!title) return '';
     return title
-        .replace(/（[^）]*\d[^）]*）/g, '')
-        .replace(/\([^)]*\d[^)]*\)/g, '')
+        .replace(/（[^）]*）/g, match => /\d/.test(match) ? '' : match)
+        .replace(/\([^)]*\)/g, match => /\d/.test(match) ? '' : match)
         .trim();
 }
 
@@ -475,8 +458,6 @@ export const GeoJsonMap = ({ geoJson, width = SCREEN_WIDTH, height = 400, style,
     const { theme } = useTheme();
     const webViewRef = useRef<WebView>(null);
     const [loading, setLoading] = useState(true);
-    const cachedHtmlRef = useRef<string>('');
-    const geoJsonKeyRef = useRef<string>('');
 
     // 生成 GeoJSON 的唯一 key（用于判断内容是否变化）
     const geoJsonKey = useMemo(() => {
@@ -488,12 +469,6 @@ export const GeoJsonMap = ({ geoJson, width = SCREEN_WIDTH, height = 400, style,
     const htmlContent = useMemo(() => {
         if (!geoJson?.features?.length) {
             return '';
-        }
-
-        // 如果内容没变，返回缓存的 HTML
-        if (geoJsonKey && geoJsonKey === geoJsonKeyRef.current && cachedHtmlRef.current) {
-            console.log('GeoJsonMap: 使用缓存');
-            return cachedHtmlRef.current;
         }
 
         console.log('GeoJsonMap: 处理', geoJson.features.length, '个 features');
@@ -616,12 +591,8 @@ export const GeoJsonMap = ({ geoJson, width = SCREEN_WIDTH, height = 400, style,
 </body>
 </html>`;
 
-        // 缓存 HTML 和 key
-        cachedHtmlRef.current = html;
-        geoJsonKeyRef.current = geoJsonKey;
-
         return html;
-    }, [geoJson, geoJsonKey]);
+    }, [geoJson]);
 
     if (!geoJson?.features?.length) {
         return (

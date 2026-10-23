@@ -4,11 +4,9 @@
  * 直接从 era_years 表获取 display_name 字段作为年号显示
  */
 
-import { Pool } from 'pg';
+import { getPgPool } from '../storage/database/pg-pool';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+const pool = getPgPool();
 
 // 年号缓存（从 era_years 表加载）
 let eraYearsCache: Array<{

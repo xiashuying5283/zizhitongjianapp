@@ -1,4 +1,4 @@
-import { pgTable, serial, bigSerial, timestamp, foreignKey, integer, smallint, numeric, text, varchar, unique, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core"
+import { pgTable, serial, bigserial, timestamp, foreignKey, integer, smallint, numeric, text, varchar, unique, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -67,7 +67,7 @@ export const readingProgress = pgTable("reading_progress", {
 ]);
 
 export const userReadProgress = pgTable("user_read_progress", {
-	id: bigSerial("id", { mode: "number" }).primaryKey(),
+	id: bigserial("id", { mode: "number" }).primaryKey(),
 	userId: integer("user_id").notNull(),
 	volumeId: integer("volume_id").notNull(),
 	yearId: integer("year_id").notNull().default(0),

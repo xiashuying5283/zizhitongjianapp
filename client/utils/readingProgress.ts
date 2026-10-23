@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import { getDeviceId } from './deviceId';
 import { getStoredUser } from './auth';
 
@@ -60,7 +61,7 @@ export async function getRecentRead(): Promise<RecentRead | null> {
     if (!userId) return null;
 
     const params = new URLSearchParams({ userId: String(userId) });
-    const response = await fetch(`${BASE_URL}/api/v1/reading-progress/recent?${params.toString()}`);
+    const response = await apiFetch(`${BASE_URL}/api/v1/reading-progress/recent?${params.toString()}`);
     const result = await response.json();
     return result.success ? result.data : null;
   } catch (error) {
@@ -80,7 +81,7 @@ export async function getReadingRecords(): Promise<ReadingRecord[]> {
     if (!userId) return [];
 
     const params = new URLSearchParams({ userId: String(userId) });
-    const response = await fetch(`${BASE_URL}/api/v1/reading-progress?${params.toString()}`);
+    const response = await apiFetch(`${BASE_URL}/api/v1/reading-progress?${params.toString()}`);
     const result = await response.json();
     return result.success ? result.data : [];
   } catch (error) {
@@ -106,7 +107,7 @@ export async function updateReadingProgress(params: {
     const { userId } = await getUserIdentity();
     if (!userId) return false;
 
-    const response = await fetch(`${BASE_URL}/api/v1/reading-progress`, {
+    const response = await apiFetch(`${BASE_URL}/api/v1/reading-progress`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -143,7 +144,7 @@ export async function getReadingStatus(
       volumeNumbers: volumeNumbers.join(','),
     });
 
-    const response = await fetch(`${BASE_URL}/api/v1/reading-progress/status?${params.toString()}`);
+    const response = await apiFetch(`${BASE_URL}/api/v1/reading-progress/status?${params.toString()}`);
     const result = await response.json();
     return result.success ? result.data : {};
   } catch (error) {

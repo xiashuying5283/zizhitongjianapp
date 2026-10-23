@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, FlatList, TouchableOpacity, TextInput, RefreshControl } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -64,7 +65,7 @@ export default function TitlesScreen() {
                 params.append('search', searchQuery);
             }
 
-            const response = await fetch(
+            const response = await apiFetch(
                 `${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/encyclopedia/titles?${params}`
             );
 

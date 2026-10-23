@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, getStoredUser, clearUser } from '@/utils/auth';
+import { apiFetch, onSessionExpired } from '@/utils/apiFetch';
 
 interface AuthContextType {
   user: User | null;
@@ -17,10 +18,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // 初始化时从本地存储加载用户信息
-    getStoredUser().then(storedUser => {
+    const unsubscribe = onSessionExpired(() => {
+      void clearUser().then(() => setUser(null));
+    });
+    getStoredUser().then(async storedUser => {
+      if (storedUser) {
+        try {
+          const response = await apiFetch(`${process.env.EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/auth/me`);
+          if (!response.ok) {
+            await clearUser();
+            storedUser = null;
+          }
+        } catch {
+          // Keep the session during a temporary network outage.
+        }
+      }
       setUser(storedUser);
       setIsLoading(false);
     });
+    return unsubscribe;
   }, []);
 
   const logout = useCallback(async () => {

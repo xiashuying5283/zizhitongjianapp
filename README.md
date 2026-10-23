@@ -60,7 +60,12 @@ pnpm dev
 
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/zizhitongjian
+AUTH_SECRET=replace-me
 PORT=9091
 EXPO_PUBLIC_BACKEND_BASE_URL=
 APP_NAME=资治通鉴深度阅读App
 ```
+
+`AUTH_SECRET` 必须换成至少 32 个字符的随机值。可以用 `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64'))"` 生成；多个服务实例需使用同一个值。
+
+自定义角色首次访问时会自动创建 `custom_characters` 表和索引。如果运行账号没有建表权限，先用具备权限的账号执行 `server/sql/custom_characters.sql`。

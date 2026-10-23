@@ -10,7 +10,7 @@ export default function AppTabLayout() {
   const insets = useSafeAreaInsets();
 
   const renderTabIcon = (name: ComponentProps<typeof FontAwesome6>['name']) =>
-    ({ color, focused }: { color: string; focused: boolean }) => (
+    function TabIcon({ color, focused }: { color: string; focused: boolean }) { return (
       <View
         style={{
           minWidth: 42,
@@ -31,7 +31,7 @@ export default function AppTabLayout() {
           solid={focused}
         />
       </View>
-    );
+    ); };
 
   return (
     <Tabs

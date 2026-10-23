@@ -1,3 +1,4 @@
+import { apiFetch } from '@/utils/apiFetch';
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
@@ -59,7 +60,7 @@ export default function EraDetailScreen() {
                     url += `&emperorName=${encodeURIComponent(emperorName)}`;
                 }
 
-                const response = await fetch(url);
+                const response = await apiFetch(url);
                 const result = await response.json();
 
                 if (result.success && result.data) {
